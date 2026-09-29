@@ -25,6 +25,7 @@ class TeamSelectActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_team_select)
+        SystemBars.keepClear(this)
         StartBackground.applyTo(this)
 
         val roomName = Session.roomName(this)
