@@ -21,6 +21,7 @@ shots and scores sync live between phones.
 - [Project structure](#project-structure)
 - [Maps](#maps)
 - [Testing](#testing)
+- [Publishing](#publishing)
 - [Contributing](#contributing)
 - [Credits](#credits)
 - [License](#license)
@@ -36,7 +37,8 @@ shots and scores sync live between phones.
 ### Multiplayer
 - **Rooms:** public or password-protected. The password is checked by the database's security
   rules, not by the app.
-- **Seven teams,** each with its own flag, colours and uniform. Teammates can't hurt each other.
+- **Seven fictional factions,** each with its own flag, colours and uniform. Teammates can't hurt
+  each other.
 - **Timed matches:** the room's creator sets the length, from 30 seconds to 1 hour. Every phone
   counts down to the same end time, which comes from the server.
 
@@ -59,6 +61,7 @@ shots and scores sync live between phones.
 - **Your face on your soldier:** the front camera and ML Kit face detection put your photo on
   your character's head.
 - **Speech bubbles** and **photo drops** left in the city for other players to find.
+- **Safety and privacy:** report or block other players, and delete all your data from the menu.
 
 ### Offline mode
 Without a Firebase configuration, the app still builds and runs as a single-player sandbox.
@@ -78,7 +81,7 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | **1st / 3rd person** | Switch camera view |
 | **Say** / **Drop photo** | Speech bubble / leave a photo in the street |
 | Timer (top centre) | Open the scoreboard |
-| Name button (top left) | Menu: scoreboard, change team, retake face photo, street photos, leave room, log out |
+| Name button (top left) | Menu: scoreboard, players (report / block), change team, retake face photo, street photos, leave room, log out, delete my data |
 | Minimap (top right) | Open the full map |
 
 ### Weapons
@@ -114,8 +117,8 @@ random street and get at least their starting bullets back.
 | Area | Technology |
 | --- | --- |
 | Language | Kotlin 1.9, Java 11 bytecode |
-| Build | Gradle (Kotlin DSL), Android Gradle Plugin 8.7 |
-| Platform | Android 8.0+ (min SDK 26), target SDK 34 |
+| Build | Gradle 8.13 (Kotlin DSL), Android Gradle Plugin 8.11 |
+| Platform | Android 8.0+ (min SDK 26), target SDK 36 (Android 16) |
 | Rendering | Custom OpenGL ES 2.0 renderer, skinned glTF (`.glb`) soldier models |
 | Camera | CameraX 1.3, ML Kit face detection |
 | Backend | Firebase Realtime Database and Anonymous Authentication (fits the free Spark plan) |
@@ -125,7 +128,7 @@ random street and get at least their starting bullets back.
 ## Getting started
 
 ### Requirements
-- Android Studio Ladybug (2024.2) or newer, with its bundled JDK
+- Android Studio Narwhal (2025.1) or newer, with its bundled JDK
 - An Android 8.0+ device or emulator with OpenGL ES 2.0
 - Optional, for multiplayer: a Firebase project
 
@@ -193,6 +196,23 @@ top-down preview image.
 
 Unit tests cover map loading, the soldier model and animations, sound synthesis, the match clock,
 scoreboard ranking, army ranks, and weapon and pickup rules.
+
+## Publishing
+
+The app is prepared for Google Play under the package name `com.alahib.beirutstrike`:
+
+- **[PLAY_STORE.md](PLAY_STORE.md):** release checklist: developer account, Firebase, upload key,
+  building the `.aab`, testing tracks and going live.
+- **[STORE_LISTING.md](STORE_LISTING.md):** store listing text, content rating and Data safety
+  answers.
+- **[PRIVACY_POLICY.md](PRIVACY_POLICY.md):** the privacy policy linked from the store.
+
+Release builds are signed with an upload key described in a local, git-ignored
+`keystore.properties`:
+
+```bash
+./gradlew bundleRelease   # → app/build/outputs/bundle/release/app-release.aab
+```
 
 ## Contributing
 
