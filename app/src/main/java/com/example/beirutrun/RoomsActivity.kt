@@ -49,6 +49,9 @@ class RoomsActivity : AppCompatActivity() {
         list.setOnItemClickListener { _, _, position, _ -> onRoomTapped(adapter.getItem(position)) }
         createButton.setOnClickListener { showCreateDialog() }
         createButton.isEnabled = false
+        findViewById<View>(R.id.rankingButton).setOnClickListener {
+            startActivity(Intent(this, RankingActivity::class.java))
+        }
 
         if (!FirebaseSession.configured(this)) {
             // Built without Firebase: there are no rooms, just this phone.
@@ -67,6 +70,8 @@ class RoomsActivity : AppCompatActivity() {
             val dir = RoomDirectory(uid)
             directory = dir
             createButton.isEnabled = true
+            // Came from "New room" on a finished game's scoreboard: go straight to creating one.
+            if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_CREATE_ROOM, false)) showCreateDialog()
             dir.listen(
                 onRooms = { rooms ->
                     status.text = resources.getQuantityString(R.plurals.rooms_count, rooms.size, rooms.size)
@@ -245,6 +250,11 @@ class RoomsActivity : AppCompatActivity() {
     private fun enter(id: String, name: String, map: String) {
         Session.setRoom(this, id, name, map)
         startActivity(Intent(this, TeamSelectActivity::class.java))
+    }
+
+    companion object {
+        /** Open the create-room dialog as soon as the screen is ready. */
+        const val EXTRA_CREATE_ROOM = "create_room"
     }
 
     private inner class RoomAdapter : BaseAdapter() {

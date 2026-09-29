@@ -268,7 +268,13 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         bindShootButton(shootButton)
         gameTimer = findViewById(R.id.gameTimer)
         gameTimer.setOnClickListener { showScoreboard() }
-        scoreboard = Scoreboard(this, myUid = { online.uid }, onLeave = ::leaveRoom)
+        scoreboard = Scoreboard(
+            this,
+            myUid = { online.uid },
+            onLeave = { leaveRoom() },
+            onNewRoom = { leaveRoom(createNext = true) },
+            onRanking = ::showRanking,
+        )
         crosshair = findViewById(R.id.crosshair)
         findViewById<MaterialButton>(R.id.jumpButton).setOnClickListener { if (!dead) renderer.jump() }
         crawlButton = findViewById(R.id.crawlButton)
@@ -453,6 +459,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         this.stats = stats
         scoreboard.update(stats)
     }
+
+    override fun onCareerScores(scores: Map<String, Int>) = scoreboard.updateCareer(scores)
 
     // ---- Game clock and scoreboard ------------------------------------------------------------
 
@@ -735,7 +743,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             repo.removeAllStreets()
             recreate()
         }
-        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to ::leaveRoom
+        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to { leaveRoom() }
         actions += R.string.menu_logout to {
             leavingRoom = true
             Session.logout(this)
@@ -751,12 +759,20 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             .show()
     }
 
-    private fun leaveRoom() {
+    /** Back to the room list; with [createNext], it opens the create-room dialog straight away. */
+    private fun leaveRoom(createNext: Boolean = false) {
         leavingRoom = true
         Session.setRoom(this, null, null)
         startActivity(Intent(this, RoomsActivity::class.java)
+            .putExtra(RoomsActivity.EXTRA_CREATE_ROOM, createNext)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
     }
+
+    /**
+     * All players' career ranking, over the city (back returns to it). Only offered once the game
+     * is over: while it's open this player vanishes from the others' cities, like in the background.
+     */
+    private fun showRanking() = startActivity(Intent(this, RankingActivity::class.java))
 
     companion object {
         /** The timer turns red for the last half minute. */

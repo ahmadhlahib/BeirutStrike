@@ -75,6 +75,26 @@ data class PlayerStats(
 ) {
     /** Share of shots that hit, 0..1. */
     val accuracy get() = if (shots > 0) hits.toFloat() / shots else 0f
+
+    /** A player's score is how many of their shots hit an enemy. */
+    val score get() = hits
+
+    companion object {
+        /** Reads a `stats/{uid}` or `career/{uid}` entry. */
+        fun from(s: DataSnapshot): PlayerStats? {
+            fun count(key: String) = (s.child(key).value as? Number)?.toInt() ?: 0
+            return PlayerStats(
+                uid = s.key ?: return null,
+                name = s.child("name").getValue(String::class.java).orEmpty(),
+                team = s.child("team").getValue(String::class.java).orEmpty(),
+                kills = count("kills"),
+                deaths = count("deaths"),
+                shots = count("shots"),
+                hits = count("hits"),
+                hitsTaken = count("hitsTaken"),
+            )
+        }
+    }
 }
 
 /**
@@ -88,6 +108,9 @@ data class PlayerStats(
  *   writes it here; the victim's phone counts hits, handles dying, and deletes them.
  * - `stats/{uid}`: that player's kills, deaths, shots, hits and hits taken for the scoreboard.
  *   Each phone only adds to its own, and they stay when the player leaves.
+ *
+ * Outside the room, `career/{uid}` adds up the same counts over every game played, for the
+ * ranking screen and army ranks (see Army).
  *
  * The game clock is in the room list: `roomList/{room}/duration` (set by the room's creator) and
  * `startedAt`, which the first player into the city sets to the server's time.
@@ -125,6 +148,8 @@ class OnlineWorld(
         fun onGameClock(startedAt: Long, durationMs: Long) = Unit
         /** Everyone's scores in this room, as they change. */
         fun onStats(stats: List<PlayerStats>) = Unit
+        /** Career scores (all games) of the players on this room's scoreboard, by uid. */
+        fun onCareerScores(scores: Map<String, Int>) = Unit
     }
 
     var listener: Listener? = null
@@ -142,7 +167,6 @@ class OnlineWorld(
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private val prefs = context.getSharedPreferences("online", Context.MODE_PRIVATE)
-    private val remoteFaces = File(context.filesDir, "faces_remote").apply { mkdirs() }
 
     private var db: FirebaseDatabase? = null
     private var me: DatabaseReference? = null
@@ -182,6 +206,8 @@ class OnlineWorld(
     private val pendingStats = HashMap<String, Long>()
     private var statsDirty = true
     private var lastStatsWrite = 0L
+    /** Career scores of the players on the scoreboard, each followed once it shows up. */
+    private val careerScores = HashMap<String, Int>()
 
     private val players = HashMap<String, RemotePlayer>()
     private var remoteDrops: List<PhotoDrop> = emptyList()
@@ -189,7 +215,7 @@ class OnlineWorld(
     private val downloadingFaces = HashSet<String>()
 
     /** Where another player's face is kept once downloaded. */
-    fun remoteFaceFile(uid: String) = File(remoteFaces, "$uid.img")
+    fun remoteFaceFile(uid: String) = FaceStore.file(context, uid)
 
     // ---- Lifecycle ----------------------------------------------------------------------------
 
@@ -462,8 +488,9 @@ class OnlineWorld(
     }
 
     /**
-     * Adds my pending counts to `stats/{uid}`, at most every [STATS_WRITE_MS] unless [force].
-     * They are increments, so counts from before the screen was rebuilt are kept.
+     * Adds my pending counts to this room's `stats/{uid}` and to my `career/{uid}` in one write,
+     * at most every [STATS_WRITE_MS] unless [force]. They are increments, so counts from before
+     * the screen was rebuilt, and from earlier games, are kept.
      */
     private fun flushStats(force: Boolean = false) {
         val database = db ?: return
@@ -472,28 +499,38 @@ class OnlineWorld(
         val now = System.currentTimeMillis()
         if (!force && now - lastStatsWrite < STATS_WRITE_MS) return
         lastStatsWrite = now
-        val update = mutableMapOf<String, Any>("name" to name, "team" to team)
-        for ((key, count) in pendingStats) update[key] = ServerValue.increment(count)
+        val update = mutableMapOf<String, Any>()
+        for (path in listOf("${room}stats/$userId", "career/$userId")) {
+            update["$path/name"] = name
+            update["$path/team"] = team
+            for ((key, count) in pendingStats) update["$path/$key"] = ServerValue.increment(count)
+        }
+        update["career/$userId/updated"] = ServerValue.TIMESTAMP
         pendingStats.clear()
         statsDirty = false
-        database.getReference("${room}stats/$userId").updateChildren(update)
+        database.reference.updateChildren(update)
             .addOnFailureListener { Log.w(TAG, "Stats update failed: ${it.message}") }
     }
 
     private fun onStatsSnapshot(snapshot: DataSnapshot) {
-        val stats = snapshot.children.mapNotNull { s ->
-            PlayerStats(
-                uid = s.key ?: return@mapNotNull null,
-                name = s.child("name").getValue(String::class.java).orEmpty(),
-                team = s.child("team").getValue(String::class.java).orEmpty(),
-                kills = s.num("kills").toInt(),
-                deaths = s.num("deaths").toInt(),
-                shots = s.num("shots").toInt(),
-                hits = s.num("hits").toInt(),
-                hitsTaken = s.num("hitsTaken").toInt(),
-            )
+        val stats = snapshot.children.mapNotNull(PlayerStats::from)
+        for (s in stats) {
+            followCareer(s.uid)
+            // Players who already left still get their face on the scoreboard.
+            ensureFace(s.uid, null)
         }
         listener?.onStats(stats)
+    }
+
+    /** Keeps [careerScores] up to date for [userId] (their army rank depends on it). */
+    private fun followCareer(userId: String) {
+        val database = db ?: return
+        if (careerScores.containsKey(userId)) return
+        careerScores[userId] = 0
+        listenValue(database.getReference("career/$userId/hits")) { snap ->
+            careerScores[userId] = (snap.value as? Number)?.toInt() ?: 0
+            listener?.onCareerScores(HashMap(careerScores))
+        }
     }
 
     // ---- Other players ------------------------------------------------------------------------

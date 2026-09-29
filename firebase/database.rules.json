@@ -109,6 +109,23 @@
         }
       }
     },
+    "career": {
+      ".read": "auth != null",
+      ".indexOn": ["hits"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['name'])",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "team": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "kills": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "deaths": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "shots": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "hits": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "hitsTaken": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "updated": { ".validate": "newData.isNumber() && newData.val() <= now" },
+        "$other": { ".validate": false }
+      }
+    },
     "faces": {
       ".read": "auth != null",
       "$uid": {

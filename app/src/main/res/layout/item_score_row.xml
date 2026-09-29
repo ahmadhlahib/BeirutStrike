@@ -6,9 +6,9 @@
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingStart="8dp"
-    android:paddingTop="6dp"
+    android:paddingTop="4dp"
     android:paddingEnd="8dp"
-    android:paddingBottom="6dp">
+    android:paddingBottom="4dp">
 
     <TextView
         android:id="@+id/scoreRank"
@@ -19,18 +19,41 @@
     <!-- Team colour. -->
     <View
         android:id="@+id/scoreSwatch"
-        android:layout_width="10dp"
-        android:layout_height="18dp"
+        android:layout_width="6dp"
+        android:layout_height="36dp"
         android:layout_marginEnd="8dp" />
 
-    <TextView
-        android:id="@+id/scoreName"
-        style="@style/ScoreCell"
+    <!-- Player rows: face with a star for Commanders. -->
+    <include
+        android:id="@+id/scoreFace"
+        layout="@layout/view_face_badge"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="8dp" />
+
+    <LinearLayout
         android:layout_width="0dp"
+        android:layout_height="wrap_content"
         android:layout_weight="2.2"
-        android:ellipsize="end"
-        android:gravity="start"
-        android:maxLines="1" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/scoreName"
+            style="@style/ScoreCell"
+            android:layout_width="match_parent"
+            android:ellipsize="end"
+            android:maxLines="1" />
+
+        <!-- Army rank: Commander or Soldier. -->
+        <TextView
+            android:id="@+id/scoreArmyRank"
+            style="@style/ScoreCell"
+            android:layout_width="match_parent"
+            android:maxLines="1"
+            android:textColor="#AAFFFFFF"
+            android:textSize="11sp"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/scoreTeam"
@@ -41,11 +64,11 @@
         android:gravity="start"
         android:maxLines="1" />
 
+    <TextView android:id="@+id/scorePoints" style="@style/ScoreNumber" />
     <TextView android:id="@+id/scoreKills" style="@style/ScoreNumber" />
     <TextView android:id="@+id/scoreDeaths" style="@style/ScoreNumber" />
     <TextView android:id="@+id/scoreRatio" style="@style/ScoreNumber" />
     <TextView android:id="@+id/scoreShots" style="@style/ScoreNumber" />
-    <TextView android:id="@+id/scoreHits" style="@style/ScoreNumber" />
     <TextView android:id="@+id/scoreAccuracy" style="@style/ScoreNumber" />
     <TextView android:id="@+id/scoreHitsTaken" style="@style/ScoreNumber" />
 </LinearLayout>

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The scoreboard: team totals, then every player's stats. Shown full screen over the city. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F0101418"
@@ -77,6 +78,27 @@
         android:layout_marginTop="8dp"
         android:gravity="end"
         android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/scoreRanking"
+            style="@style/HudButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:text="@string/ranking_title"
+            android:visibility="gone" />
+
+        <!-- Only once the game is over: straight to creating the next room. -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/scoreNewRoom"
+            style="@style/HudButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:text="@string/score_new_room"
+            android:visibility="gone"
+            app:backgroundTint="#FFFFB300"
+            android:textColor="#FF212121" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/scoreLeave"

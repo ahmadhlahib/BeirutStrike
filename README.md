@@ -19,8 +19,13 @@ Made for fun, to play with friends.
   and hard to hit) and jump.
 - **Timed games and scoreboard.** The room's creator sets the game length, from 30 seconds to
   an hour. A countdown shows how much time is left. When it runs out, a scoreboard shows every
-  player's and team's kills, deaths, K/D, shots, hits, accuracy and hits taken. You can also open
-  the live scoreboard from the top-left menu at any time.
+  player's and team's score, kills, deaths, K/D, shots, accuracy and hits taken. You can also open
+  the live scoreboard from the top-left menu at any time. When the game is over, you can go straight
+  to creating a new room.
+- **Ranking and army ranks.** A player's score is how many of their shots hit an enemy, added up
+  over every game. The Ranking screen lists every player with their face, score, shots, kills and
+  success rate. Players with more than 100 successful shots become a ★ Commander; everyone else is
+  a Soldier.
 - **Your face on your soldier.** The front camera and ML Kit face detection put your face on
   your character's head.
 - **Say and drop.** Speech bubbles over your character, and photos you drop in the city for
