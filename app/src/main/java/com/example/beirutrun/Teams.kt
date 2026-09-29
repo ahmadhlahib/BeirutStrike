@@ -41,19 +41,23 @@ private fun shade(color: Int, k: Float): Int = mix(0xFF000000.toInt(), color, k)
  * `app/src/main/assets/flags/<id>.png`. Don't change an existing id once people have played,
  * because players online are stored with their team id.
  *
+ * Teams are fictional factions: don't name them after real political parties, militias or other
+ * groups, or use their flags (Google Play rejects apps that do). The flags are drawn by
+ * `tools/FactionFlags.java`.
+ *
  * Every player on a team wears the same soldier uniform with the team flag on both shoulders.
  * To choose the uniform yourself, add the colours, e.g.
- * `Team("hezbollah", "Hezbollah", 0xFFF9A825.toInt(), uniform = 0xFF5B5A2E.toInt(), gear = 0xFF3A3A1E.toInt()),`
+ * `Team("golden_lions", "Golden Lions", 0xFFF9A825.toInt(), uniform = 0xFF5B5A2E.toInt(), gear = 0xFF3A3A1E.toInt()),`
  */
 object Teams {
     val all = listOf(
         Team("el_lahib", "عشيرة اللهيب", 0xFF6A1B9A.toInt()),
-        Team("tayyar_mostakbal", "Tayar Mostakbal", 0xFF1565C0.toInt()),
-        Team("hezbollah", "Hezbollah", 0xFFF9A825.toInt()),
-        Team("haraket_amal", "Haraket Amal", 0xFF00A651.toInt()),
-        Team("lebanese_forces", "Lebanese Forces", 0xFFC62828.toInt()),
-        Team("tayyar_watani_hor", "Tayyar Watani Hor", 0xFFEF6C00.toInt()),
-        Team("hezb_el_ishtiraki", "Hezb el Ishtiraki", 0xFF6A1B9A.toInt()),
+        Team("corniche_sharks", "Corniche Sharks", 0xFF1565C0.toInt()),
+        Team("golden_lions", "Golden Lions", 0xFFF9A825.toInt()),
+        Team("evergreen_squad", "Evergreen Squad", 0xFF2E7D32.toInt()),
+        Team("raouche_eagles", "Raouche Eagles", 0xFFC62828.toInt()),
+        Team("phoenix_legion", "Phoenix Legion", 0xFFEF6C00.toInt()),
+        Team("summit_rangers", "Summit Rangers", 0xFF00897B.toInt()),
     )
 
     fun byId(id: String?): Team? = all.firstOrNull { it.id == id }
