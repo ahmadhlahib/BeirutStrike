@@ -17,3 +17,6 @@ local.properties
 # Mixamo source files (licence does not allow redistributing them)
 /tools/models/mixamo/
 /tools/models/mixamo_glb/
+
+# Firebase config (keep it local; see FIREBASE_SETUP.md)
+google-services.json
