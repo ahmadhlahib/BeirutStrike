@@ -31,32 +31,10 @@
         android:textColor="#BBFFFFFF"
         android:textSize="13sp" />
 
-    <!-- Column headings, lined up with item_ranking. -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
-
-        <TextView
-            style="@style/RankingHeading"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:gravity="start"
-            android:text="@string/score_players" />
-
-        <TextView style="@style/RankingHeading" android:text="@string/score_col_score" />
-        <TextView style="@style/RankingHeading" android:text="@string/score_col_shots" />
-        <TextView style="@style/RankingHeading" android:text="@string/score_col_kills" />
-        <TextView style="@style/RankingHeading" android:text="@string/ranking_col_accuracy" />
-    </LinearLayout>
-
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="10dp"
         android:layout_weight="1">
 
         <ListView

@@ -97,9 +97,9 @@ class RankingActivity : AppCompatActivity() {
                 if (mine) getString(R.string.score_you, p.name) else p.name
             view.findViewById<TextView>(R.id.rankingArmyRank).text = Army.title(this@RankingActivity, p.score)
             view.findViewById<TextView>(R.id.rankingScore).text = p.score.toString()
-            view.findViewById<TextView>(R.id.rankingShots).text = p.shots.toString()
-            view.findViewById<TextView>(R.id.rankingKills).text = p.kills.toString()
-            view.findViewById<TextView>(R.id.rankingAccuracy).text = Scoreboard.percent(p.accuracy)
+            view.findViewById<TextView>(R.id.rankingDetails).text = getString(
+                R.string.ranking_details, p.shots, p.kills, Scoreboard.percent(p.accuracy),
+            )
             // My own card is outlined.
             (view as MaterialCardView).strokeWidth = if (mine) (2 * resources.displayMetrics.density).toInt() else 0
             return view

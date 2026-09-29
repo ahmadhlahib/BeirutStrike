@@ -130,7 +130,7 @@
         <item quantity="one">1 player</item>
         <item quantity="other">%d players</item>
     </plurals>
-    <string name="ranking_col_accuracy">Success</string>
+    <string name="ranking_details">Shots %1$d · Kills %2$d · Success %3$s</string>
 
     <!-- Teams -->
     <string name="team_title">Choose your team</string>
