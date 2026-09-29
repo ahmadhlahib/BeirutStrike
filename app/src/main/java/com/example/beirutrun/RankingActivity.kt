@@ -32,6 +32,7 @@ class RankingActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_ranking)
+        SystemBars.keepClear(this)
         StartBackground.applyTo(this)
         status = findViewById(R.id.rankingStatus)
         findViewById<TextView>(R.id.rankingRule).text = getString(R.string.ranking_rule, Army.COMMANDER_HITS)

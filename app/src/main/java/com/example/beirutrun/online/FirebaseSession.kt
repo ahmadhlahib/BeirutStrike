@@ -26,6 +26,17 @@ object FirebaseSession {
             }
     }
 
+    /** Deletes this phone's anonymous account; the next [signIn] creates a new one. */
+    fun deleteAccount() {
+        val auth = FirebaseAuth.getInstance()
+        val user = auth.currentUser ?: return
+        user.delete().addOnCompleteListener { task ->
+            if (!task.isSuccessful) Log.w(TAG, "Deleting the account failed", task.exception)
+            // Signed out either way, so this phone's old id is no longer used.
+            auth.signOut()
+        }
+    }
+
     /** The Realtime Database, with offline caching turned on the first time; null if unavailable. */
     fun database(): FirebaseDatabase? = try {
         FirebaseDatabase.getInstance().also {

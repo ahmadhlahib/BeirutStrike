@@ -19,7 +19,7 @@ the Realtime Database, so Cloud Storage (which needs the paid Blaze plan) is not
 
 ## 2. Add the Android app
 1. **Project settings (gear) → Your apps → Android.**
-2. Package name: `com.example.beirutrun` (the `applicationId` in `app/build.gradle.kts`).
+2. Package name: `com.alahib.beirutstrike` (the `applicationId` in `app/build.gradle.kts`).
 3. Download **`google-services.json`** and put it in the **`app/`** folder
    (`beirutrun/app/google-services.json`, next to `app/build.gradle.kts`), not the project root.
    Do this *after* creating the Realtime Database, so the file contains the database URL:
@@ -43,6 +43,7 @@ tag, and a blue dot on the minimap. "Say" bubbles and dropped photos appear on b
 | `hits/{uid}/{id}` | A bullet that hit that player; their phone counts it (5 kill) and deletes it | The shooter creates it; the victim removes it |
 | `rooms/{room}/stats/{uid}` | Scoreboard: kills, deaths, shots, hits, hits taken. Kept when the player leaves. | That player only |
 | `rooms/{room}/pickups/{slot}` | Ammo packs (10 bullets for the pistol or the AK-47) and scopes lying in the street, and when someone took one. Taking and putting one back are transactions, so only one player gets each. | Any member of the room |
+| `reports/{id}` | Reports of a player, message or photo, for the owner to review in the Firebase console. The app can only add reports, never read them. | The reporter |
 | `career/{uid}` | A player's totals over every game: shots, successful shots (their score), kills, deaths, hits taken. Used by the Ranking screen and army ranks (more than 100 successful shots makes a ★ Commander). | That player only |
 | `roomList/{room}/duration`, `startedAt` | Game length (30 s to 1 h) and when the game started. Each can only be set once. | Length: the room's creator. Start: the first player into the city |
 

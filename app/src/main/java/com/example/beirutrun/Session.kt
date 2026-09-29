@@ -21,6 +21,18 @@ object Session {
     fun logout(context: Context) =
         prefs(context).edit().remove(KEY_NAME).remove(KEY_ROOM_ID).remove(KEY_ROOM_NAME).remove(KEY_ROOM_MAP).apply()
 
+    /**
+     * Forgets everything about the player on this phone ("Delete my data"): name, room, team,
+     * view, saved positions, face photos (theirs and downloaded ones) and the online cache.
+     */
+    fun deleteAll(context: Context) {
+        prefs(context).edit().clear().apply()
+        context.getSharedPreferences("online", Context.MODE_PRIVATE).edit().clear().apply()
+        File(context.filesDir, "faces").deleteRecursively()
+        File(context.filesDir, "faces_remote").deleteRecursively()
+        facesDirReady = false
+    }
+
     /** The online room the player is in (null = not chosen yet). */
     fun roomId(context: Context): String? = prefs(context).getString(KEY_ROOM_ID, null)
     fun roomName(context: Context): String? = prefs(context).getString(KEY_ROOM_NAME, null)

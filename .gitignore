@@ -20,3 +20,11 @@ local.properties
 
 # Firebase config (keep it local; see FIREBASE_SETUP.md)
 google-services.json
+
+# Google Play upload key and its passwords (see PLAY_STORE.md). Never commit these.
+keystore.properties
+*.jks
+*.keystore
+
+# Signed release bundles exported from Android Studio
+/app/release/

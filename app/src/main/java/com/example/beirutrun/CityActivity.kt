@@ -424,18 +424,27 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     }
 
     override fun onDrops(drops: List<PhotoDrop>) {
-        // Shared drops, plus any of mine still waiting to upload.
+        sharedDrops = drops
+        // Shared drops (minus those by players I blocked), plus any of mine still waiting to upload.
+        val shown = drops.filterNot { Blocklist.isBlocked(this, it.authorId) }
         val waiting = repo.drops().filter { local -> drops.none { it.id == local.id } }
-        showDrops(drops + waiting)
+        showDrops(shown + waiting)
     }
 
     override fun onPlayers(players: List<RemotePlayer>) {
+        remotePlayers = players
         playerCount = players.size
-        renderer.setRemotePlayers(players)
-        miniMap.players = players
-        fullMap?.players = players
+        // Players I blocked still walk around (they're in the game), but their words don't show.
+        val shown = players.map { if (Blocklist.isBlocked(this, it.uid)) it.copy(say = "") else it }
+        renderer.setRemotePlayers(shown)
+        miniMap.players = shown
+        fullMap?.players = shown
         updateStatusLabel()
     }
+
+    /** The latest drops and players from the server, before blocked players are filtered out. */
+    private var sharedDrops: List<PhotoDrop> = emptyList()
+    private var remotePlayers: List<RemotePlayer> = emptyList()
 
     override fun onFacesChanged() = renderer.reloadFaces()
 
@@ -822,8 +831,89 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 repo.deleteDrop(local, drop)
                 showDrops(drops.filterNot { it.id == drop.id })
             }
+        } else if (online.configured && drop.authorId.isNotEmpty()) {
+            // Someone else's photo: it can be reported, or its author blocked.
+            builder.setNeutralButton(R.string.report) { _, _ ->
+                report("photo", drop.authorId, drop.author, "${drop.id} ${drop.caption}")
+            }
+            builder.setNegativeButton(R.string.block) { _, _ -> confirmBlock(drop.authorId, drop.author) }
         }
         builder.show()
+    }
+
+    // ---- Reporting and blocking ---------------------------------------------------------------
+
+    /** The other players in the room, to report or block one of them. */
+    private fun showPlayersDialog() {
+        val others = remotePlayers.sortedBy { it.name.lowercase() }
+        if (others.isEmpty()) {
+            Toast.makeText(this, R.string.players_none, Toast.LENGTH_SHORT).show()
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.menu_players)
+            .setItems(others.map { it.name }.toTypedArray()) { _, which ->
+                val p = others[which]
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(p.name)
+                    .setMessage(if (p.say.isNotBlank()) getString(R.string.player_last_said, p.say) else null)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNeutralButton(R.string.report) { _, _ ->
+                        report(if (p.say.isNotBlank()) "message" else "player", p.uid, p.name, p.say)
+                    }
+                    .setPositiveButton(R.string.block) { _, _ -> confirmBlock(p.uid, p.name) }
+                    .show()
+            }
+            .show()
+    }
+
+    private fun report(kind: String, uid: String, name: String, detail: String) {
+        online.report(kind, uid, name, detail) { ok ->
+            Toast.makeText(this, if (ok) R.string.report_sent else R.string.report_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Blocks [uid] on this phone after asking: their messages and photos stop showing here. */
+    private fun confirmBlock(uid: String, name: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.block_title, name))
+            .setMessage(R.string.block_message)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.block) { _, _ ->
+                Blocklist.block(this, uid)
+                onDrops(sharedDrops)
+                onPlayers(remotePlayers)
+                Toast.makeText(this, getString(R.string.blocked, name), Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+
+    // ---- Deleting my data ---------------------------------------------------------------------
+
+    /**
+     * Deletes the player's data everywhere after asking: on the server (face, career, stats,
+     * photos, account) and on this phone (name, face photos, drops, street photos, blocklist).
+     */
+    private fun confirmDeleteData() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.delete_data_title)
+            .setMessage(R.string.delete_data_message)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.delete_data_confirm) { _, _ ->
+                if (online.configured) online.deleteMyData { ok -> finishDeletingData(ok) }
+                else finishDeletingData(true)
+            }
+            .show()
+    }
+
+    private fun finishDeletingData(serverOk: Boolean) {
+        leavingRoom = true
+        repo.deleteAllPhotos()
+        Session.deleteAll(this)
+        Blocklist.clear(this)
+        Toast.makeText(this, if (serverOk) R.string.delete_data_done else R.string.delete_data_failed, Toast.LENGTH_LONG).show()
+        startActivity(Intent(this, LoginActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     // ---- Saying things ------------------------------------------------------------------------
@@ -850,7 +940,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun showPlayerMenu() {
         val hasStreets = repo.streets().isNotEmpty()
         val actions = mutableListOf<Pair<Int, () -> Unit>>()
-        if (online.configured) actions += R.string.menu_scoreboard to { showScoreboard() }
+        if (online.configured) {
+            actions += R.string.menu_scoreboard to { showScoreboard() }
+            actions += R.string.menu_players to { showPlayersDialog() }
+        }
         actions += listOf<Pair<Int, () -> Unit>>(
             R.string.menu_change_team to {
                 startActivity(Intent(this, TeamSelectActivity::class.java))
@@ -872,6 +965,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             startActivity(Intent(this, LoginActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
         }
+        actions += R.string.menu_delete_data to { confirmDeleteData() }
 
         MaterialAlertDialogBuilder(this)
             .setTitle(playerName)

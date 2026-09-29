@@ -37,6 +37,7 @@ class RoomsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_rooms)
+        SystemBars.keepClear(this)
         StartBackground.applyTo(this)
         status = findViewById(R.id.roomsStatus)
         createButton = findViewById(R.id.createRoomButton)

@@ -65,6 +65,7 @@ class FaceCaptureActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_face_capture)
+        SystemBars.keepClear(this)
         previewView = findViewById(R.id.previewView)
         guide = findViewById(R.id.faceGuide)
         captureButton = findViewById(R.id.captureButton)

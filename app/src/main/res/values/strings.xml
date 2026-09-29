@@ -159,6 +159,24 @@
     <string name="respawned">Back in the city</string>
     <string name="someone">someone</string>
 
+    <!-- Reporting, blocking and deleting data -->
+    <string name="menu_players">Players (report / block)</string>
+    <string name="players_none">No other players here right now</string>
+    <string name="player_last_said">Last said: “%1$s”</string>
+    <string name="report">Report</string>
+    <string name="report_sent">Thanks. The report was sent for review</string>
+    <string name="report_failed">Couldn\'t send the report. Check your connection and try again</string>
+    <string name="block">Block</string>
+    <string name="block_title">Block %1$s?</string>
+    <string name="block_message">You won\'t see their messages or photos on this phone. They won\'t be told.</string>
+    <string name="blocked">%1$s is blocked</string>
+    <string name="menu_delete_data">Delete my data</string>
+    <string name="delete_data_title">Delete all your data?</string>
+    <string name="delete_data_message">This permanently deletes your face photo, career score and ranking, game stats and the photos you dropped, on the server and on this phone, and signs you out. It can\'t be undone.</string>
+    <string name="delete_data_confirm">Delete</string>
+    <string name="delete_data_done">Your data was deleted</string>
+    <string name="delete_data_failed">Deleted from this phone, but the server couldn\'t be reached. Try again when online, or email us to finish deleting it</string>
+
     <!-- Guns and pickups -->
     <string name="weapon_pistol">Pistol</string>
     <string name="weapon_ak47">AK-47</string>
