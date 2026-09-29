@@ -1,0 +1,22 @@
+<!-- Centre-screen aim: four thin lines round a gap and a centre dot (tactical style). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="44dp"
+    android:height="44dp"
+    android:viewportWidth="44"
+    android:viewportHeight="44">
+    <!-- Thin dark edge so it shows on bright walls and sky. -->
+    <path
+        android:pathData="M22,6.5v10M22,27.5v10M6.5,22h10M27.5,22h10"
+        android:strokeWidth="3.4"
+        android:strokeColor="#99000000" />
+    <path
+        android:pathData="M22,7v9M22,28v9M7,22h9M28,22h9"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FFFFFFFF" />
+    <path
+        android:fillColor="#99000000"
+        android:pathData="M22,19.8a2.2,2.2 0,1 1,0 4.4a2.2,2.2 0,1 1,0 -4.4z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M22,20.8a1.2,1.2 0,1 1,0 2.4a1.2,1.2 0,1 1,0 -2.4z" />
+</vector>

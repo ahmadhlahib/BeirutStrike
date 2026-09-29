@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    app:cardCornerRadius="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <!-- Thumbnail of the room's map. -->
+        <ImageView
+            android:id="@+id/roomMapPreview"
+            android:layout_width="84dp"
+            android:layout_height="56dp"
+            android:background="#FFD8D2C4"
+            android:contentDescription="@string/room_map"
+            android:scaleType="centerCrop" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/roomName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/roomPlayers"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="#FF888888" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/roomLock"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:contentDescription="@string/room_locked"
+            android:src="@drawable/ic_lock"
+            app:tint="#FF888888" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
