@@ -3,6 +3,8 @@ package com.example.beirutrun
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -75,6 +77,25 @@ class RoomsActivity : AppCompatActivity() {
         }
     }
 
+    /** Redraws the list every second so each room's time left counts down. */
+    private val ticker = Handler(Looper.getMainLooper())
+    private val refresh = object : Runnable {
+        override fun run() {
+            if (adapter.rooms.any { it.endsAt > 0 }) adapter.notifyDataSetChanged()
+            ticker.postDelayed(this, 1_000L)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        ticker.post(refresh)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ticker.removeCallbacks(refresh)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         directory?.stop()
@@ -82,6 +103,10 @@ class RoomsActivity : AppCompatActivity() {
 
     /** Shows the room's map (and asks for the password if it's locked) before joining. */
     private fun onRoomTapped(room: RoomInfo) {
+        if (isOver(room)) {
+            Toast.makeText(this, R.string.room_game_over_join, Toast.LENGTH_LONG).show()
+            return
+        }
         val map = CityMaps.byId(room.map)
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_join_room, null)
         view.findViewById<ImageView>(R.id.joinMapPreview).setImageBitmap(preview(map))
@@ -161,22 +186,57 @@ class RoomsActivity : AppCompatActivity() {
             button.setOnClickListener { size = s }
         }
 
+        // One button per game length, 30 seconds to an hour.
+        var duration = RoomDirectory.DEFAULT_DURATION_MS
+        val durationGroup = view.findViewById<MaterialButtonToggleGroup>(R.id.durationChoices)
+        for (d in RoomDirectory.durations) {
+            val button = LayoutInflater.from(this).inflate(R.layout.item_size_choice, durationGroup, false) as MaterialButton
+            button.id = View.generateViewId()
+            button.text = durationLabel(d)
+            durationGroup.addView(button)
+            if (d == duration) durationGroup.check(button.id)
+            button.setOnClickListener { duration = d }
+        }
+
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.room_create_title)
             .setView(view)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.room_create) { _, _ ->
                 val name = nameInput.text.toString().trim().ifEmpty { getString(R.string.room_untitled) }
-                create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size))
+                create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size), duration)
             }
             .show()
     }
 
+    /** "30 s", "1 min", "1 h". */
+    private fun durationLabel(ms: Long): String {
+        val seconds = (ms / 1000).toInt()
+        return when {
+            seconds < 60 -> getString(R.string.duration_seconds, seconds)
+            seconds < 3600 -> getString(R.string.duration_minutes, seconds / 60)
+            else -> getString(R.string.duration_hours, seconds / 3600)
+        }
+    }
+
+    /** What the room list says about a room's game: its length, the time left, or that it's over. */
+    private fun gameLabel(room: RoomInfo): String? {
+        if (room.durationMs <= 0) return null
+        val dir = directory ?: return null
+        return when {
+            room.startedAt == 0L -> getString(R.string.room_game_length, durationLabel(room.durationMs))
+            dir.serverNow() >= room.endsAt -> getString(R.string.room_game_over)
+            else -> getString(R.string.room_time_left, GameClock.format(room.endsAt - dir.serverNow()))
+        }
+    }
+
+    private fun isOver(room: RoomInfo) = room.endsAt > 0 && (directory?.serverNow() ?: 0L) >= room.endsAt
+
     /** Creates a room; [map] is its map value (see CityMaps.roomValue). */
-    private fun create(name: String, password: String, map: String) {
+    private fun create(name: String, password: String, map: String, durationMs: Long) {
         val dir = directory ?: return
         status.setText(R.string.room_creating)
-        dir.create(name, password, map) { id ->
+        dir.create(name, password, map, durationMs) { id ->
             if (id != null) enter(id, name, map)
             else Toast.makeText(this, R.string.room_create_failed, Toast.LENGTH_LONG).show()
         }
@@ -202,10 +262,12 @@ class RoomsActivity : AppCompatActivity() {
             val map = CityMaps.byId(room.map)
             view.findViewById<TextView>(R.id.roomName).text = room.name
             view.findViewById<ImageView>(R.id.roomMapPreview).setImageBitmap(preview(map))
-            view.findViewById<TextView>(R.id.roomPlayers).text = getString(
+            val details = getString(
                 R.string.room_map_and_players, mapLabel(room.map),
                 resources.getQuantityString(R.plurals.room_players, room.online, room.online),
             )
+            view.findViewById<TextView>(R.id.roomPlayers).text =
+                gameLabel(room)?.let { getString(R.string.room_map_and_players, details, it) } ?: details
             view.findViewById<ImageView>(R.id.roomLock).visibility =
                 if (room.hasPassword) View.VISIBLE else View.GONE
             return view

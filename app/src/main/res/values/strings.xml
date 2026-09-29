@@ -82,6 +82,41 @@
     <string name="map_with_size">%1$s (%2$s)</string>
     <string name="full_map_title">%1$s · %2$s</string>
     <string name="full_map_hint">Tap anywhere to close</string>
+    <string name="room_choose_duration">Game length</string>
+    <string name="duration_seconds">%1$d s</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_hours">%1$d h</string>
+    <string name="room_game_length">%1$s game</string>
+    <string name="room_time_left">%1$s left</string>
+    <string name="room_game_over">Game over</string>
+    <string name="room_game_over_join">This game is over. Join another room or create a new one.</string>
+
+    <!-- Scoreboard -->
+    <string name="menu_scoreboard">Scoreboard</string>
+    <string name="score_title">Scoreboard</string>
+    <string name="score_game_over">Game over</string>
+    <string name="score_time_left">%1$s left</string>
+    <string name="score_teams">Teams</string>
+    <string name="score_players">Players</string>
+    <string name="score_empty">No scores yet</string>
+    <string name="score_you">%1$s (you)</string>
+    <string name="score_winner">Winner: %1$s (%2$s)</string>
+    <string name="score_winning_team">Winning team: %1$s</string>
+    <string name="score_draw">It\'s a draw</string>
+    <plurals name="score_kills">
+        <item quantity="one">1 kill</item>
+        <item quantity="other">%d kills</item>
+    </plurals>
+    <string name="score_col_name">Name</string>
+    <string name="score_col_team">Team</string>
+    <string name="score_col_players">Players</string>
+    <string name="score_col_kills">Kills</string>
+    <string name="score_col_deaths">Deaths</string>
+    <string name="score_col_ratio">K/D</string>
+    <string name="score_col_shots">Shots</string>
+    <string name="score_col_hits">Hits</string>
+    <string name="score_col_accuracy">Accuracy</string>
+    <string name="score_col_hits_taken">Hits taken</string>
 
     <!-- Teams -->
     <string name="team_title">Choose your team</string>

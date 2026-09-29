@@ -107,11 +107,29 @@
         android:layout_marginEnd="152dp"
         app:icon="@drawable/ic_eye" />
 
+    <!-- Time left in the room's game; tap for the scoreboard. Hidden in rooms without a time limit. -->
+    <TextView
+        android:id="@+id/gameTimer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="10dp"
+        android:background="#99000000"
+        android:fontFeatureSettings="tnum"
+        android:paddingStart="14dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="4dp"
+        android:textColor="@android:color/white"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="50dp"
         android:shadowColor="#CC000000"
         android:shadowRadius="6"
         android:text="@string/look_hint"

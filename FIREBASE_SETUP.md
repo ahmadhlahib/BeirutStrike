@@ -41,6 +41,11 @@ tag, and a blue dot on the minimap. "Say" bubbles and dropped photos appear on b
 | `drops/{id}` | Where a photo was dropped, its caption and author | Its author (can also remove it) |
 | `dropPhotos/{id}` | The dropped photo (JPEG, base64, ~100–200 KB) | Its author |
 | `hits/{uid}/{id}` | A bullet that hit that player; their phone counts it (5 kill) and deletes it | The shooter creates it; the victim removes it |
+| `rooms/{room}/stats/{uid}` | Scoreboard: kills, deaths, shots, hits, hits taken. Kept when the player leaves. | That player only |
+| `roomList/{room}/duration`, `startedAt` | Game length (30 s to 1 h) and when the game started. Each can only be set once. | Length: the room's creator. Start: the first player into the city |
+
+**After updating the app, publish [`firebase/database.rules.json`](firebase/database.rules.json)
+again.** Older rules don't know about game lengths and scores, and refuse to create rooms.
 
 Shots and health travel with each player in `players/{uid}` (`shotSeq`, `health`, `dead`).
 The shooter's phone decides whether a bullet hit, which keeps the game simple but means a

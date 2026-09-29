@@ -59,6 +59,24 @@ data class RemotePlayer(
     val jumpSeq: Long = 0L,
 )
 
+/** One player's score in the room's game, kept after they leave so the scoreboard stays whole. */
+data class PlayerStats(
+    val uid: String,
+    val name: String,
+    val team: String,
+    val kills: Int,
+    val deaths: Int,
+    /** Bullets fired. */
+    val shots: Int,
+    /** Bullets that hit an enemy. */
+    val hits: Int,
+    /** Bullets that hit this player. */
+    val hitsTaken: Int,
+) {
+    /** Share of shots that hit, 0..1. */
+    val accuracy get() = if (shots > 0) hits.toFloat() / shots else 0f
+}
+
 /**
  * Shares one room's city between phones through Firebase Realtime Database. Inside
  * `rooms/{room}/` (members only, see [RoomDirectory]):
@@ -68,6 +86,11 @@ data class RemotePlayer(
  * - `drops/{id}`: dropped photo details; `dropPhotos/{id}`: the photo itself (base64 JPEG).
  * - `hits/{uid}/{id}`: bullets that hit that player. The shooter's phone decides a bullet hit and
  *   writes it here; the victim's phone counts hits, handles dying, and deletes them.
+ * - `stats/{uid}`: that player's kills, deaths, shots, hits and hits taken for the scoreboard.
+ *   Each phone only adds to its own, and they stay when the player leaves.
+ *
+ * The game clock is in the room list: `roomList/{room}/duration` (set by the room's creator) and
+ * `startedAt`, which the first player into the city sets to the server's time.
  *
  * Shared by all rooms: `faces/{uid}` (face photos, base64 WebP) and `roomList/{room}/online/{uid}`
  * (who is in which room, for the room list).
@@ -98,6 +121,10 @@ class OnlineWorld(
         fun onHitBy(fromUid: String, fromName: String) = Unit
         /** A player I shot has just died. */
         fun onKilled(victimName: String) = Unit
+        /** The room's game length or start time is known or changed (both server ms; 0 = unknown). */
+        fun onGameClock(startedAt: Long, durationMs: Long) = Unit
+        /** Everyone's scores in this room, as they change. */
+        fun onStats(stats: List<PlayerStats>) = Unit
     }
 
     var listener: Listener? = null
@@ -147,6 +174,15 @@ class OnlineWorld(
     private var lastWrite = 0L
     private var lastRoomTouch = 0L
 
+    private var gameStartedAt = 0L
+    private var gameDurationMs = 0L
+    private var startRequested = false
+
+    /** Counts not yet added to my `stats/{uid}` (sent in batches: shooting can be many per second). */
+    private val pendingStats = HashMap<String, Long>()
+    private var statsDirty = true
+    private var lastStatsWrite = 0L
+
     private val players = HashMap<String, RemotePlayer>()
     private var remoteDrops: List<PhotoDrop> = emptyList()
     private val downloadingPhotos = HashSet<String>()
@@ -171,6 +207,7 @@ class OnlineWorld(
 
     /** The app went to the background: disappear from other players' cities. */
     fun pause() {
+        flushStats(force = true)
         paused = true
         active = false
         me?.removeValue()
@@ -182,6 +219,7 @@ class OnlineWorld(
         if (me == null || stopped) return
         active = true
         writePresence()
+        if (gameStartedAt == 0L) startGameClock()
     }
 
     /**
@@ -189,6 +227,7 @@ class OnlineWorld(
      * rebuilt) and nobody else is in the room any more, the room is deleted.
      */
     fun stop(leavingRoom: Boolean = false) {
+        flushStats(force = true)
         stopped = true
         active = false
         me?.removeValue()
@@ -234,9 +273,12 @@ class OnlineWorld(
         listenPlayers(database)
         listenHits(database, userId)
         listenValue(database.getReference("${room}drops")) { snap -> onDropsSnapshot(snap) }
+        listenGameClock(database)
+        listenValue(database.getReference("${room}stats")) { snap -> onStatsSnapshot(snap) }
 
         active = !paused
         if (active) writePresence()
+        flushStats(force = true)
         uploadFace()
         uploadOfflineDrops()
     }
@@ -286,6 +328,7 @@ class OnlineWorld(
         val ref = me ?: return
         if (!active) return
         touchRoom()
+        flushStats()
         val now = System.currentTimeMillis()
         val changed = sentX.isNaN() ||
             hypot(x - sentX, z - sentZ) > 0.05f ||
@@ -370,6 +413,87 @@ class OnlineWorld(
         }
         ref.addChildEventListener(l)
         attached += ref to l
+    }
+
+    // ---- Game clock and scores ----------------------------------------------------------------
+
+    /** The server's clock, as far as this phone can tell. */
+    fun serverNow() = System.currentTimeMillis() + serverOffset
+
+    private fun listenGameClock(database: FirebaseDatabase) {
+        val info = database.getReference("roomList/$roomId")
+        listenValue(info.child("duration")) { snap ->
+            gameDurationMs = (snap.value as? Number)?.toLong() ?: 0L
+            listener?.onGameClock(gameStartedAt, gameDurationMs)
+        }
+        listenValue(info.child("startedAt")) { snap ->
+            gameStartedAt = (snap.value as? Number)?.toLong() ?: 0L
+            if (gameStartedAt == 0L) startGameClock()
+            listener?.onGameClock(gameStartedAt, gameDurationMs)
+        }
+    }
+
+    /**
+     * The first player into the city starts the room's game. The rules only accept the first
+     * `startedAt`, so if two phones try at once the second write is simply refused.
+     */
+    private fun startGameClock() {
+        val database = db ?: return
+        if (startRequested || !active) return
+        startRequested = true
+        database.getReference("roomList/$roomId/startedAt").setValue(ServerValue.TIMESTAMP)
+            .addOnFailureListener { Log.i(TAG, "Game clock already started: ${it.message}") }
+    }
+
+    /** I fired a bullet. */
+    fun countShot() = addStat("shots")
+    /** One of my bullets hit an enemy. */
+    fun countHit() = addStat("hits")
+    /** A bullet hit me. */
+    fun countHitTaken() = addStat("hitsTaken")
+    /** I died. */
+    fun countDeath() = addStat("deaths")
+    /** I killed someone. */
+    fun countKill() = addStat("kills")
+
+    private fun addStat(key: String) {
+        pendingStats[key] = (pendingStats[key] ?: 0L) + 1
+        statsDirty = true
+    }
+
+    /**
+     * Adds my pending counts to `stats/{uid}`, at most every [STATS_WRITE_MS] unless [force].
+     * They are increments, so counts from before the screen was rebuilt are kept.
+     */
+    private fun flushStats(force: Boolean = false) {
+        val database = db ?: return
+        val userId = uid ?: return
+        if (!statsDirty) return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastStatsWrite < STATS_WRITE_MS) return
+        lastStatsWrite = now
+        val update = mutableMapOf<String, Any>("name" to name, "team" to team)
+        for ((key, count) in pendingStats) update[key] = ServerValue.increment(count)
+        pendingStats.clear()
+        statsDirty = false
+        database.getReference("${room}stats/$userId").updateChildren(update)
+            .addOnFailureListener { Log.w(TAG, "Stats update failed: ${it.message}") }
+    }
+
+    private fun onStatsSnapshot(snapshot: DataSnapshot) {
+        val stats = snapshot.children.mapNotNull { s ->
+            PlayerStats(
+                uid = s.key ?: return@mapNotNull null,
+                name = s.child("name").getValue(String::class.java).orEmpty(),
+                team = s.child("team").getValue(String::class.java).orEmpty(),
+                kills = s.num("kills").toInt(),
+                deaths = s.num("deaths").toInt(),
+                shots = s.num("shots").toInt(),
+                hits = s.num("hits").toInt(),
+                hitsTaken = s.num("hitsTaken").toInt(),
+            )
+        }
+        listener?.onStats(stats)
     }
 
     // ---- Other players ------------------------------------------------------------------------
@@ -644,6 +768,8 @@ class OnlineWorld(
         private const val STALE_MS = 75_000L
         /** Hits older than this when they arrive are ignored. */
         private const val HIT_MAX_AGE_MS = 10_000L
+        /** How often my scoreboard counts are sent while playing. */
+        private const val STATS_WRITE_MS = 1_500L
         private const val KEY_FACE_UID = "face_uid"
         private const val KEY_FACE_VERSION = "face_version"
     }
