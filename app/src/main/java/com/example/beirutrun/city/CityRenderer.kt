@@ -58,6 +58,10 @@ class CityRenderer(
     private val teamColor: (String) -> Int?,
     /** A team's uniform and gear colours for the soldier model (null = neutral). */
     private val teamUniform: (String) -> Pair<Int, Int>?,
+    /** Called on the main thread when the player pulls the trigger with no bullets left. */
+    private val onOutOfAmmo: (Weapon) -> Unit = {},
+    /** The text floating over a pickup, e.g. "AK-47 ×10". */
+    private val pickupLabel: (PickupKind) -> String = { it.id },
 ) : GLSurfaceView.Renderer {
 
     /** Someone my bullets can hurt: alive, and not on my team. */
@@ -96,9 +100,47 @@ class CityRenderer(
     @Volatile private var pendingRemote: List<RemotePlayer>? = null
 
     fun look(dxPixels: Float, dyPixels: Float) = synchronized(lookLock) {
-        pendingYaw += dxPixels * 0.0065f
-        pendingPitch += dyPixels * 0.004f
+        // Through the scope everything is magnified, so turn slower to aim precisely.
+        val sensitivity = if (scoped) SCOPE_FOV / NORMAL_FOV else 1f
+        pendingYaw += dxPixels * 0.0065f * sensitivity
+        pendingPitch += dyPixels * 0.004f * sensitivity
     }
+
+    // ---- Guns ---------------------------------------------------------------------------------
+
+    /** The gun in the player's hands. */
+    @Volatile var weapon = Weapon.AK47
+
+    /** Bullets left for each gun (by [Weapon.ordinal]); the GL thread spends them, pickups add. */
+    private val ammo = java.util.concurrent.atomic.AtomicIntegerArray(Weapon.entries.size).also { a ->
+        Weapon.entries.forEach { a.set(it.ordinal, it.startAmmo) }
+    }
+
+    fun ammo(w: Weapon) = ammo.get(w.ordinal)
+
+    fun addAmmo(w: Weapon, bullets: Int) { ammo.addAndGet(w.ordinal, bullets) }
+
+    /** After respawning: at least the starting bullets in each gun. */
+    fun refillToStart() = Weapon.entries.forEach { w ->
+        ammo.getAndUpdate(w.ordinal) { maxOf(it, w.startAmmo) }
+    }
+
+    /** Looking through the AK-47's scope: zoomed in, in first person, seeing and shooting further. */
+    @Volatile var scoped = false
+
+    /** Shoot was just pressed (the pistol fires once per press; the AK-47 while [triggerHeld]). */
+    @Volatile private var triggerPulled = false
+
+    fun pullTrigger() { triggerPulled = true }
+
+    /** Seen through the soldier's eyes: the chosen first-person view, or looking through the scope. */
+    private val eyeView get() = firstPerson || scoped
+
+    @Volatile private var pendingPickups: List<Pickup>? = null
+    private var pickups: List<Pickup> = emptyList()
+
+    /** The ammo packs and scopes lying in the street. */
+    fun setPickups(list: List<Pickup>) { pendingPickups = list.toList() }
 
     fun setDrops(drops: List<PhotoDrop>) { pendingDrops = drops.toList() }
 
@@ -111,7 +153,7 @@ class CityRenderer(
     /** Latest positions of the other players (from Firebase). */
     fun setRemotePlayers(players: List<RemotePlayer>) { pendingRemote = players }
 
-    /** True while the Shoot button is held; fires every [FIRE_INTERVAL] seconds. */
+    /** True while the Shoot button is held; an automatic gun keeps firing meanwhile. */
     @Volatile var triggerHeld = false
 
     /** The player's remaining health, shown in the bar above their head. */
@@ -231,6 +273,7 @@ class CityRenderer(
     /** First-person look up/down, radians (0 = level, positive = down). */
     private var lookPitch = 0f
     private var lastShotAt = 0L
+    private var lastShotWeapon = Weapon.AK47
     private val cameraToWorld = FloatArray(16)
     private val remotes = HashMap<String, RemoteAvatar>()
 
@@ -239,6 +282,8 @@ class CityRenderer(
         var x: Float, var y: Float, var z: Float,
         val dx: Float, val dy: Float, val dz: Float,
         val mine: Boolean,
+        /** How far it flies before falling away (further when fired through a scope). */
+        val range: Float = BULLET_RANGE,
     ) {
         var travelled = 0f
     }
@@ -332,7 +377,15 @@ class CityRenderer(
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         GLES20.glViewport(0, 0, width, height)
-        Matrix.perspectiveM(projection, 0, 60f, width / height.coerceAtLeast(1).toFloat(), 0.25f, 600f)
+        aspect = width / height.coerceAtLeast(1).toFloat()
+    }
+
+    private var aspect = 1f
+
+    /** Normal view, or zoomed in (and seeing further) through the scope. */
+    private fun updateProjection(zoomed: Boolean) {
+        val far = if (zoomed) 900f else 600f
+        Matrix.perspectiveM(projection, 0, if (zoomed) SCOPE_FOV else NORMAL_FOV, aspect, 0.25f, far)
     }
 
     override fun onDrawFrame(gl: GL10?) {
@@ -341,6 +394,8 @@ class CityRenderer(
         lastFrame = now
 
         applyPending(now)
+        val zoomed = scoped
+        updateProjection(zoomed)
         update(dt)
         updateCamera()
 
@@ -353,19 +408,22 @@ class CityRenderer(
         GLES20.glUniform3f(shader.uEye, eyeX, eyeY, eyeZ)
         GLES20.glUniform3f(shader.uLightDir, LIGHT[0], LIGHT[1], LIGHT[2])
         GLES20.glUniform3f(shader.uFogColor, SKY[0], SKY[1], SKY[2])
-        GLES20.glUniform2f(shader.uFog, FOG_START, FOG_END)
+        // Through the scope the haze is pushed back, so distant streets and enemies show.
+        val fogScale = if (zoomed) SCOPE_RANGE_SCALE else 1f
+        GLES20.glUniform2f(shader.uFog, FOG_START * fogScale, FOG_END * fogScale)
 
         drawWorld()
         for (visual in dropVisuals.values) drawDrop(visual)
+        drawPickups(now)
         val isDown = down
-        val fp = firstPerson
+        val fp = eyeView
         if (fp) muzzleKnown = false
-        else playerSoldier?.let { drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown) }
+        else playerSoldier?.let { drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown, weapon) }
         for (r in remotes.values) {
             val soldier = r.soldier ?: continue
             if (!isWorthAnimating(r.x, r.z)) continue
             flashing = now < r.flashUntil
-            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.y, r.player.prone && !r.player.dead)
+            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.y, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon))
             flashing = false
         }
         drawBullets()
@@ -373,12 +431,14 @@ class CityRenderer(
 
         // Transparent labels last so they blend over everything behind them.
         for (visual in dropVisuals.values) drawDropLabels(visual)
+        drawPickupLabels()
         for (r in remotes.values) {
             val saying = if (now < r.sayUntil && !r.player.dead) r.saying else null
             drawLabels(r.x, r.z, r.player.name, saying, r.player.health, r.player.team, labelLift(r.y, r.player.prone))
         }
         if (!fp) drawLabels(playerX, playerZ, playerName, if (now < speechUntil && !isDown) speech else null, health, playerTeam, labelLift(playerY, prone))
-        if (fp && !isDown) drawHeldRifle(now)
+        // Through the scope the gun is out of sight (the scope picture covers the screen).
+        if (fp && !isDown && !zoomed) drawHeldGun(now)
     }
 
     // ---- Aiming -------------------------------------------------------------------------------
@@ -390,9 +450,10 @@ class CityRenderer(
      */
     private fun updateAim() {
         val ox = eyeX; val oy = eyeY; val oz = eyeZ
-        var t = if (firstPerson) 0.3f else hypot(playerX - ox, playerZ - oz) + 0.8f
+        var t = if (eyeView) 0.3f else hypot(playerX - ox, playerZ - oz) + 0.8f
         var onTarget = false
-        while (t < AIM_RANGE) {
+        val range = if (scoped) AIM_RANGE * SCOPE_RANGE_SCALE else AIM_RANGE
+        while (t < range) {
             val x = ox + camFx * t
             val y = oy + camFy * t
             val z = oz + camFz * t
@@ -429,25 +490,156 @@ class CityRenderer(
     }
 
     /**
-     * First person: the rifle held at the bottom right of the view, drawn over everything so it
-     * never pokes into walls. It kicks back briefly on each shot and bobs gently while moving.
+     * First person: the gun in hand, drawn over everything so it never pokes into walls. It kicks
+     * back and up on each shot (the pistol harder), sways while walking, and flashes at the muzzle.
      */
-    private fun drawHeldRifle(now: Long) {
+    private fun drawHeldGun(now: Long) {
         Matrix.invertM(cameraToWorld, 0, view, 0)
+        val gun = weapon
         val sinceShot = (now - lastShotAt) / 1000f
-        val kick = if (sinceShot < 0.12f) (0.12f - sinceShot) / 0.12f * 0.06f else 0f
-        val bob = if (isWalking) sin(now / 1000f * 9f) * 0.012f else 0f
+        val recover = if (lastShotWeapon == Weapon.PISTOL) 0.18f else 0.08f
+        val kick = if (sinceShot < recover && lastShotWeapon == gun) (recover - sinceShot) / recover else 0f
+        val t = now / 1000f
+        val bobX = if (isWalking) sin(t * 4.5f) * 0.008f else 0f
+        val bobY = if (isWalking) -abs(sin(t * 4.5f)) * 0.012f else sin(t * 1.3f) * 0.002f
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT)
-        // Camera space: x right, y up, looking down -z.
-        Matrix.translateM(base, 0, cameraToWorld, 0, 0.24f, -0.25f + bob, -0.55f + kick)
-        Matrix.scaleM(base, 0, 0.75f, 0.75f, 0.75f)
-        partBox(0f, 0f, 0f, 0.06f, 0.09f, 0.42f, GUN_COLOR)                   // body
-        partBox(0f, 0.02f, -0.32f, 0.03f, 0.03f, 0.26f, GUN_COLOR)            // barrel
-        partBox(0f, -0.09f, -0.04f, 0.045f, 0.13f, 0.06f, GUN_COLOR)          // magazine
-        partBox(0f, 0.065f, 0.02f, 0.02f, 0.04f, 0.12f, GUN_COLOR)            // sight
-        partBox(0.01f, -0.05f, 0.14f, 0.09f, 0.08f, 0.12f, 0xFFC9A07E.toInt()) // hand
-        if (sinceShot < MUZZLE_FLASH_MS / 1000f) {
-            partBox(0f, 0.02f, -0.5f, 0.09f, 0.09f, 0.12f, 0xEEFFF59D.toInt())
+        val sleeve = teamUniform(playerTeam)?.first ?: 0xFF5E6266.toInt()
+        // Camera space: x right, y up, looking down -z. The gun is angled a touch towards the
+        // centre of the screen, where the crosshair is.
+        if (gun == Weapon.PISTOL) {
+            Matrix.translateM(base, 0, cameraToWorld, 0, 0.11f + bobX, -0.16f + bobY, -0.36f + kick * 0.05f)
+            Matrix.rotateM(base, 0, 3f, 0f, 1f, 0f)
+            Matrix.rotateM(base, 0, kick * 14f, 1f, 0f, 0f)
+            drawPistolModel(sleeve)
+            if (sinceShot < MUZZLE_FLASH_MS / 1000f) muzzleFlash(0f, 0.022f, -0.19f, 0.07f)
+        } else {
+            Matrix.translateM(base, 0, cameraToWorld, 0, 0.17f + bobX, -0.2f + bobY, -0.4f + kick * 0.035f)
+            Matrix.rotateM(base, 0, 4f, 0f, 1f, 0f)
+            Matrix.rotateM(base, 0, 1.5f + kick * 3f, 1f, 0f, 0f)
+            drawAkModel(sleeve)
+            if (sinceShot < MUZZLE_FLASH_MS / 1000f) muzzleFlash(0f, 0.005f, -0.68f, 0.1f)
+        }
+    }
+
+    /**
+     * An AK-47 in both hands, gun pointing along -z, sizes in metres: steel receiver and dust
+     * cover, wooden stock, pistol grip and handguards, curved bakelite magazine, gas tube, barrel,
+     * front sight and muzzle brake. The right hand holds the grip, the left the handguard.
+     */
+    private fun drawAkModel(sleeve: Int) {
+        val steel = AK_STEEL; val wood = AK_WOOD; val darkWood = AK_DARK_WOOD
+        partBox(0f, 0f, 0f, 0.05f, 0.07f, 0.3f, steel)                        // receiver
+        partBox(0f, 0.042f, 0.015f, 0.046f, 0.018f, 0.27f, AK_COVER)          // dust cover
+        partBox(0.027f, 0.012f, 0f, 0.004f, 0.012f, 0.15f, steel)             // selector lever
+        partBox(0f, 0.052f, -0.15f, 0.03f, 0.03f, 0.05f, steel)               // rear sight block
+        partBox(0f, 0.07f, -0.16f, 0.006f, 0.008f, 0.02f, steel)              // rear sight notch
+        partBox(0f, -0.004f, -0.27f, 0.058f, 0.058f, 0.2f, wood)              // lower handguard
+        partBox(0f, 0.044f, -0.26f, 0.04f, 0.028f, 0.18f, darkWood)           // upper handguard
+        partBox(0f, 0.04f, -0.39f, 0.03f, 0.036f, 0.03f, steel)               // gas block
+        partBox(0f, 0.04f, -0.44f, 0.016f, 0.016f, 0.08f, steel)              // gas tube tip
+        partBox(0f, 0.004f, -0.48f, 0.022f, 0.022f, 0.3f, steel)              // barrel
+        partBox(0f, 0.03f, -0.56f, 0.026f, 0.05f, 0.026f, steel)              // front sight base
+        partBox(0f, 0.065f, -0.56f, 0.007f, 0.03f, 0.007f, steel)             // front sight post
+        partBox(0f, 0.004f, -0.64f, 0.03f, 0.03f, 0.06f, AK_BLACK)            // muzzle brake
+        // Curved magazine: three segments, each tilted further forward.
+        tiltedBox(0f, -0.075f, -0.07f, 0.034f, 0.07f, 0.075f, 8f, AK_MAG)
+        tiltedBox(0f, -0.135f, -0.052f, 0.034f, 0.065f, 0.075f, 20f, AK_MAG)
+        tiltedBox(0f, -0.19f, -0.022f, 0.034f, 0.06f, 0.074f, 33f, AK_MAG)
+        partBox(0f, -0.047f, 0.04f, 0.012f, 0.01f, 0.07f, steel)              // trigger guard
+        partBox(0f, -0.038f, 0.035f, 0.006f, 0.022f, 0.006f, AK_BLACK)        // trigger
+        tiltedBox(0f, -0.085f, 0.1f, 0.034f, 0.1f, 0.045f, -18f, darkWood)    // pistol grip
+        tiltedBox(0f, -0.022f, 0.3f, 0.044f, 0.075f, 0.3f, -5f, wood)         // stock
+        // Hands and sleeves (in the team's uniform).
+        tiltedBox(0f, -0.078f, 0.1f, 0.072f, 0.075f, 0.085f, -18f, SKIN)      // right hand on grip
+        tiltedBox(0.03f, -0.13f, 0.22f, 0.1f, 0.1f, 0.2f, -30f, sleeve)       // right forearm
+        partBox(-0.004f, -0.026f, -0.28f, 0.078f, 0.06f, 0.1f, SKIN)          // left hand on handguard
+        tiltedBox(-0.07f, -0.1f, -0.2f, 0.09f, 0.09f, 0.22f, -25f, sleeve, yawDeg = -35f) // left forearm
+    }
+
+    /** A pistol in a two-handed grip, pointing along -z: slide, frame, grip, sights and trigger. */
+    private fun drawPistolModel(sleeve: Int) {
+        partBox(0f, 0.02f, -0.07f, 0.03f, 0.032f, 0.19f, PISTOL_SLIDE)       // slide
+        for (i in 0 until 4) partBox(0f, 0.02f, 0.0f - i * 0.012f, 0.031f, 0.026f, 0.004f, AK_BLACK) // slide serrations
+        partBox(0f, 0.022f, -0.166f, 0.014f, 0.014f, 0.004f, AK_BLACK)        // barrel opening
+        partBox(0f, -0.004f, -0.06f, 0.028f, 0.02f, 0.16f, PISTOL_FRAME)      // frame
+        partBox(0f, 0.041f, 0.018f, 0.026f, 0.01f, 0.01f, AK_BLACK)           // rear sight
+        partBox(0f, 0.041f, -0.15f, 0.006f, 0.01f, 0.008f, AK_BLACK)          // front sight
+        partBox(0f, -0.028f, -0.045f, 0.01f, 0.008f, 0.05f, PISTOL_FRAME)     // trigger guard
+        partBox(0f, -0.022f, -0.035f, 0.005f, 0.018f, 0.005f, AK_BLACK)       // trigger
+        tiltedBox(0f, -0.06f, 0.015f, 0.03f, 0.1f, 0.045f, -16f, PISTOL_FRAME) // grip
+        // Right hand round the grip, the left cupping it from below, both arms reaching forward.
+        tiltedBox(0.008f, -0.058f, 0.02f, 0.06f, 0.075f, 0.07f, -16f, SKIN)
+        tiltedBox(-0.022f, -0.068f, 0.015f, 0.05f, 0.06f, 0.075f, -16f, SKIN)
+        tiltedBox(0.05f, -0.1f, 0.14f, 0.09f, 0.09f, 0.2f, -22f, sleeve, yawDeg = 18f)
+        tiltedBox(-0.07f, -0.11f, 0.13f, 0.09f, 0.09f, 0.2f, -22f, sleeve, yawDeg = -24f)
+    }
+
+    /** A bright flash at the muzzle (in [base] space), for the moment a shot leaves the gun. */
+    private fun muzzleFlash(x: Float, y: Float, z: Float, size: Float) {
+        partBox(x, y, z, size, size, size * 1.4f, 0xEEFFF59D.toInt())
+        partBox(x, y, z - size * 0.6f, size * 0.5f, size * 0.5f, size, 0xDDFFB74D.toInt())
+    }
+
+    /**
+     * A box part of [base] centred at (x, y, z), turned [pitchDeg] about x (positive tips its
+     * front up) and [yawDeg] about y before sizing, for parts that aren't square to the gun.
+     */
+    private fun tiltedBox(
+        x: Float, y: Float, z: Float, sx: Float, sy: Float, sz: Float, pitchDeg: Float, color: Int,
+        yawDeg: Float = 0f,
+    ) {
+        Matrix.translateM(part, 0, base, 0, x, y, z)
+        if (yawDeg != 0f) Matrix.rotateM(part, 0, yawDeg, 0f, 1f, 0f)
+        Matrix.rotateM(part, 0, pitchDeg, 1f, 0f, 0f)
+        Matrix.scaleM(part, 0, sx, sy, sz)
+        draw(cube, part, tint(color))
+    }
+
+    // ---- Pickups ------------------------------------------------------------------------------
+
+    /**
+     * Ammo packs and scopes in the street: floating a little off the ground, turning slowly, with
+     * a label above saying what they are.
+     */
+    private fun drawPickups(now: Long) {
+        val t = (now - clockBase) / 1000f
+        for (p in pickups) {
+            val d = hypot(p.x - playerX, p.z - playerZ)
+            if (d > PICKUP_DRAW_DISTANCE * (if (scoped) SCOPE_RANGE_SCALE else 1f)) continue
+            val y = 0.35f + sin(t * 2f + p.slot) * 0.06f
+            Matrix.setIdentityM(base, 0)
+            Matrix.translateM(base, 0, p.x, y, p.z)
+            Matrix.rotateM(base, 0, deg(t * 1.2f) + p.slot * 40f, 0f, 1f, 0f)
+            when (p.kind) {
+                PickupKind.AK_AMMO -> {
+                    partBox(0f, 0f, 0f, 0.42f, 0.24f, 0.26f, 0xFF4B5320.toInt())      // olive crate
+                    partBox(0f, 0.125f, 0f, 0.44f, 0.02f, 0.28f, 0xFF3A4118.toInt())  // lid
+                    partBox(0f, 0f, 0.132f, 0.3f, 0.06f, 0.005f, 0xFFFFC107.toInt())  // stripe
+                    partBox(0f, 0.15f, 0f, 0.12f, 0.03f, 0.05f, 0xFF2A2A2A.toInt())   // handle
+                }
+                PickupKind.PISTOL_AMMO -> {
+                    partBox(0f, 0f, 0f, 0.3f, 0.16f, 0.2f, 0xFF263238.toInt())        // box
+                    partBox(0f, 0f, 0.102f, 0.22f, 0.05f, 0.005f, 0xFFFFC107.toInt()) // stripe
+                    partBox(0f, 0.085f, 0f, 0.31f, 0.012f, 0.21f, 0xFF37474F.toInt()) // lid
+                }
+                PickupKind.SCOPE -> {
+                    partBox(0f, 0.05f, 0f, 0.07f, 0.07f, 0.34f, 0xFF1B1B1B.toInt())   // tube
+                    partBox(0f, 0.05f, -0.18f, 0.09f, 0.09f, 0.05f, 0xFF1B1B1B.toInt()) // front bell
+                    partBox(0f, 0.05f, -0.206f, 0.07f, 0.07f, 0.004f, 0xFF4FC3F7.toInt()) // lens
+                    partBox(0f, 0.095f, 0f, 0.03f, 0.03f, 0.04f, 0xFF1B1B1B.toInt())  // turret
+                    partBox(0f, -0.01f, 0f, 0.05f, 0.03f, 0.18f, 0xFF2A2A2A.toInt())  // mount
+                }
+            }
+        }
+    }
+
+    /** "AK-47 ×10" and the like over nearby pickups (drawn with the other see-through labels). */
+    private fun drawPickupLabels() {
+        for (p in pickups) {
+            if (hypot(p.x - playerX, p.z - playerZ) > PICKUP_LABEL_DISTANCE) continue
+            val text = pickupLabel(p.kind)
+            val tag = label("p:$text") { CityBitmaps.nameTag(text, 0xFFFFC107.toInt()) to NAME_UNITS_PER_PX }
+            drawBillboard(tag, p.x, 0.75f, p.z)
         }
     }
 
@@ -470,6 +662,10 @@ class CityRenderer(
         pendingDrops?.let { list ->
             pendingDrops = null
             syncDrops(list)
+        }
+        pendingPickups?.let { list ->
+            pendingPickups = null
+            pickups = list
         }
         pendingSpeech?.let { text ->
             pendingSpeech = null
@@ -539,9 +735,13 @@ class CityRenderer(
         }
     }
 
-    /** Fires one bullet from the rifle's muzzle towards the point under the crosshair. */
-    private fun fire() {
-        // From the rifle's muzzle when it has been drawn, else from where it would be.
+    /**
+     * Fires one bullet from the gun's muzzle towards the point under the crosshair, a little off
+     * by the gun's [Weapon.spread]; the gun kicks the aim up a touch (more for the pistol per shot,
+     * but the AK-47 climbs as it keeps firing).
+     */
+    private fun fire(gun: Weapon) {
+        // From the gun's muzzle when it has been drawn, else from where it would be.
         val x = if (muzzleKnown) muzzle[0] else muzzleX()
         val y = if (muzzleKnown) muzzle[1] else muzzleY()
         val z = if (muzzleKnown) muzzle[2] else muzzleZ()
@@ -552,8 +752,19 @@ class CityRenderer(
             dx = camFx; dy = camFy; dz = camFz; len = 1f
         }
         dx /= len; dy /= len; dz /= len
-        bullets += Bullet(x, y, z, dx, dy, dz, mine = true)
+        val spread = gun.spread * if (scoped) 0.5f else 1f
+        dx += (kotlin.random.Random.nextFloat() - 0.5f) * 2f * spread
+        dy += (kotlin.random.Random.nextFloat() - 0.5f) * 2f * spread
+        dz += (kotlin.random.Random.nextFloat() - 0.5f) * 2f * spread
+        len = sqrt(dx * dx + dy * dy + dz * dz)
+        dx /= len; dy /= len; dz /= len
+        val range = if (scoped) BULLET_RANGE * SCOPE_RANGE_SCALE else BULLET_RANGE
+        bullets += Bullet(x, y, z, dx, dy, dz, mine = true, range = range)
+        if (eyeView) synchronized(lookLock) {
+            pendingPitch -= if (gun == Weapon.PISTOL) PISTOL_RECOIL else AK_RECOIL
+        }
         lastShotAt = SystemClock.uptimeMillis()
+        lastShotWeapon = gun
         muzzleFlashes += floatArrayOf(x, y, z, dx, dy, dz, (SystemClock.uptimeMillis() - clockBase + MUZZLE_FLASH_MS).toFloat())
         heading = yaw
         aimTime = 0.6f
@@ -580,7 +791,7 @@ class CityRenderer(
                 b.y += b.dy * s
                 b.z += b.dz * s
                 b.travelled += s
-                if (b.travelled > BULLET_RANGE || b.y <= 0f || city.isInsideBuilding(b.x, b.y, b.z, 0f)) {
+                if (b.travelled > b.range || b.y <= 0f || city.isInsideBuilding(b.x, b.y, b.z, 0f)) {
                     spent = true
                 } else if (b.mine) {
                     val target = remotes.values.firstOrNull { isEnemy(it) && hitsBody(it, b.x, b.y, b.z) }
@@ -656,14 +867,14 @@ class CityRenderer(
         val dx = x - playerX
         val dz = z - playerZ
         val d = hypot(dx, dz)
-        if (d > SOLDIER_DRAW_DISTANCE) return false
+        if (d > SOLDIER_DRAW_DISTANCE * (if (scoped) SCOPE_RANGE_SCALE else 1f)) return false
         return d < 8f || dx * sin(yaw) - dz * cos(yaw) > -4f
     }
 
     private fun update(dt: Float) {
         synchronized(lookLock) {
             yaw += pendingYaw
-            if (firstPerson) lookPitch = (lookPitch + pendingPitch).coerceIn(-1.1f, 1.1f)
+            if (eyeView) lookPitch = (lookPitch + pendingPitch).coerceIn(-1.1f, 1.1f)
             // Negative pitch drops the camera low behind you so you can aim up at rooftops.
             else pitch = (pitch + pendingPitch).coerceIn(-0.5f, 1.2f)
             pendingYaw = 0f
@@ -679,11 +890,24 @@ class CityRenderer(
         updateRemotes(dt)
         updateBullets(dt)
 
-        fireCooldown -= dt
+        fireCooldown = (fireCooldown - dt).coerceAtLeast(0f)
         aimTime -= dt
-        if (triggerHeld && !isDown && fireCooldown <= 0f) {
-            fireCooldown = FIRE_INTERVAL
-            fire()
+        // The AK-47 fires for as long as Shoot is held; the pistol once per press, and a press
+        // while it's still recovering from the last shot is lost (at most one shot a second).
+        val gun = weapon
+        val pulled = triggerPulled
+        triggerPulled = false
+        val wantsToFire = if (gun.automatic) triggerHeld || pulled else pulled
+        if (wantsToFire && !isDown && fireCooldown <= 0f) {
+            if (ammo.get(gun.ordinal) > 0) {
+                ammo.decrementAndGet(gun.ordinal)
+                fireCooldown = gun.fireInterval
+                fire(gun)
+            } else {
+                // Click: no bullets. Don't repeat the warning every frame while held.
+                fireCooldown = EMPTY_CLICK_INTERVAL
+                mainHandler.post { onOutOfAmmo(gun) }
+            }
         }
 
         // Jumping: a push upwards, then gravity until the feet are back on the ground.
@@ -725,13 +949,13 @@ class CityRenderer(
         } else {
             idleTime += dt
             // Standing still for a moment: turn round to face the camera so the face shows.
-            if (idleTime > 1.5f && aimTime <= 0f && !isDown && !firstPerson) {
+            if (idleTime > 1.5f && aimTime <= 0f && !isDown && !eyeView) {
                 heading = approachAngle(heading, yaw + PI.toFloat(), 2.5f * dt)
             }
         }
         // Shooting turns the character to aim along the camera, even while strafing; in first
         // person the soldier always faces where you look (so others see where you aim).
-        if (aimTime > 0f || firstPerson) heading = yaw
+        if (aimTime > 0f || eyeView) heading = yaw
         updateAim()
         updateSoldiers(dt)
 
@@ -746,7 +970,7 @@ class CityRenderer(
     }
 
     private fun updateCamera() {
-        if (firstPerson) {
+        if (eyeView) {
             // Through the soldier's eyes; on the ground when killed.
             eyeX = playerX + sin(yaw) * 0.15f
             eyeY = playerY + if (down) 0.35f else if (prone) PRONE_EYE_HEIGHT else EYE_HEIGHT
@@ -919,7 +1143,7 @@ class CityRenderer(
             val dx = tile.centerX - playerX
             val dz = tile.centerZ - playerZ
             val distance = hypot(dx, dz)
-            if (distance > DRAW_DISTANCE) continue
+            if (distance > DRAW_DISTANCE * (if (scoped) SCOPE_DRAW_SCALE else 1f)) continue
             // Skip tiles well behind the camera (the tile half-diagonal is ~0.71 × its size).
             if (distance > CityScene.TILE && dx * fx + dz * fz < -CityScene.TILE * 0.75f) continue
             for ((surface, mesh) in tile.meshes) drawSurface(surface, mesh)
@@ -1013,7 +1237,7 @@ class CityRenderer(
      */
     private fun drawSoldier(
         anim: SoldierAnimator, look: SoldierLook, faceTex: Int, x: Float, z: Float, facing: Float,
-        y: Float = 0f, prone: Boolean = false,
+        y: Float = 0f, prone: Boolean = false, gun: Weapon = Weapon.AK47,
     ) {
         if (!anim.ready) return
         val meshes = soldierMeshes.getOrPut(anim) {
@@ -1065,7 +1289,7 @@ class CityRenderer(
             }
         }
 
-        // Rifle: held at the right hand, pointing where the soldier faces (+z in model space).
+        // Gun: held at the right hand, pointing where the soldier faces (+z in model space).
         // Sizes are in metres, times the model's units per metre.
         if (rig.wrist < 0) return
         anim.pose.nodeMatrix(rig.wrist, bone)
@@ -1077,13 +1301,23 @@ class CityRenderer(
         fun gunBox(up: Float, fwd: Float, width: Float, height: Float, length: Float, color: Int) =
             if (flat) partBox(wx, wy + fwd * u, wz - up * u, width * u, length * u, height * u, color)
             else partBox(wx, wy + up * u, wz + fwd * u, width * u, height * u, length * u, color)
-        gunBox(0.02f, 0.12f, 0.06f, 0.09f, 0.42f, GUN_COLOR)             // body
-        gunBox(0.04f, 0.44f, 0.03f, 0.03f, 0.26f, GUN_COLOR)             // barrel
-        gunBox(-0.07f, 0.16f, 0.045f, 0.13f, 0.06f, GUN_COLOR)           // magazine
-        gunBox(-0.01f, -0.16f, 0.05f, 0.08f, 0.18f, 0xFF4E3B2A.toInt())  // stock
+        val muzzleAhead = if (gun == Weapon.PISTOL) {
+            gunBox(0.03f, 0.1f, 0.03f, 0.035f, 0.19f, PISTOL_SLIDE)       // slide
+            gunBox(-0.03f, 0.03f, 0.03f, 0.1f, 0.045f, PISTOL_FRAME)      // grip
+            0.21f
+        } else {
+            gunBox(0.02f, 0.12f, 0.05f, 0.075f, 0.3f, AK_STEEL)           // receiver
+            gunBox(0.02f, 0.34f, 0.055f, 0.06f, 0.18f, AK_WOOD)           // handguard
+            gunBox(0.02f, 0.52f, 0.022f, 0.022f, 0.24f, AK_STEEL)         // barrel
+            gunBox(-0.07f, 0.17f, 0.034f, 0.1f, 0.07f, AK_MAG)            // magazine
+            gunBox(-0.15f, 0.2f, 0.034f, 0.08f, 0.07f, AK_MAG)            // magazine curve
+            gunBox(-0.06f, 0.02f, 0.034f, 0.09f, 0.045f, AK_DARK_WOOD)    // pistol grip
+            gunBox(-0.01f, -0.16f, 0.045f, 0.075f, 0.26f, AK_WOOD)        // stock
+            0.64f
+        }
         if (anim === playerSoldier) {
-            if (flat) Mat.transformPoint(base, wx, wy + 0.6f * u, wz - 0.04f * u, muzzle)
-            else Mat.transformPoint(base, wx, wy + 0.04f * u, wz + 0.6f * u, muzzle)
+            if (flat) Mat.transformPoint(base, wx, wy + muzzleAhead * u, wz - 0.03f * u, muzzle)
+            else Mat.transformPoint(base, wx, wy + 0.03f * u, wz + muzzleAhead * u, muzzle)
             muzzleKnown = true
         }
     }
@@ -1093,7 +1327,7 @@ class CityRenderer(
         MaterialRole.UNIFORM -> look.uniform
         MaterialRole.GEAR -> look.gear
         MaterialRole.DARK -> 0xFF1E1E1E.toInt()
-        MaterialRole.SKIN -> 0xFFC9A07E.toInt()
+        MaterialRole.SKIN -> SKIN
         MaterialRole.HAIR -> 0xFF3B2A1C.toInt()
         MaterialRole.BROWN -> 0xFF4A3322.toInt()
         MaterialRole.OWN -> own
@@ -1288,7 +1522,29 @@ class CityRenderer(
 
         /** Hits it takes to kill a player. */
         const val MAX_HEALTH = 5
-        private const val FIRE_INTERVAL = 0.25f
+        /** How often "out of bullets" is reported while Shoot is held with an empty gun. */
+        private const val EMPTY_CLICK_INTERVAL = 0.6f
+        private const val NORMAL_FOV = 60f
+        /** Field of view through the scope: 4× zoom. */
+        private const val SCOPE_FOV = 15f
+        /** Through the scope: fog, aim, bullets and soldiers reach this many times further. */
+        private const val SCOPE_RANGE_SCALE = 2.5f
+        private const val SCOPE_DRAW_SCALE = 1.6f
+        /** How far each shot kicks the view up in first person, radians. */
+        private const val PISTOL_RECOIL = 0.02f
+        private const val AK_RECOIL = 0.006f
+        private const val PICKUP_DRAW_DISTANCE = 90f
+        private const val PICKUP_LABEL_DISTANCE = 30f
+        private const val SKIN = 0xFFC9A07E.toInt()
+        private const val AK_STEEL = 0xFF2B2D2F.toInt()
+        private const val AK_COVER = 0xFF383B3E.toInt()
+        private const val AK_BLACK = 0xFF151515.toInt()
+        private const val AK_WOOD = 0xFF8A5530.toInt()
+        private const val AK_DARK_WOOD = 0xFF6B3F22.toInt()
+        /** The classic orange-brown bakelite magazine. */
+        private const val AK_MAG = 0xFF8C3A14.toInt()
+        private const val PISTOL_SLIDE = 0xFF222426.toInt()
+        private const val PISTOL_FRAME = 0xFF2F3133.toInt()
         private const val BULLET_SPEED = 45f
         private const val BULLET_RANGE = 70f
         private const val BULLET_STEP = 0.4f
@@ -1298,7 +1554,6 @@ class CityRenderer(
         private const val MUZZLE_RIGHT = 0.32f
         private const val MUZZLE_FLASH_MS = 60L
         private const val AIM_RANGE = 120f
-        private const val GUN_COLOR = 0xFF263238.toInt()
         private const val HIT_RADIUS = 0.5f
         private const val FLAG_WIDTH = 0.42f
         private const val HEALTH_BAR_WIDTH = 0.8f

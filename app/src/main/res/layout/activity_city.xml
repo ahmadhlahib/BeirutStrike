@@ -31,6 +31,13 @@
         android:focusable="false"
         android:src="@drawable/ic_crosshair" />
 
+    <!-- Looking through the AK-47's scope. Under the buttons, so they still work. -->
+    <com.example.beirutrun.city.ScopeOverlayView
+        android:id="@+id/scopeOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <!-- "Killed by …" / "You killed …!" messages. -->
     <TextView
         android:id="@+id/banner"
@@ -175,6 +182,17 @@
         android:layout_marginBottom="16dp"
         android:orientation="vertical">
 
+        <!-- Only with a scope and the AK-47 in hand. -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/scopeButton"
+            style="@style/HudButton"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:layout_marginBottom="10dp"
+            android:text="@string/scope"
+            android:visibility="gone"
+            app:icon="@drawable/ic_scope" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/jumpButton"
             style="@style/HudButton"
@@ -201,7 +219,17 @@
         android:gravity="end"
         android:orientation="vertical">
 
-        <!-- Hold to keep firing. -->
+        <!-- The gun in hand and its bullets; tap to switch guns. -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/weaponButton"
+            style="@style/HudButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginBottom="10dp"
+            android:fontFeatureSettings="tnum"
+            app:icon="@drawable/ic_swap" />
+
+        <!-- AK-47: hold to keep firing. Pistol: one shot per tap. -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/shootButton"
             style="@style/HudButton"

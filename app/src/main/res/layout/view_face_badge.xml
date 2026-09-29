@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A player's round face photo, with a gold star in the corner for Commanders (see Army). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/faceBadge"
+    android:layout_width="40dp"
+    android:layout_height="40dp">
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/faceImage"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="bottom|start"
+        android:background="#FF3A3F47"
+        android:contentDescription="@string/face_photo"
+        android:scaleType="centerCrop"
+        app:shapeAppearanceOverlay="@style/CircleImage" />
+
+    <TextView
+        android:id="@+id/faceStar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:contentDescription="@string/rank_commander"
+        android:shadowColor="#FF000000"
+        android:shadowRadius="3"
+        android:text="★"
+        android:textColor="#FFFFC107"
+        android:textSize="16sp"
+        android:visibility="gone" />
+</FrameLayout>

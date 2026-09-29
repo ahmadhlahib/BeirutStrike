@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Every player's career: score (successful shots), shots, kills and accuracy, best first. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_city_gradient"
@@ -8,76 +8,51 @@
     android:padding="20dp">
 
     <TextView
-        android:id="@+id/roomsGreeting"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:text="@string/ranking_title"
         android:textColor="@android:color/white"
         android:textSize="26sp"
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/rankingRule"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:text="@string/rooms_subtitle"
         android:textColor="#DDFFFFFF"
-        android:textSize="15sp" />
+        android:textSize="14sp" />
 
     <TextView
-        android:id="@+id/roomsStatus"
+        android:id="@+id/rankingStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:textColor="#BBFFFFFF"
         android:textSize="13sp" />
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
         android:layout_weight="1">
 
         <ListView
-            android:id="@+id/roomList"
+            android:id="@+id/rankingList"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:divider="@android:color/transparent"
-            android:dividerHeight="8dp" />
+            android:dividerHeight="6dp" />
 
         <TextView
-            android:id="@+id/roomsEmpty"
+            android:id="@+id/rankingEmpty"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
             android:padding="24dp"
-            android:text="@string/rooms_empty"
+            android:text="@string/ranking_empty"
             android:textColor="#DDFFFFFF"
             android:textSize="16sp" />
     </FrameLayout>
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/rankingButton"
-        style="?attr/materialButtonOutlinedStyle"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:layout_marginTop="12dp"
-        android:text="@string/ranking_title"
-        android:textColor="@android:color/white"
-        android:textSize="16sp"
-        app:cornerRadius="16dp"
-        app:strokeColor="#FFFFC107" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/createRoomButton"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:layout_marginTop="10dp"
-        android:text="@string/room_create_title"
-        android:textColor="#FF212121"
-        android:textSize="17sp"
-        app:backgroundTint="#FFFFB300"
-        app:cornerRadius="16dp"
-        app:icon="@drawable/ic_add"
-        app:iconTint="#FF212121" />
 </LinearLayout>

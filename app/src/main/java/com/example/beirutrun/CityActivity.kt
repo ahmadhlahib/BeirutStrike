@@ -36,6 +36,9 @@ import com.example.beirutrun.city.CityScene
 import com.example.beirutrun.city.DepthConfigChooser
 import com.example.beirutrun.city.JoystickView
 import com.example.beirutrun.city.MiniMapView
+import com.example.beirutrun.city.Pickup
+import com.example.beirutrun.city.PickupKind
+import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.city.SoundEffects
 import com.example.beirutrun.city.SoldierRig
 import com.example.beirutrun.online.FirebaseSession
@@ -97,6 +100,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private lateinit var shootButton: View
     private lateinit var scoreboard: Scoreboard
     private var stats: List<PlayerStats> = emptyList()
+
+    private lateinit var weaponButton: MaterialButton
+    private lateinit var scopeButton: MaterialButton
+    private lateinit var scopeOverlay: View
+    /** Found a scope (lost again on dying): the AK-47 can zoom in. */
+    private var hasScope = false
+    /** Ammo packs and scopes in the street (shared online; this phone's own when offline). */
+    private var pickups: List<Pickup> = emptyList()
+    /** Pickup slots I'm trying to take right now (waiting for the server). */
+    private val taking = HashSet<Int>()
     private val respawn = Runnable { respawn() }
     private val hideBanner = Runnable { banner.animate().alpha(0f).setDuration(400).start() }
 
@@ -108,6 +121,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             online.updatePose(renderer.playerX, renderer.playerZ, renderer.heading, renderer.isWalking, renderer.prone, renderer.jumpSeq)
             updateCrosshair()
             updateGameTimer()
+            updateWeaponButtons()
+            checkPickups()
             // Now and then, re-check who is still around (hides players whose phone went quiet).
             if (++ticks % 25 == 0) online.publishPlayers()
             ticker.postDelayed(this, POSE_INTERVAL_MS)
@@ -209,7 +224,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             remoteFace = { online.remoteFaceFile(it.uid) },
             onNearbyDrop = ::onNearbyDrop,
             onShot = { x, y, z, dx, dy, dz ->
-                sounds.shoot()
+                sounds.shoot(weapon = renderer.weapon)
                 online.sendShot(x, y, z, dx, dy, dz)
                 if (!gameOver) online.countShot()
             },
@@ -222,6 +237,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             teamFlag = { id -> Teams.byId(id)?.let { TeamFlags.load(applicationContext, it) } },
             teamColor = { id -> Teams.byId(id)?.color },
             teamUniform = { id -> Teams.byId(id)?.let { it.uniform to it.gear } },
+            onOutOfAmmo = { gun -> showBanner(getString(R.string.out_of_ammo, weaponName(gun))) },
+            pickupLabel = ::pickupLabel,
         )
         renderer.setDrops(drops)
 
@@ -266,9 +283,24 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
         shootButton = findViewById(R.id.shootButton)
         bindShootButton(shootButton)
+        weaponButton = findViewById(R.id.weaponButton)
+        weaponButton.setOnClickListener { switchWeapon() }
+        scopeButton = findViewById(R.id.scopeButton)
+        scopeButton.setOnClickListener { setScoped(!renderer.scoped) }
+        scopeOverlay = findViewById(R.id.scopeOverlay)
+        online.setWeapon(renderer.weapon.id)
+        online.pickupSpot = { city.randomStreetPoint() }
+        if (!online.configured) scatterLocalPickups()
+        updateWeaponButtons()
         gameTimer = findViewById(R.id.gameTimer)
         gameTimer.setOnClickListener { showScoreboard() }
-        scoreboard = Scoreboard(this, myUid = { online.uid }, onLeave = ::leaveRoom)
+        scoreboard = Scoreboard(
+            this,
+            myUid = { online.uid },
+            onLeave = { leaveRoom() },
+            onNewRoom = { leaveRoom(createNext = true) },
+            onRanking = ::showRanking,
+        )
         crosshair = findViewById(R.id.crosshair)
         findViewById<MaterialButton>(R.id.jumpButton).setOnClickListener { if (!dead) renderer.jump() }
         crawlButton = findViewById(R.id.crawlButton)
@@ -306,6 +338,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         ticker.removeCallbacks(respawn)
         sceneBuilder.shutdown()
         ticker.removeCallbacks(hideBanner)
+        // Also offline pickups waiting to come back.
+        ticker.removeCallbacksAndMessages(null)
         if (::scoreboard.isInitialized) scoreboard.dismiss()
         // Only "Leave room" and "Log out" delete an empty room here; if the app is just closed,
         // the room list cleans it up after a few minutes.
@@ -409,7 +443,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         renderer.addRemoteShot(player.uid, player.shotX, player.shotY, player.shotZ, player.shotDX, player.shotDY, player.shotDZ)
         // Other players' shots are quieter the further away they are, silent beyond ~60 m.
         val distance = hypot(player.shotX - renderer.playerX, player.shotZ - renderer.playerZ)
-        sounds.shoot(volume = 0.8f * (1f - distance / HEARING_RANGE))
+        sounds.shoot(volume = 0.8f * (1f - distance / HEARING_RANGE), weapon = Weapon.byId(player.weapon))
     }
 
     override fun onHitBy(fromUid: String, fromName: String) {
@@ -431,6 +465,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         online.countDeath()
         renderer.down = true
         renderer.triggerHeld = false
+        // The scope is lost with your life; find another.
+        hasScope = false
+        setScoped(false)
         online.setHealth(0, true, fromUid)
         showBanner(getString(R.string.killed_by, fromName.ifBlank { getString(R.string.someone) }))
         ticker.postDelayed(respawn, RESPAWN_MS)
@@ -452,6 +489,94 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     override fun onStats(stats: List<PlayerStats>) {
         this.stats = stats
         scoreboard.update(stats)
+    }
+
+    override fun onCareerScores(scores: Map<String, Int>) = scoreboard.updateCareer(scores)
+
+    override fun onPickups(pickups: List<Pickup>) = showPickups(pickups)
+
+    // ---- Guns and pickups ---------------------------------------------------------------------
+
+    private fun weaponName(gun: Weapon) =
+        getString(if (gun == Weapon.PISTOL) R.string.weapon_pistol else R.string.weapon_ak47)
+
+    private fun pickupLabel(kind: PickupKind) = when (kind) {
+        PickupKind.SCOPE -> getString(R.string.pickup_scope)
+        else -> getString(R.string.pickup_ammo, weaponName(kind.weapon!!), PickupKind.PACK_SIZE)
+    }
+
+    /** Pistol ⇄ AK-47. The scope only fits the AK-47, so switching to the pistol lowers it. */
+    private fun switchWeapon() {
+        val next = if (renderer.weapon == Weapon.AK47) Weapon.PISTOL else Weapon.AK47
+        renderer.weapon = next
+        renderer.triggerHeld = false
+        if (next != Weapon.AK47) setScoped(false)
+        online.setWeapon(next.id)
+        updateWeaponButtons()
+    }
+
+    /** Looks through the scope (AK-47 with a scope only), or back out. */
+    private fun setScoped(on: Boolean) {
+        val scoped = on && hasScope && renderer.weapon == Weapon.AK47 && !dead && !gameOver
+        renderer.scoped = scoped
+        scopeOverlay.visibility = if (scoped) View.VISIBLE else View.GONE
+        scopeButton.setText(if (scoped) R.string.scope_off else R.string.scope)
+        updateCrosshair()
+    }
+
+    /** The gun button shows the gun in hand and its bullets (red when empty). */
+    private fun updateWeaponButtons() {
+        val gun = renderer.weapon
+        val left = renderer.ammo(gun)
+        val text = getString(R.string.weapon_ammo, weaponName(gun), left)
+        if (weaponButton.text.toString() != text) weaponButton.text = text
+        weaponButton.setTextColor(if (left > 0) 0xFFFFFFFF.toInt() else 0xFFFF5252.toInt())
+        scopeButton.visibility = if (hasScope && gun == Weapon.AK47) View.VISIBLE else View.GONE
+    }
+
+    private fun showPickups(list: List<Pickup>) {
+        pickups = list
+        renderer.setPickups(list)
+    }
+
+    /** Walking over a pickup takes it; online the server decides who got there first. */
+    private fun checkPickups() {
+        if (dead || gameOver) return
+        val px = renderer.playerX
+        val pz = renderer.playerZ
+        val p = pickups.firstOrNull { it.slot !in taking && hypot(it.x - px, it.z - pz) < PICKUP_RADIUS } ?: return
+        if (!online.configured) {
+            collect(p)
+            showPickups(pickups - p)
+            ticker.postDelayed({ showPickups(pickups + localPickup(p.slot, p.kind)) }, PickupKind.respawnMs(p.kind))
+            return
+        }
+        taking += p.slot
+        online.takePickup(p) { got ->
+            taking -= p.slot
+            if (got) collect(p)
+        }
+    }
+
+    private fun collect(p: Pickup) {
+        val gun = p.kind.weapon
+        if (gun != null) {
+            renderer.addAmmo(gun, PickupKind.PACK_SIZE)
+            showBanner(getString(R.string.picked_ammo, PickupKind.PACK_SIZE, weaponName(gun)))
+        } else {
+            hasScope = true
+            showBanner(getString(R.string.picked_scope))
+        }
+        updateWeaponButtons()
+    }
+
+    /** Offline there's no one to share with: this phone scatters its own pickups. */
+    private fun scatterLocalPickups() =
+        showPickups(PickupKind.SLOTS.mapIndexed { slot, kind -> localPickup(slot, kind) })
+
+    private fun localPickup(slot: Int, kind: PickupKind): Pickup {
+        val (x, z) = city.randomStreetPoint()
+        return Pickup(slot, kind, x, z)
     }
 
     // ---- Game clock and scoreboard ------------------------------------------------------------
@@ -478,6 +603,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun endGame() {
         gameOver = true
         renderer.triggerHeld = false
+        setScoped(false)
         shootButton.alpha = 0.4f
         gameTimer.visibility = View.VISIBLE
         gameTimer.setText(R.string.score_game_over)
@@ -501,7 +627,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     v.isPressed = true
-                    if (!dead && !gameOver) renderer.triggerHeld = true
+                    if (!dead && !gameOver) {
+                        renderer.triggerHeld = true
+                        renderer.pullTrigger()
+                    }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
@@ -540,6 +669,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun respawn() {
         val (x, z) = city.randomStreetPoint()
         renderer.respawn(x, z)
+        renderer.refillToStart()
         health = CityRenderer.MAX_HEALTH
         dead = false
         renderer.health = health
@@ -556,9 +686,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         crawlButton.setText(if (on) R.string.stand_up else R.string.crawl)
     }
 
-    /** The centre crosshair turns red while it's over an enemy; hidden when dead. */
+    /** The centre crosshair turns red while it's over an enemy; hidden when dead or scoped in. */
     private fun updateCrosshair() {
-        crosshair.visibility = if (dead) View.GONE else View.VISIBLE
+        crosshair.visibility = if (dead || renderer.scoped) View.GONE else View.VISIBLE
         val onTarget = renderer.aimOnTarget
         if (onTarget != crosshairOnTarget) {
             crosshairOnTarget = onTarget
@@ -735,7 +865,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             repo.removeAllStreets()
             recreate()
         }
-        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to ::leaveRoom
+        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to { leaveRoom() }
         actions += R.string.menu_logout to {
             leavingRoom = true
             Session.logout(this)
@@ -751,14 +881,24 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             .show()
     }
 
-    private fun leaveRoom() {
+    /** Back to the room list; with [createNext], it opens the create-room dialog straight away. */
+    private fun leaveRoom(createNext: Boolean = false) {
         leavingRoom = true
         Session.setRoom(this, null, null)
         startActivity(Intent(this, RoomsActivity::class.java)
+            .putExtra(RoomsActivity.EXTRA_CREATE_ROOM, createNext)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    /**
+     * All players' career ranking, over the city (back returns to it). Only offered once the game
+     * is over: while it's open this player vanishes from the others' cities, like in the background.
+     */
+    private fun showRanking() = startActivity(Intent(this, RankingActivity::class.java))
+
     companion object {
+        /** How close to a pickup the player must walk to take it, metres. */
+        private const val PICKUP_RADIUS = 1.6f
         /** The timer turns red for the last half minute. */
         private const val FINAL_SECONDS_MS = 30_000L
         private const val MAX_STREETS = 16

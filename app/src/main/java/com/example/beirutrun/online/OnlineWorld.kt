@@ -10,7 +10,11 @@ import android.util.Log
 import com.example.beirutrun.PhotoDrop
 import com.example.beirutrun.Session
 import com.example.beirutrun.WorldRepository
+import com.example.beirutrun.city.Pickup
+import com.example.beirutrun.city.PickupKind
 import com.google.firebase.database.ChildEventListener
+import com.google.firebase.database.MutableData
+import com.google.firebase.database.Transaction
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
@@ -57,6 +61,8 @@ data class RemotePlayer(
     val prone: Boolean = false,
     /** Goes up by one per jump; the other phones replay the jump. */
     val jumpSeq: Long = 0L,
+    /** The gun in their hands (a Weapon id). */
+    val weapon: String = "",
 )
 
 /** One player's score in the room's game, kept after they leave so the scoreboard stays whole. */
@@ -75,6 +81,26 @@ data class PlayerStats(
 ) {
     /** Share of shots that hit, 0..1. */
     val accuracy get() = if (shots > 0) hits.toFloat() / shots else 0f
+
+    /** A player's score is how many of their shots hit an enemy. */
+    val score get() = hits
+
+    companion object {
+        /** Reads a `stats/{uid}` or `career/{uid}` entry. */
+        fun from(s: DataSnapshot): PlayerStats? {
+            fun count(key: String) = (s.child(key).value as? Number)?.toInt() ?: 0
+            return PlayerStats(
+                uid = s.key ?: return null,
+                name = s.child("name").getValue(String::class.java).orEmpty(),
+                team = s.child("team").getValue(String::class.java).orEmpty(),
+                kills = count("kills"),
+                deaths = count("deaths"),
+                shots = count("shots"),
+                hits = count("hits"),
+                hitsTaken = count("hitsTaken"),
+            )
+        }
+    }
 }
 
 /**
@@ -88,6 +114,13 @@ data class PlayerStats(
  *   writes it here; the victim's phone counts hits, handles dying, and deletes them.
  * - `stats/{uid}`: that player's kills, deaths, shots, hits and hits taken for the scoreboard.
  *   Each phone only adds to its own, and they stay when the player leaves.
+ *
+ * - `pickups/{slot}`: an ammo pack or scope ([PickupKind.SLOTS] says which kind each slot holds),
+ *   where it lies, and when someone took it (`takenAt`, 0 = still there). Taking one and putting
+ *   it back somewhere new are transactions, so only one player gets each and it comes back once.
+ *
+ * Outside the room, `career/{uid}` adds up the same counts over every game played, for the
+ * ranking screen and army ranks (see Army).
  *
  * The game clock is in the room list: `roomList/{room}/duration` (set by the room's creator) and
  * `startedAt`, which the first player into the city sets to the server's time.
@@ -125,6 +158,10 @@ class OnlineWorld(
         fun onGameClock(startedAt: Long, durationMs: Long) = Unit
         /** Everyone's scores in this room, as they change. */
         fun onStats(stats: List<PlayerStats>) = Unit
+        /** Career scores (all games) of the players on this room's scoreboard, by uid. */
+        fun onCareerScores(scores: Map<String, Int>) = Unit
+        /** The ammo packs and scopes lying in the street right now. */
+        fun onPickups(pickups: List<Pickup>) = Unit
     }
 
     var listener: Listener? = null
@@ -142,7 +179,6 @@ class OnlineWorld(
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private val prefs = context.getSharedPreferences("online", Context.MODE_PRIVATE)
-    private val remoteFaces = File(context.filesDir, "faces_remote").apply { mkdirs() }
 
     private var db: FirebaseDatabase? = null
     private var me: DatabaseReference? = null
@@ -165,6 +201,7 @@ class OnlineWorld(
     private var shotSeq = 0L
     private var prone = false
     private var jumpSeq = 0L
+    private var weapon = ""
     private var sentX = Float.NaN
     private var sentZ = 0f
     private var sentHeading = 0f
@@ -182,6 +219,8 @@ class OnlineWorld(
     private val pendingStats = HashMap<String, Long>()
     private var statsDirty = true
     private var lastStatsWrite = 0L
+    /** Career scores of the players on the scoreboard, each followed once it shows up. */
+    private val careerScores = HashMap<String, Int>()
 
     private val players = HashMap<String, RemotePlayer>()
     private var remoteDrops: List<PhotoDrop> = emptyList()
@@ -189,7 +228,7 @@ class OnlineWorld(
     private val downloadingFaces = HashSet<String>()
 
     /** Where another player's face is kept once downloaded. */
-    fun remoteFaceFile(uid: String) = File(remoteFaces, "$uid.img")
+    fun remoteFaceFile(uid: String) = FaceStore.file(context, uid)
 
     // ---- Lifecycle ----------------------------------------------------------------------------
 
@@ -275,6 +314,7 @@ class OnlineWorld(
         listenValue(database.getReference("${room}drops")) { snap -> onDropsSnapshot(snap) }
         listenGameClock(database)
         listenValue(database.getReference("${room}stats")) { snap -> onStatsSnapshot(snap) }
+        listenValue(database.getReference("${room}pickups")) { snap -> onPickupsSnapshot(snap) }
 
         active = !paused
         if (active) writePresence()
@@ -307,9 +347,17 @@ class OnlineWorld(
             "shotSeq" to shotSeq,
             "prone" to prone,
             "jumpSeq" to jumpSeq,
+            "weapon" to weapon,
             "updated" to ServerValue.TIMESTAMP,
         ))
         markSent()
+    }
+
+    /** I switched guns ([id] is a Weapon id). */
+    fun setWeapon(id: String) {
+        if (id == weapon) return
+        weapon = id
+        me?.updateChildren(mapOf("weapon" to id))
     }
 
     /** Keeps the room's "last active" time fresh while I'm in it, so it isn't cleaned up as empty. */
@@ -329,6 +377,7 @@ class OnlineWorld(
         if (!active) return
         touchRoom()
         flushStats()
+        respawnDuePickups()
         val now = System.currentTimeMillis()
         val changed = sentX.isNaN() ||
             hypot(x - sentX, z - sentZ) > 0.05f ||
@@ -462,8 +511,9 @@ class OnlineWorld(
     }
 
     /**
-     * Adds my pending counts to `stats/{uid}`, at most every [STATS_WRITE_MS] unless [force].
-     * They are increments, so counts from before the screen was rebuilt are kept.
+     * Adds my pending counts to this room's `stats/{uid}` and to my `career/{uid}` in one write,
+     * at most every [STATS_WRITE_MS] unless [force]. They are increments, so counts from before
+     * the screen was rebuilt, and from earlier games, are kept.
      */
     private fun flushStats(force: Boolean = false) {
         val database = db ?: return
@@ -472,28 +522,130 @@ class OnlineWorld(
         val now = System.currentTimeMillis()
         if (!force && now - lastStatsWrite < STATS_WRITE_MS) return
         lastStatsWrite = now
-        val update = mutableMapOf<String, Any>("name" to name, "team" to team)
-        for ((key, count) in pendingStats) update[key] = ServerValue.increment(count)
+        val update = mutableMapOf<String, Any>()
+        for (path in listOf("${room}stats/$userId", "career/$userId")) {
+            update["$path/name"] = name
+            update["$path/team"] = team
+            for ((key, count) in pendingStats) update["$path/$key"] = ServerValue.increment(count)
+        }
+        update["career/$userId/updated"] = ServerValue.TIMESTAMP
         pendingStats.clear()
         statsDirty = false
-        database.getReference("${room}stats/$userId").updateChildren(update)
+        database.reference.updateChildren(update)
             .addOnFailureListener { Log.w(TAG, "Stats update failed: ${it.message}") }
     }
 
     private fun onStatsSnapshot(snapshot: DataSnapshot) {
-        val stats = snapshot.children.mapNotNull { s ->
-            PlayerStats(
-                uid = s.key ?: return@mapNotNull null,
-                name = s.child("name").getValue(String::class.java).orEmpty(),
-                team = s.child("team").getValue(String::class.java).orEmpty(),
-                kills = s.num("kills").toInt(),
-                deaths = s.num("deaths").toInt(),
-                shots = s.num("shots").toInt(),
-                hits = s.num("hits").toInt(),
-                hitsTaken = s.num("hitsTaken").toInt(),
-            )
+        val stats = snapshot.children.mapNotNull(PlayerStats::from)
+        for (s in stats) {
+            followCareer(s.uid)
+            // Players who already left still get their face on the scoreboard.
+            ensureFace(s.uid, null)
         }
         listener?.onStats(stats)
+    }
+
+    /** Keeps [careerScores] up to date for [userId] (their army rank depends on it). */
+    private fun followCareer(userId: String) {
+        val database = db ?: return
+        if (careerScores.containsKey(userId)) return
+        careerScores[userId] = 0
+        listenValue(database.getReference("career/$userId/hits")) { snap ->
+            careerScores[userId] = (snap.value as? Number)?.toInt() ?: 0
+            listener?.onCareerScores(HashMap(careerScores))
+        }
+    }
+
+    // ---- Pickups ------------------------------------------------------------------------------
+
+    /** Where a new pickup may appear (a random spot in the street, from the city map). */
+    var pickupSpot: (() -> Pair<Float, Float>)? = null
+
+    /** One pickup slot as last seen in the database. */
+    private class SlotState(val kind: PickupKind, val x: Float, val z: Float, val takenAt: Long)
+    private var slots: Map<Int, SlotState> = emptyMap()
+    private var pickupsLoaded = false
+    /** Slots with a placing transaction under way, so each is only tried once at a time. */
+    private val placing = HashSet<Int>()
+
+    private fun onPickupsSnapshot(snapshot: DataSnapshot) {
+        slots = PickupKind.SLOTS.indices.mapNotNull { slot ->
+            val s = snapshot.child(slot.toString())
+            val kind = PickupKind.byId(s.child("kind").getValue(String::class.java)) ?: return@mapNotNull null
+            slot to SlotState(kind, s.num("x").toFloat(), s.num("z").toFloat(), s.num("takenAt").toLong())
+        }.toMap()
+        pickupsLoaded = true
+        respawnDuePickups()
+        listener?.onPickups(slots.filterValues { it.takenAt == 0L }.map { (slot, s) -> Pickup(slot, s.kind, s.x, s.z) })
+    }
+
+    /**
+     * Puts out any pickup that is missing (a new room) or was taken long enough ago. Every phone
+     * checks, but the transaction only lets the first one place it.
+     */
+    private fun respawnDuePickups() {
+        if (!pickupsLoaded || !active) return
+        val now = serverNow()
+        for ((slot, kind) in PickupKind.SLOTS.withIndex()) {
+            val s = slots[slot]
+            when {
+                s == null -> placePickup(slot, kind, expectedTakenAt = null)
+                s.takenAt > 0 && now - s.takenAt > PickupKind.respawnMs(kind) -> placePickup(slot, kind, s.takenAt)
+            }
+        }
+    }
+
+    /**
+     * Places slot [slot]'s pickup at a new random spot, if the slot is still as seen: empty
+     * ([expectedTakenAt] null) or taken at [expectedTakenAt].
+     */
+    private fun placePickup(slot: Int, kind: PickupKind, expectedTakenAt: Long?) {
+        val database = db ?: return
+        val spot = pickupSpot ?: return
+        if (!placing.add(slot)) return
+        val (x, z) = spot()
+        database.getReference("${room}pickups/$slot").runTransaction(object : Transaction.Handler {
+            override fun doTransaction(current: MutableData): Transaction.Result {
+                val takenAt = (current.child("takenAt").value as? Number)?.toLong()
+                val stillAsSeen = if (expectedTakenAt == null) current.value == null else takenAt == expectedTakenAt
+                if (!stillAsSeen) return Transaction.abort()
+                current.value = mapOf("kind" to kind.id, "x" to x.toDouble(), "z" to z.toDouble(), "takenAt" to 0L)
+                return Transaction.success(current)
+            }
+
+            override fun onComplete(error: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
+                main.post { placing.remove(slot) }
+                if (error != null) Log.w(TAG, "Placing pickup $slot failed: ${error.message}")
+            }
+        })
+    }
+
+    /**
+     * Tries to pick up [pickup]. [onDone] (main thread) says whether I got it: false if someone
+     * else was quicker, or it had already moved.
+     */
+    fun takePickup(pickup: Pickup, onDone: (Boolean) -> Unit) {
+        val database = db ?: return onDone(false)
+        val me = uid ?: return onDone(false)
+        val takenAt = serverNow()
+        database.getReference("${room}pickups/${pickup.slot}").runTransaction(object : Transaction.Handler {
+            override fun doTransaction(current: MutableData): Transaction.Result {
+                val kind = current.child("kind").getValue(String::class.java)
+                val x = (current.child("x").value as? Number)?.toFloat() ?: return Transaction.abort()
+                val z = (current.child("z").value as? Number)?.toFloat() ?: return Transaction.abort()
+                val taken = (current.child("takenAt").value as? Number)?.toLong() ?: 0L
+                if (kind != pickup.kind.id || taken != 0L || abs(x - pickup.x) > 0.5f || abs(z - pickup.z) > 0.5f) {
+                    return Transaction.abort()
+                }
+                current.child("takenAt").value = takenAt
+                current.child("takenBy").value = me
+                return Transaction.success(current)
+            }
+
+            override fun onComplete(error: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
+                main.post { onDone(committed && error == null) }
+            }
+        })
     }
 
     // ---- Other players ------------------------------------------------------------------------
@@ -537,6 +689,7 @@ class OnlineWorld(
                     prone = s.child("prone").getValue(Boolean::class.java) == true,
                     jumpSeq = s.num("jumpSeq").toLong(),
                     shotDZ = s.num("shotDZ").toFloat(),
+                    weapon = s.child("weapon").getValue(String::class.java).orEmpty(),
                 )
                 players[id] = player
                 // Events only for changes seen live, not for the state found on joining.

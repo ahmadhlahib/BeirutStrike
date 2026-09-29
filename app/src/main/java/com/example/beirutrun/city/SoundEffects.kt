@@ -47,8 +47,14 @@ class SoundEffects(context: Context) {
         return pool.load(file.path, 1)
     }
 
-    /** A gunshot; [volume] 0..1 (quieter for other players' shots far away). */
-    fun shoot(volume: Float = 1f) = play(shot, volume, 0.95f + Random.nextFloat() * 0.1f)
+    /**
+     * A gunshot; [volume] 0..1 (quieter for other players' shots far away). The pistol is the
+     * same shot played faster: higher and snappier than the AK-47's boom.
+     */
+    fun shoot(volume: Float = 1f, weapon: Weapon = Weapon.AK47) {
+        val pitch = if (weapon == Weapon.PISTOL) 1.4f else 0.95f
+        play(shot, volume, pitch + Random.nextFloat() * 0.1f)
+    }
 
     /** "Ay!" when a bullet hits someone. */
     fun ouch(volume: Float = 1f) {

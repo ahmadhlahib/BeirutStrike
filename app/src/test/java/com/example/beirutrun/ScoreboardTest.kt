@@ -2,6 +2,8 @@ package com.example.beirutrun
 
 import com.example.beirutrun.online.PlayerStats
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScoreboardTest {
@@ -19,14 +21,22 @@ class ScoreboardTest {
     }
 
     @Test
-    fun ranksByKillsThenFewestDeathsThenHits() {
+    fun ranksByScoreThenKillsThenFewestDeaths() {
         val ranked = Scoreboard.ranked(listOf(
-            player("a", kills = 2, deaths = 3),
-            player("b", kills = 5, deaths = 4),
-            player("c", kills = 2, deaths = 1, hits = 1),
-            player("d", kills = 2, deaths = 1, hits = 9),
+            player("a", kills = 9, deaths = 0, hits = 3),
+            player("b", kills = 1, deaths = 4, hits = 20),
+            player("c", kills = 2, deaths = 5, hits = 10),
+            player("d", kills = 2, deaths = 1, hits = 10),
+            player("e", kills = 3, deaths = 9, hits = 10),
         ))
-        assertEquals(listOf("b", "d", "c", "a"), ranked.map { it.name })
+        assertEquals(listOf("b", "e", "d", "c", "a"), ranked.map { it.name })
+    }
+
+    @Test
+    fun commanderNeedsMoreThanAHundredSuccessfulShots() {
+        assertFalse(Army.isCommander(0))
+        assertFalse(Army.isCommander(100))
+        assertTrue(Army.isCommander(101))
     }
 
     @Test

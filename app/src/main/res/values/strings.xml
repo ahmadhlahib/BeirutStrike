@@ -103,10 +103,6 @@
     <string name="score_winner">Winner: %1$s (%2$s)</string>
     <string name="score_winning_team">Winning team: %1$s</string>
     <string name="score_draw">It\'s a draw</string>
-    <plurals name="score_kills">
-        <item quantity="one">1 kill</item>
-        <item quantity="other">%d kills</item>
-    </plurals>
     <string name="score_col_name">Name</string>
     <string name="score_col_team">Team</string>
     <string name="score_col_players">Players</string>
@@ -114,9 +110,27 @@
     <string name="score_col_deaths">Deaths</string>
     <string name="score_col_ratio">K/D</string>
     <string name="score_col_shots">Shots</string>
-    <string name="score_col_hits">Hits</string>
     <string name="score_col_accuracy">Accuracy</string>
     <string name="score_col_hits_taken">Hits taken</string>
+    <string name="score_col_score">Score</string>
+    <plurals name="score_points">
+        <item quantity="one">1 point</item>
+        <item quantity="other">%d points</item>
+    </plurals>
+    <string name="score_new_room">New room</string>
+
+    <!-- Army ranks and the ranking screen -->
+    <string name="rank_commander">★ Commander</string>
+    <string name="rank_soldier">Soldier</string>
+    <string name="face_photo">Face photo</string>
+    <string name="ranking_title">Ranking</string>
+    <string name="ranking_rule">Score = shots that hit an enemy, over all games. More than %1$d makes you a ★ Commander.</string>
+    <string name="ranking_empty">No one has played an online game yet</string>
+    <plurals name="ranking_count">
+        <item quantity="one">1 player</item>
+        <item quantity="other">%d players</item>
+    </plurals>
+    <string name="ranking_details">Shots %1$d · Kills %2$d · Success %3$s</string>
 
     <!-- Teams -->
     <string name="team_title">Choose your team</string>
@@ -144,6 +158,18 @@
     <string name="you_killed">You killed %1$s!</string>
     <string name="respawned">Back in the city</string>
     <string name="someone">someone</string>
+
+    <!-- Guns and pickups -->
+    <string name="weapon_pistol">Pistol</string>
+    <string name="weapon_ak47">AK-47</string>
+    <string name="weapon_ammo">%1$s · %2$d</string>
+    <string name="out_of_ammo">No %1$s bullets. Find a pack or switch guns</string>
+    <string name="pickup_ammo">%1$s ×%2$d</string>
+    <string name="pickup_scope">Scope</string>
+    <string name="picked_ammo">+%1$d %2$s bullets</string>
+    <string name="picked_scope">Scope found! Tap Scope to aim further</string>
+    <string name="scope">Scope</string>
+    <string name="scope_off">Lower scope</string>
 
     <!-- Multiplayer -->
     <string name="status_offline">Offline · only this phone</string>
