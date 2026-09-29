@@ -23,6 +23,14 @@
           ".write": "auth != null && !data.exists()",
           ".validate": "newData.isString() && newData.val().length <= 40"
         },
+        "duration": {
+          ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
+          ".validate": "newData.isNumber() && newData.val() >= 30000 && newData.val() <= 3600000"
+        },
+        "startedAt": {
+          ".write": "auth != null && !data.exists() && root.child('rooms/' + $room + '/members/' + auth.uid).exists()",
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
         "lastActive": {
           ".write": "auth != null && (root.child('rooms/' + $room + '/members/' + auth.uid).exists() || newData.parent().parent().parent().child('rooms/' + $room + '/members/' + auth.uid).exists())",
           ".validate": "newData.isNumber() && newData.val() <= now"
@@ -75,6 +83,20 @@
           "$id": {
             ".write": "auth != null && root.child('rooms/' + $room + '/members/' + auth.uid).exists() && (root.child('rooms/' + $room + '/drops/' + $id + '/authorId').val() === auth.uid || newData.parent().parent().child('drops/' + $id + '/authorId').val() === auth.uid)",
             ".validate": "newData.isString() && newData.val().length < 1500000"
+          }
+        },
+        "stats": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms/' + $room + '/members/' + auth.uid).exists()",
+            ".validate": "newData.hasChildren(['name'])",
+            "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "team": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "kills": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "deaths": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "shots": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "hits": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "hitsTaken": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "$other": { ".validate": false }
           }
         },
         "hits": {

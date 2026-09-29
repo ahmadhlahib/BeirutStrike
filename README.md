@@ -17,6 +17,10 @@ Made for fun, to play with friends.
   many players are on each team.
 - **Combat.** Shooting with health bars, hit detection and deaths. You can also crawl (slow, low
   and hard to hit) and jump.
+- **Timed games and scoreboard.** The room's creator sets the game length, from 30 seconds to
+  an hour. A countdown shows how much time is left. When it runs out, a scoreboard shows every
+  player's and team's kills, deaths, K/D, shots, hits, accuracy and hits taken. You can also open
+  the live scoreboard from the top-left menu at any time.
 - **Your face on your soldier.** The front camera and ML Kit face detection put your face on
   your character's head.
 - **Say and drop.** Speech bubbles over your character, and photos you drop in the city for

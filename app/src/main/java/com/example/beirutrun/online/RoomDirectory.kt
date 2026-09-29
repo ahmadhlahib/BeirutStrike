@@ -20,13 +20,22 @@ data class RoomInfo(
     val map: String,
     /** Server time a player was last in the room (or its creation time). */
     val lastActive: Long,
-)
+    /** How long a game in this room lasts, ms; 0 = no time limit (rooms made by older versions). */
+    val durationMs: Long = 0L,
+    /** Server time the game started (the first player entered the city); 0 = not started yet. */
+    val startedAt: Long = 0L,
+) {
+    /** Server time the game ends, or 0 if it has no end (yet). */
+    val endsAt get() = if (durationMs > 0 && startedAt > 0) startedAt + durationMs else 0L
+}
 
 /**
  * The list of rooms and joining them. In the database:
  *
  * - `roomList/{room}`: name, map, whether it has a password, who made it, when it was last
- *   active, and `online/{uid}` flags for the players in it.
+ *   active, how long its game lasts (`duration`, set once by its creator), when the game started
+ *   (`startedAt`, set once by the first player into the city) and `online/{uid}` flags for the
+ *   players in it.
  * - `roomKeys/{room}`: a hash of the password. Nobody can read it; the security rules compare it
  *   with what a joining player writes to `rooms/{room}/members/{uid}`, so a wrong password is
  *   refused by the server itself.
@@ -73,6 +82,8 @@ class RoomDirectory(private val userId: String) {
                         online = s.child("online").childrenCount.toInt(),
                         map = s.child("map").getValue(String::class.java).orEmpty(),
                         lastActive = (s.child("lastActive").value as? Number)?.toLong() ?: createdAt,
+                        durationMs = (s.child("duration").value as? Number)?.toLong() ?: 0L,
+                        startedAt = (s.child("startedAt").value as? Number)?.toLong() ?: 0L,
                     )
                 }
                 val now = System.currentTimeMillis() + serverOffset
@@ -91,6 +102,9 @@ class RoomDirectory(private val userId: String) {
         listListener = l
     }
 
+    /** The server's clock, as far as this phone can tell. */
+    fun serverNow() = System.currentTimeMillis() + serverOffset
+
     fun stop() {
         listListener?.let { listRef?.removeEventListener(it) }
         offsetListener?.let { offsetRef?.removeEventListener(it) }
@@ -98,8 +112,11 @@ class RoomDirectory(private val userId: String) {
         offsetListener = null
     }
 
-    /** Creates a room on [map] (with an optional password) and joins it. [onDone] gets the new room id. */
-    fun create(name: String, password: String, map: String, onDone: (String?) -> Unit) {
+    /**
+     * Creates a room on [map] (with an optional password) whose game lasts [durationMs], and joins
+     * it. [onDone] gets the new room id.
+     */
+    fun create(name: String, password: String, map: String, durationMs: Long, onDone: (String?) -> Unit) {
         val database = db ?: return onDone(null)
         val id = database.getReference("roomList").push().key ?: return onDone(null)
         val hasPassword = password.isNotEmpty()
@@ -107,6 +124,7 @@ class RoomDirectory(private val userId: String) {
         val updates = mutableMapOf<String, Any?>(
             "roomList/$id/name" to name,
             "roomList/$id/map" to map,
+            "roomList/$id/duration" to durationMs,
             "roomList/$id/hasPassword" to hasPassword,
             "roomList/$id/createdBy" to userId,
             "roomList/$id/createdAt" to ServerValue.TIMESTAMP,
@@ -138,6 +156,10 @@ class RoomDirectory(private val userId: String) {
         const val EMPTY_ROOM_GRACE_MS = 5 * 60 * 1000L
         /** What members of a room without a password write as their key. */
         const val OPEN = "open"
+
+        /** The game lengths a room's creator can choose from, 30 seconds to an hour. */
+        val durations = listOf(30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600).map { it * 1000L }
+        const val DEFAULT_DURATION_MS = 600_000L
 
         /** Marks the room as in use now. */
         fun touch(database: FirebaseDatabase, roomId: String) {

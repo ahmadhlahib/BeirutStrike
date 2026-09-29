@@ -40,6 +40,7 @@ import com.example.beirutrun.city.SoundEffects
 import com.example.beirutrun.city.SoldierRig
 import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.OnlineWorld
+import com.example.beirutrun.online.PlayerStats
 import com.example.beirutrun.online.RemotePlayer
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -86,6 +87,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private lateinit var sounds: SoundEffects
     private var health = CityRenderer.MAX_HEALTH
     private var dead = false
+
+    /** The room's game: when it ends (server ms, 0 = no limit or not started yet) and how long it lasts. */
+    private var gameEndsAt = 0L
+    private var gameDurationMs = 0L
+    /** Time's up: no more shooting or scoring, the results are on screen. */
+    private var gameOver = false
+    private lateinit var gameTimer: TextView
+    private lateinit var shootButton: View
+    private lateinit var scoreboard: Scoreboard
+    private var stats: List<PlayerStats> = emptyList()
     private val respawn = Runnable { respawn() }
     private val hideBanner = Runnable { banner.animate().alpha(0f).setDuration(400).start() }
 
@@ -96,6 +107,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         override fun run() {
             online.updatePose(renderer.playerX, renderer.playerZ, renderer.heading, renderer.isWalking, renderer.prone, renderer.jumpSeq)
             updateCrosshair()
+            updateGameTimer()
             // Now and then, re-check who is still around (hides players whose phone went quiet).
             if (++ticks % 25 == 0) online.publishPlayers()
             ticker.postDelayed(this, POSE_INTERVAL_MS)
@@ -199,10 +211,12 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             onShot = { x, y, z, dx, dy, dz ->
                 sounds.shoot()
                 online.sendShot(x, y, z, dx, dy, dz)
+                if (!gameOver) online.countShot()
             },
             onHitPlayer = { uid ->
                 sounds.ouch()
                 online.sendHit(uid)
+                if (!gameOver) online.countHit()
             },
             playerTeam = playerTeam.id,
             teamFlag = { id -> Teams.byId(id)?.let { TeamFlags.load(applicationContext, it) } },
@@ -250,7 +264,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 label()
             }
         }
-        bindShootButton(findViewById(R.id.shootButton))
+        shootButton = findViewById(R.id.shootButton)
+        bindShootButton(shootButton)
+        gameTimer = findViewById(R.id.gameTimer)
+        gameTimer.setOnClickListener { showScoreboard() }
+        scoreboard = Scoreboard(this, myUid = { online.uid }, onLeave = ::leaveRoom)
         crosshair = findViewById(R.id.crosshair)
         findViewById<MaterialButton>(R.id.jumpButton).setOnClickListener { if (!dead) renderer.jump() }
         crawlButton = findViewById(R.id.crawlButton)
@@ -288,6 +306,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         ticker.removeCallbacks(respawn)
         sceneBuilder.shutdown()
         ticker.removeCallbacks(hideBanner)
+        if (::scoreboard.isInitialized) scoreboard.dismiss()
         // Only "Leave room" and "Log out" delete an empty room here; if the app is just closed,
         // the room list cleans it up after a few minutes.
         if (::online.isInitialized) online.stop(leavingRoom)
@@ -394,7 +413,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     }
 
     override fun onHitBy(fromUid: String, fromName: String) {
-        if (dead) return
+        if (dead || gameOver) return
+        online.countHitTaken()
         health -= 1
         renderer.health = health
         updateHearts()
@@ -408,6 +428,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
         // Fifth hit: down for a few seconds, then back at a random crossroads.
         dead = true
+        online.countDeath()
         renderer.down = true
         renderer.triggerHeld = false
         online.setHealth(0, true, fromUid)
@@ -416,8 +437,59 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     }
 
     override fun onKilled(victimName: String) {
+        if (gameOver) return
+        online.countKill()
         sounds.death(volume = 0.8f)
         showBanner(getString(R.string.you_killed, victimName))
+    }
+
+    override fun onGameClock(startedAt: Long, durationMs: Long) {
+        gameDurationMs = durationMs
+        gameEndsAt = if (startedAt > 0 && durationMs > 0) startedAt + durationMs else 0L
+        updateGameTimer()
+    }
+
+    override fun onStats(stats: List<PlayerStats>) {
+        this.stats = stats
+        scoreboard.update(stats)
+    }
+
+    // ---- Game clock and scoreboard ------------------------------------------------------------
+
+    /** Counts down to the end of the room's game, and ends it when the time is up. */
+    private fun updateGameTimer() {
+        if (gameOver) return
+        if (gameDurationMs <= 0) {
+            gameTimer.visibility = View.GONE
+            scoreboard.setTimeLeft(null)
+            return
+        }
+        // Until the start time comes back from the server, show the full length.
+        val left = if (gameEndsAt > 0) gameEndsAt - online.serverNow() else gameDurationMs
+        if (left <= 0) return endGame()
+        val text = GameClock.format(left)
+        gameTimer.visibility = View.VISIBLE
+        gameTimer.text = text
+        gameTimer.setTextColor(if (left <= FINAL_SECONDS_MS) 0xFFFF5252.toInt() else 0xFFFFFFFF.toInt())
+        scoreboard.setTimeLeft(text)
+    }
+
+    /** Time's up: stop the fighting and show everyone the results. */
+    private fun endGame() {
+        gameOver = true
+        renderer.triggerHeld = false
+        shootButton.alpha = 0.4f
+        gameTimer.visibility = View.VISIBLE
+        gameTimer.setText(R.string.score_game_over)
+        gameTimer.setTextColor(0xFFFFC107.toInt())
+        sounds.death(volume = 0.5f)
+        scoreboard.update(stats)
+        scoreboard.show(over = true)
+    }
+
+    private fun showScoreboard() {
+        scoreboard.update(stats)
+        scoreboard.show(over = gameOver)
     }
 
     // ---- Shooting -----------------------------------------------------------------------------
@@ -429,7 +501,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     v.isPressed = true
-                    if (!dead) renderer.triggerHeld = true
+                    if (!dead && !gameOver) renderer.triggerHeld = true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
@@ -647,7 +719,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     private fun showPlayerMenu() {
         val hasStreets = repo.streets().isNotEmpty()
-        val actions = mutableListOf<Pair<Int, () -> Unit>>(
+        val actions = mutableListOf<Pair<Int, () -> Unit>>()
+        if (online.configured) actions += R.string.menu_scoreboard to { showScoreboard() }
+        actions += listOf<Pair<Int, () -> Unit>>(
             R.string.menu_change_team to {
                 startActivity(Intent(this, TeamSelectActivity::class.java))
                 finish()
@@ -661,12 +735,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             repo.removeAllStreets()
             recreate()
         }
-        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to {
-            leavingRoom = true
-            Session.setRoom(this, null, null)
-            startActivity(Intent(this, RoomsActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
+        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to ::leaveRoom
         actions += R.string.menu_logout to {
             leavingRoom = true
             Session.logout(this)
@@ -682,7 +751,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             .show()
     }
 
+    private fun leaveRoom() {
+        leavingRoom = true
+        Session.setRoom(this, null, null)
+        startActivity(Intent(this, RoomsActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     companion object {
+        /** The timer turns red for the last half minute. */
+        private const val FINAL_SECONDS_MS = 30_000L
         private const val MAX_STREETS = 16
         private const val POSE_INTERVAL_MS = 200L
         private const val RESPAWN_MS = 4_000L
