@@ -10,7 +10,7 @@ questionnaires. See [PLAY_STORE.md](PLAY_STORE.md) for the full release checklis
 | App name (max 30) | `Beirut Strike` |
 | Category | Game → **Action** |
 | Tags | Shooter, Multiplayer, Action |
-| Contact email | `<CONTACT EMAIL>` |
+| Contact email | `Ahmad.h.lahib@gmail.com` |
 
 ### Short description (max 80 characters)
 

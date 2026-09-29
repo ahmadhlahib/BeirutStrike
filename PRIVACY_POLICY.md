@@ -2,11 +2,11 @@
 
 **Last updated:** 29 September 2026
 
-Beirut Strike ("the game", "we") is a multiplayer game for Android published by **`<DEVELOPER NAME>`**.
+Beirut Strike ("the game", "we") is a multiplayer game for Android published by **Ahmad EL Lahib**.
 This policy explains what information the game collects, how it is used and shared, and how you
 can delete it.
 
-**Contact:** `<CONTACT EMAIL>`
+**Contact:** [Ahmad.h.lahib@gmail.com](mailto:Ahmad.h.lahib@gmail.com)
 
 ## Summary
 
@@ -58,7 +58,7 @@ We do not sell, rent or share your information with anyone else, except where th
 - **In the game:** open the menu (your name, top left, in the city) and choose **Delete my data**.
   This deletes your face photo, career score, match scores, dropped photos and your anonymous
   account from our servers, and everything the game stored on your phone.
-- **By email:** write to `<CONTACT EMAIL>` with your player name if you can't use the game (for
+- **By email:** write to [Ahmad.h.lahib@gmail.com](mailto:Ahmad.h.lahib@gmail.com) with your player name if you can't use the game (for
   example, if you uninstalled it). We will delete your data within 30 days.
 
 Uninstalling the game deletes the data stored on your phone, but not the data on our servers. Use

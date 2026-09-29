@@ -79,7 +79,7 @@ every item under **Policy → App content** and **Grow → Store presence**:
 
 | Page | What to enter |
 | --- | --- |
-| **Privacy policy** | A public URL to [PRIVACY_POLICY.md](PRIVACY_POLICY.md), e.g. its GitHub page. Fill in the contact email first |
+| **Privacy policy** | A public URL to [PRIVACY_POLICY.md](PRIVACY_POLICY.md), e.g. its GitHub page. The contact email is already filled in |
 | **App access** | *All functionality is available without special access* (no login; players just type a name) |
 | **Ads** | *No, my app does not contain ads* |
 | **Content rating** | The questionnaire: see [STORE_LISTING.md](STORE_LISTING.md#content-rating-questionnaire) |
