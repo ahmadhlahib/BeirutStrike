@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One map-size choice in the create-room dialog. -->
+<com.google.android.material.button.MaterialButton xmlns:android="http://schemas.android.com/apk/res/android"
+    style="?attr/materialButtonOutlinedStyle"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minWidth="0dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp" />

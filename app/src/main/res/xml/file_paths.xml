@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- The camera app writes new drop photos here before they are imported. -->
+    <cache-path name="capture" path="capture/" />
+</paths>

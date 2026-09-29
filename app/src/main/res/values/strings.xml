@@ -1,0 +1,122 @@
+<resources>
+    <string name="app_name">Beirut Strike</string>
+    <string name="app_title">Beirut Strike</string>
+
+    <!-- Login -->
+    <string name="login_subtitle">Walk your city, say hi and drop photos for others to find</string>
+    <string name="login_title">Who are you?</string>
+    <string name="login_name_hint">Your name</string>
+    <string name="login_enter">Enter the city</string>
+    <string name="login_name_required">Please enter your name</string>
+
+
+    <!-- Face photo -->
+    <string name="face_retake">Retake face photo</string>
+    <string name="face_instructions">Put your face inside the circle</string>
+    <string name="face_capture">Take photo</string>
+    <string name="face_skip">Skip</string>
+    <string name="face_failed">Could not take the photo, try again</string>
+    <string name="face_not_found">No face found. Look at the camera in good light and try again</string>
+    <string name="face_permission_denied">Camera permission is needed to put your face on the character</string>
+
+
+    <!-- City -->
+    <string name="look_hint">Swipe to look and aim</string>
+    <string name="say">Say</string>
+    <string name="say_title">Say something</string>
+    <string name="say_hint">What do you want to say?</string>
+    <string name="drop_photo">Drop photo</string>
+    <string name="drop_title">Drop this photo</string>
+    <string name="drop_caption_hint">Write something about it</string>
+    <string name="drop_here">Drop it here</string>
+    <string name="view_photo_by">See photo by %1$s</string>
+    <string name="photo_meta">Dropped by %1$s · %2$s</string>
+    <string name="remove_photo">Remove photo</string>
+    <string name="photo_failed">Could not save the photo, try again</string>
+    <string name="photo_no_camera">No camera app found</string>
+    <string name="photo_permission_denied">Camera permission is needed to take photos</string>
+    <string name="close">Close</string>
+    <string name="streets_added">Added %1$d street photo(s)</string>
+    <string name="menu_add_streets">Add street photos to buildings</string>
+    <string name="menu_remove_streets">Remove street photos</string>
+    <string name="menu_logout">Log out</string>
+
+    <string name="osm_attribution">Map data © OpenStreetMap contributors</string>
+
+    <!-- Rooms -->
+    <string name="rooms_greeting">Hi %1$s!</string>
+    <string name="rooms_subtitle">Join a room or create your own. Players in the same room play together.</string>
+    <string name="rooms_empty">No rooms yet. Create the first one!</string>
+    <plurals name="rooms_count">
+        <item quantity="one">1 room</item>
+        <item quantity="other">%d rooms</item>
+    </plurals>
+    <plurals name="room_players">
+        <item quantity="one">1 player online</item>
+        <item quantity="other">%d players online</item>
+    </plurals>
+    <string name="room_locked">Needs a password</string>
+    <string name="room_create_title">Create a room</string>
+    <string name="room_create">Create</string>
+    <string name="room_name_hint">Room name</string>
+    <string name="room_default_name">%1$s\'s room</string>
+    <string name="room_untitled">Untitled room</string>
+    <string name="room_password_hint">Password (optional)</string>
+    <string name="room_password_helper">Leave empty so anyone can join</string>
+    <string name="room_password">Password</string>
+    <string name="room_join_title">Join %1$s</string>
+    <string name="room_join">Join</string>
+    <string name="room_joining">Joining…</string>
+    <string name="room_creating">Creating room…</string>
+    <string name="room_wrong_password">Wrong password</string>
+    <string name="room_join_failed">Couldn\'t join this room</string>
+    <string name="room_create_failed">Couldn\'t create the room</string>
+    <string name="status_in_room">%1$s · %2$s</string>
+    <string name="room_choose_map">Map</string>
+    <string name="room_map">Room map</string>
+    <string name="room_map_named">Map: %1$s</string>
+    <string name="room_map_and_players">%1$s · %2$s</string>
+    <string name="room_choose_size">Map size</string>
+    <string name="map_size_metres">%1$d m</string>
+    <string name="map_size_full">Whole map</string>
+    <string name="map_with_size">%1$s (%2$s)</string>
+    <string name="full_map_title">%1$s · %2$s</string>
+    <string name="full_map_hint">Tap anywhere to close</string>
+
+    <!-- Teams -->
+    <string name="team_title">Choose your team</string>
+    <string name="team_room">Room: %1$s</string>
+    <string name="team_flag">Team flag</string>
+    <plurals name="team_players">
+        <item quantity="one">1 player</item>
+        <item quantity="other">%d players</item>
+    </plurals>
+    <string name="player_and_team">%1$s · %2$s</string>
+    <string name="menu_change_team">Change team</string>
+    <string name="menu_leave_room">Leave room</string>
+
+    <!-- View mode button: shows the current view; tap to switch. -->
+    <string name="view_first_person">1st person</string>
+    <string name="view_third_person">3rd person</string>
+
+    <!-- Shooting -->
+    <string name="shoot">Shoot</string>
+    <string name="jump">Jump</string>
+    <string name="crawl">Crawl</string>
+    <string name="stand_up">Stand up</string>
+    <string name="aim">Aim</string>
+    <string name="killed_by">Killed by %1$s</string>
+    <string name="you_killed">You killed %1$s!</string>
+    <string name="respawned">Back in the city</string>
+    <string name="someone">someone</string>
+
+    <!-- Multiplayer -->
+    <string name="status_offline">Offline · only this phone</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_failed">Can\'t reach the online city</string>
+    <string name="status_online_alone">Online · no one else here yet</string>
+    <plurals name="status_online">
+        <item quantity="one">Online · 1 other player</item>
+        <item quantity="other">Online · %d other players</item>
+    </plurals>
+</resources>
