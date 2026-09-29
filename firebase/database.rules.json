@@ -121,6 +121,20 @@
         }
       }
     },
+    "reports": {
+      ".read": false,
+      "$id": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.hasChildren(['kind', 'by', 'target', 'at']) && newData.child('by').val() === auth.uid",
+        "kind": { ".validate": "newData.val() === 'photo' || newData.val() === 'message' || newData.val() === 'player'" },
+        "target": { ".validate": "newData.isString() && newData.val().length <= 128" },
+        "targetName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "detail": { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "room": { ".validate": "newData.isString() && newData.val().length <= 128" },
+        "at": { ".validate": "newData.isNumber() && newData.val() <= now" },
+        "$other": { ".validate": false }
+      }
+    },
     "career": {
       ".read": "auth != null",
       ".indexOn": ["hits"],

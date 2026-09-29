@@ -111,6 +111,13 @@ class WorldRepository(private val context: Context) {
         saveDrops(drops)
     }
 
+    /** Deletes every photo on this phone: drops (mine and downloaded ones) and street photos. */
+    fun deleteAllPhotos() {
+        dropsDir.listFiles()?.forEach { it.delete() }
+        dropsFile.delete()
+        removeAllStreets()
+    }
+
     companion object {
         /** Decodes an image no bigger than [maxSize] on its longest side, rotated upright per EXIF. */
         fun decodeScaled(file: File, maxSize: Int): Bitmap? {

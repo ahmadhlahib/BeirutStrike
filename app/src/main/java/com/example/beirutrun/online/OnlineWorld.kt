@@ -648,6 +648,54 @@ class OnlineWorld(
         })
     }
 
+    // ---- Reports and deleting my data ---------------------------------------------------------
+
+    /**
+     * Reports another player's [kind] of content ("photo", "message" or "player") for the app's
+     * owner to review in the Firebase console (`reports/`, which nobody can read from the app).
+     */
+    fun report(kind: String, targetUid: String, targetName: String, detail: String, onDone: (Boolean) -> Unit) {
+        val database = db ?: return onDone(false)
+        val me = uid ?: return onDone(false)
+        database.getReference("reports").push().setValue(mapOf(
+            "kind" to kind,
+            "by" to me,
+            "target" to targetUid,
+            "targetName" to targetName.take(40),
+            "detail" to detail.take(200),
+            "room" to roomId.orEmpty(),
+            "at" to ServerValue.TIMESTAMP,
+        )).addOnCompleteListener { main.post { onDone(it.isSuccessful) } }
+    }
+
+    /**
+     * Deletes everything the server keeps about me: face photo, career, my stats and presence in
+     * this room, and the photos I dropped here; then my anonymous account itself, so the next
+     * sign-in starts afresh. [onDone] says whether the server data went.
+     */
+    fun deleteMyData(onDone: (Boolean) -> Unit) {
+        val database = db ?: return onDone(false)
+        val me = uid ?: return onDone(false)
+        active = false
+        val paths = mutableMapOf<String, Any?>(
+            "faces/$me" to null,
+            "career/$me" to null,
+            "${room}stats/$me" to null,
+            "${room}players/$me" to null,
+            "roomList/$roomId/online/$me" to null,
+        )
+        for (drop in remoteDrops.filter { it.authorId == me }) {
+            paths["${room}drops/${drop.id}"] = null
+            paths["${room}dropPhotos/${drop.id}"] = null
+        }
+        database.reference.updateChildren(paths).addOnCompleteListener { task ->
+            // Only once the data is gone: until then the same account can try again.
+            if (task.isSuccessful) FirebaseSession.deleteAccount()
+            else Log.w(TAG, "Deleting my data failed", task.exception)
+            main.post { onDone(task.isSuccessful) }
+        }
+    }
+
     // ---- Other players ------------------------------------------------------------------------
 
     private fun listenPlayers(database: FirebaseDatabase) {
