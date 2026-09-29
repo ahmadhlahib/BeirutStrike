@@ -42,6 +42,7 @@ tag, and a blue dot on the minimap. "Say" bubbles and dropped photos appear on b
 | `dropPhotos/{id}` | The dropped photo (JPEG, base64, ~100–200 KB) | Its author |
 | `hits/{uid}/{id}` | A bullet that hit that player; their phone counts it (5 kill) and deletes it | The shooter creates it; the victim removes it |
 | `rooms/{room}/stats/{uid}` | Scoreboard: kills, deaths, shots, hits, hits taken. Kept when the player leaves. | That player only |
+| `rooms/{room}/pickups/{slot}` | Ammo packs (10 bullets for the pistol or the AK-47) and scopes lying in the street, and when someone took one. Taking and putting one back are transactions, so only one player gets each. | Any member of the room |
 | `career/{uid}` | A player's totals over every game: shots, successful shots (their score), kills, deaths, hits taken. Used by the Ranking screen and army ranks (more than 100 successful shots makes a ★ Commander). | That player only |
 | `roomList/{room}/duration`, `startedAt` | Game length (30 s to 1 h) and when the game started. Each can only be set once. | Length: the room's creator. Start: the first player into the city |
 

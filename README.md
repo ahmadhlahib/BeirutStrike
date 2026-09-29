@@ -17,6 +17,12 @@ Made for fun, to play with friends.
   many players are on each team.
 - **Combat.** Shooting with health bars, hit detection and deaths. You can also crawl (slow, low
   and hard to hit) and jump.
+- **Two guns.** A pistol (one shot per tap, at most one a second, 12 bullets) and an AK-47
+  (fires nonstop while Shoot is held, 10 shots a second, 30 bullets), each with detailed
+  first-person models and recoil. Tap the gun button to switch. Bullets run out; packs of 10
+  for each gun lie around the streets, shared by everyone in the room.
+- **Scope.** Find a scope in the street to zoom in with the AK-47 (4×) and see and shoot much
+  further. It's lost when you die.
 - **Timed games and scoreboard.** The room's creator sets the game length, from 30 seconds to
   an hour. A countdown shows how much time is left. When it runs out, a scoreboard shows every
   player's and team's score, kills, deaths, K/D, shots, accuracy and hits taken. You can also open
