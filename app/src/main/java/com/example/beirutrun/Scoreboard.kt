@@ -94,7 +94,7 @@ class Scoreboard(
 
         val teamRows = v.findViewById<LinearLayout>(R.id.teamRows)
         teamRows.removeAllViews()
-        if (teams.isNotEmpty()) teamRows.addView(headerRow(teamRows, R.string.score_col_team, R.string.score_col_players))
+        if (teams.isNotEmpty()) teamRows.addView(headerRow(teamRows, R.string.score_col_team, R.string.score_col_players, withFace = false))
         teams.forEachIndexed { i, t ->
             teamRows.addView(row(teamRows, i + 1, t.team, Teams.byId(t.team)?.name ?: t.team,
                 activity.resources.getQuantityString(R.plurals.team_players, t.players, t.players), t.total,
@@ -103,7 +103,7 @@ class Scoreboard(
 
         val playerRows = v.findViewById<LinearLayout>(R.id.playerRows)
         playerRows.removeAllViews()
-        if (players.isNotEmpty()) playerRows.addView(headerRow(playerRows, R.string.score_col_name, R.string.score_col_team))
+        if (players.isNotEmpty()) playerRows.addView(headerRow(playerRows, R.string.score_col_name, R.string.score_col_team, withFace = true))
         val me = myUid()
         players.forEachIndexed { i, p ->
             playerRows.addView(row(playerRows, i + 1, p.team, p.name, Teams.byId(p.team)?.name ?: p.team, p,
@@ -131,7 +131,11 @@ class Scoreboard(
         return parts.joinToString(" · ")
     }
 
-    private fun headerRow(parent: ViewGroup, nameLabel: Int, teamLabel: Int): View {
+    /**
+     * The column headings. [withFace] keeps the face's space (the player rows show one), so the
+     * headings line up with the columns underneath.
+     */
+    private fun headerRow(parent: ViewGroup, nameLabel: Int, teamLabel: Int, withFace: Boolean): View {
         val r = LayoutInflater.from(activity).inflate(R.layout.item_score_row, parent, false)
         val labels = mapOf(
             R.id.scoreRank to "#",
@@ -152,7 +156,7 @@ class Scoreboard(
             setTypeface(typeface, Typeface.BOLD)
         }
         r.findViewById<View>(R.id.scoreSwatch).visibility = View.INVISIBLE
-        r.findViewById<View>(R.id.scoreFace).visibility = View.GONE
+        r.findViewById<View>(R.id.scoreFace).visibility = if (withFace) View.INVISIBLE else View.GONE
         return r
     }
 

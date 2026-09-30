@@ -25,6 +25,16 @@
         android:textSize="16sp"
         android:textStyle="bold" />
 
+    <!-- Rooms that allow cheats: warn that scores won't count toward the ranking. -->
+    <TextView
+        android:id="@+id/joinCheats"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/room_cheats_on_helper"
+        android:textColor="#FFFFB300"
+        android:visibility="gone" />
+
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/passwordLayout"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"

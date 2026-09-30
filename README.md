@@ -105,6 +105,26 @@ random street and get at least their starting bullets back.
 | Pistol ammo | 4 | +10 pistol bullets | 20 s |
 | Scope | 2 | Enables the AK-47 scope until death | 60 s |
 
+### Cheat codes
+
+Cheats only work in rooms created with **Allow cheats (just for fun)**, and offline. Those rooms
+are marked "Cheats on · not ranked" in the room list: scores there still show on the room's
+scoreboard but **don't count toward the Ranking**, for anyone in the room.
+
+Type a code in the **Say** box. It isn't shown to other players, and it only changes the game on
+your phone. Case, extra spaces and a final `!` or `.` don't matter. In a normal room, a code just
+shows "Cheats are off in this room".
+
+| Code | Effect |
+| --- | --- |
+| `unlimited ammo` | Bullets never run out |
+| `unlimited health` | Hits never cost a heart, and health goes back to full |
+| `find a scope` | Gives you a scope for the AK-47 |
+| `full health` | Health back to full, once |
+| `super speed` | Walk and run twice as fast |
+| `rapid fire` | Both guns fire automatically, twice as fast |
+| `cancel cheats` | Turns every cheat off and takes back a cheat scope |
+
 ### Scoring and ranks
 
 - **Score** = shots that hit an enemy. It ranks the match scoreboard; kills and then fewer

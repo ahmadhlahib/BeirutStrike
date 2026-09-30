@@ -103,4 +103,20 @@
             android:maxLength="40"
             android:maxLines="1" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Just for fun: cheat codes work, and scores don't count toward the ranking. -->
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/roomCheatsSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/room_cheats"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/roomCheatsHelper"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/room_cheats_off_helper"
+        android:textAppearance="?attr/textAppearanceCaption" />
 </LinearLayout>

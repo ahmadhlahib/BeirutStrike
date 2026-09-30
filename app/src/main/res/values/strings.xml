@@ -188,6 +188,23 @@
     <string name="picked_scope">Scope found! Tap Scope to aim further</string>
     <string name="scope">Scope</string>
     <string name="scope_off">Lower scope</string>
+    <string name="weapon_ammo_unlimited">%1$s · ∞</string>
+
+    <!-- Cheat codes (typed in the Say box) -->
+    <string name="cheat_unlimited_ammo">Cheat on: unlimited ammo</string>
+    <string name="cheat_unlimited_health">Cheat on: unlimited health</string>
+    <string name="cheat_find_scope">Cheat: scope found! Tap Scope to aim further</string>
+    <string name="cheat_full_health">Cheat: health back to full</string>
+    <string name="cheat_super_speed">Cheat on: super speed</string>
+    <string name="cheat_rapid_fire">Cheat on: rapid fire</string>
+    <string name="cheat_cancel">Cheats cancelled</string>
+    <string name="cheat_not_now">Cheats work once you\'re back in the game</string>
+    <string name="cheat_not_allowed">Cheats are off in this room</string>
+    <string name="cheats_room_notice">Cheats allowed: type a code in Say. Scores here don\'t count in the Ranking</string>
+    <string name="room_cheats">Allow cheats (just for fun)</string>
+    <string name="room_cheats_off_helper">Cheat codes won\'t work. Scores count in the Ranking</string>
+    <string name="room_cheats_on_helper">Cheats allowed: scores in this room won\'t count in the Ranking</string>
+    <string name="room_cheats_badge">Cheats on · not ranked</string>
 
     <!-- Multiplayer -->
     <string name="status_offline">Offline · only this phone</string>

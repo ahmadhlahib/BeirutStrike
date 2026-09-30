@@ -125,6 +125,15 @@ class CityRenderer(
         ammo.getAndUpdate(w.ordinal) { maxOf(it, w.startAmmo) }
     }
 
+    /** Cheat: shooting never uses up bullets. */
+    @Volatile var unlimitedAmmo = false
+
+    /** Cheat: every gun fires automatically, and faster (see [RAPID_FIRE_SCALE]). */
+    @Volatile var rapidFire = false
+
+    /** Cheat: walking and running speed multiplier (1 = normal). */
+    @Volatile var speedBoost = 1f
+
     /** Looking through the AK-47's scope: zoomed in, in first person, seeing and shooting further. */
     @Volatile var scoped = false
 
@@ -897,11 +906,11 @@ class CityRenderer(
         val gun = weapon
         val pulled = triggerPulled
         triggerPulled = false
-        val wantsToFire = if (gun.automatic) triggerHeld || pulled else pulled
+        val wantsToFire = if (gun.automatic || rapidFire) triggerHeld || pulled else pulled
         if (wantsToFire && !isDown && fireCooldown <= 0f) {
-            if (ammo.get(gun.ordinal) > 0) {
-                ammo.decrementAndGet(gun.ordinal)
-                fireCooldown = gun.fireInterval
+            if (unlimitedAmmo || ammo.get(gun.ordinal) > 0) {
+                if (!unlimitedAmmo) ammo.decrementAndGet(gun.ordinal)
+                fireCooldown = gun.fireInterval * if (rapidFire) RAPID_FIRE_SCALE else 1f
                 fire(gun)
             } else {
                 // Click: no bullets. Don't repeat the warning every frame while held.
@@ -942,7 +951,7 @@ class CityRenderer(
                 amount < RUN_STICK -> WALK_SPEED * (amount / RUN_STICK).coerceAtLeast(0.45f)
                 else -> RUN_SPEED
             }
-            val step = speed * dt
+            val step = speed * speedBoost * dt
             // Slide along walls: try each axis on its own.
             if (!city.isBlocked(playerX + dx * step, playerZ, BODY_RADIUS)) playerX += dx * step
             if (!city.isBlocked(playerX, playerZ + dz * step, BODY_RADIUS)) playerZ += dz * step
@@ -1500,6 +1509,8 @@ class CityRenderer(
         private const val PRONE_LIFT = 0.16f
         private const val PRONE_GUN_HEIGHT = 0.3f
         private const val CRAWL_SPEED = 1.4f
+        /** Rapid fire cheat: time between shots is cut to this share (the pistol 2 a second, the AK-47 20). */
+        private const val RAPID_FIRE_SCALE = 0.5f
         /** Take-off speed and gravity: a jump about 0.9 m high, 0.85 s long. */
         private const val JUMP_SPEED = 4.2f
         private const val GRAVITY = 9.8f

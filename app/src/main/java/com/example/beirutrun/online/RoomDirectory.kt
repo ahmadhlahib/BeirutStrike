@@ -24,6 +24,8 @@ data class RoomInfo(
     val durationMs: Long = 0L,
     /** Server time the game started (the first player entered the city); 0 = not started yet. */
     val startedAt: Long = 0L,
+    /** Cheat codes allowed: a room just for fun, whose scores don't count toward the ranking. */
+    val cheats: Boolean = false,
 ) {
     /** Server time the game ends, or 0 if it has no end (yet). */
     val endsAt get() = if (durationMs > 0 && startedAt > 0) startedAt + durationMs else 0L
@@ -33,7 +35,8 @@ data class RoomInfo(
  * The list of rooms and joining them. In the database:
  *
  * - `roomList/{room}`: name, map, whether it has a password, who made it, when it was last
- *   active, how long its game lasts (`duration`, set once by its creator), when the game started
+ *   active, how long its game lasts (`duration`, set once by its creator), whether cheat codes are
+ *   allowed (`cheats`, set once by its creator), when the game started
  *   (`startedAt`, set once by the first player into the city) and `online/{uid}` flags for the
  *   players in it.
  * - `roomKeys/{room}`: a hash of the password. Nobody can read it; the security rules compare it
@@ -84,6 +87,7 @@ class RoomDirectory(private val userId: String) {
                         lastActive = (s.child("lastActive").value as? Number)?.toLong() ?: createdAt,
                         durationMs = (s.child("duration").value as? Number)?.toLong() ?: 0L,
                         startedAt = (s.child("startedAt").value as? Number)?.toLong() ?: 0L,
+                        cheats = s.child("cheats").getValue(Boolean::class.java) == true,
                     )
                 }
                 val now = System.currentTimeMillis() + serverOffset
@@ -114,9 +118,10 @@ class RoomDirectory(private val userId: String) {
 
     /**
      * Creates a room on [map] (with an optional password) whose game lasts [durationMs], and joins
-     * it. [onDone] gets the new room id.
+     * it. [cheats] allows cheat codes (just for fun: scores there don't count toward the ranking).
+     * [onDone] gets the new room id.
      */
-    fun create(name: String, password: String, map: String, durationMs: Long, onDone: (String?) -> Unit) {
+    fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, onDone: (String?) -> Unit) {
         val database = db ?: return onDone(null)
         val id = database.getReference("roomList").push().key ?: return onDone(null)
         val hasPassword = password.isNotEmpty()
@@ -132,6 +137,8 @@ class RoomDirectory(private val userId: String) {
             "rooms/$id/members/$userId" to key,
         )
         if (hasPassword) updates["roomKeys/$id"] = key
+        // Only cheat rooms carry the flag, so normal rooms look the same to older versions.
+        if (cheats) updates["roomList/$id/cheats"] = true
         database.reference.updateChildren(updates).addOnCompleteListener { task ->
             if (!task.isSuccessful) Log.w(TAG, "Create room failed", task.exception)
             onDone(if (task.isSuccessful) id else null)

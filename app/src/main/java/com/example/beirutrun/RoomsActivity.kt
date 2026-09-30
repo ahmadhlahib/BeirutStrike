@@ -25,6 +25,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.switchmaterial.SwitchMaterial
 
 /** Pick a room: create one (named, optionally with a password) or join one from the list. */
 class RoomsActivity : AppCompatActivity() {
@@ -118,6 +119,7 @@ class RoomsActivity : AppCompatActivity() {
         view.findViewById<ImageView>(R.id.joinMapPreview).setImageBitmap(preview(map))
         view.findViewById<TextView>(R.id.joinMapName).text = getString(R.string.room_map_named, mapLabel(room.map))
         view.findViewById<View>(R.id.passwordLayout).visibility = if (room.hasPassword) View.VISIBLE else View.GONE
+        view.findViewById<View>(R.id.joinCheats).visibility = if (room.cheats) View.VISIBLE else View.GONE
         val input = view.findViewById<EditText>(R.id.passwordInput)
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.room_join_title, room.name))
@@ -204,13 +206,23 @@ class RoomsActivity : AppCompatActivity() {
             button.setOnClickListener { duration = d }
         }
 
+        // Cheats: off by default. Turning them on says straight away that scores won't count.
+        val cheatsSwitch = view.findViewById<SwitchMaterial>(R.id.roomCheatsSwitch)
+        val cheatsHelper = view.findViewById<TextView>(R.id.roomCheatsHelper)
+        val helperColor = cheatsHelper.currentTextColor
+        cheatsSwitch.setOnCheckedChangeListener { _, on ->
+            cheatsHelper.setText(if (on) R.string.room_cheats_on_helper else R.string.room_cheats_off_helper)
+            cheatsHelper.setTextColor(if (on) CHEATS_WARNING_COLOR else helperColor)
+        }
+
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.room_create_title)
             .setView(view)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.room_create) { _, _ ->
                 val name = nameInput.text.toString().trim().ifEmpty { getString(R.string.room_untitled) }
-                create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size), duration)
+                create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size), duration,
+                    cheatsSwitch.isChecked)
             }
             .show()
     }
@@ -239,10 +251,10 @@ class RoomsActivity : AppCompatActivity() {
     private fun isOver(room: RoomInfo) = room.endsAt > 0 && (directory?.serverNow() ?: 0L) >= room.endsAt
 
     /** Creates a room; [map] is its map value (see CityMaps.roomValue). */
-    private fun create(name: String, password: String, map: String, durationMs: Long) {
+    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean) {
         val dir = directory ?: return
         status.setText(R.string.room_creating)
-        dir.create(name, password, map, durationMs) { id ->
+        dir.create(name, password, map, durationMs, cheats) { id ->
             if (id != null) enter(id, name, map)
             else Toast.makeText(this, R.string.room_create_failed, Toast.LENGTH_LONG).show()
         }
@@ -256,6 +268,8 @@ class RoomsActivity : AppCompatActivity() {
     companion object {
         /** Open the create-room dialog as soon as the screen is ready. */
         const val EXTRA_CREATE_ROOM = "create_room"
+        /** The "scores won't count" warning under the cheats switch, and on cheat rooms in the list. */
+        private const val CHEATS_WARNING_COLOR = 0xFFFFB300.toInt()
     }
 
     private inner class RoomAdapter : BaseAdapter() {
@@ -279,6 +293,7 @@ class RoomsActivity : AppCompatActivity() {
             )
             view.findViewById<TextView>(R.id.roomPlayers).text =
                 gameLabel(room)?.let { getString(R.string.room_map_and_players, details, it) } ?: details
+            view.findViewById<TextView>(R.id.roomCheats).visibility = if (room.cheats) View.VISIBLE else View.GONE
             view.findViewById<ImageView>(R.id.roomLock).visibility =
                 if (room.hasPassword) View.VISIBLE else View.GONE
             return view

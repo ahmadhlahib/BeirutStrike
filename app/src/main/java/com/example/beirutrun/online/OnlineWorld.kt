@@ -120,7 +120,8 @@ data class PlayerStats(
  *   it back somewhere new are transactions, so only one player gets each and it comes back once.
  *
  * Outside the room, `career/{uid}` adds up the same counts over every game played, for the
- * ranking screen and army ranks (see Army).
+ * ranking screen and army ranks (see Army). Rooms that allow cheats (`roomList/{room}/cheats`)
+ * are just for fun: their games don't add to anyone's career.
  *
  * The game clock is in the room list: `roomList/{room}/duration` (set by the room's creator) and
  * `startedAt`, which the first player into the city sets to the server's time.
@@ -162,6 +163,8 @@ class OnlineWorld(
         fun onCareerScores(scores: Map<String, Int>) = Unit
         /** The ammo packs and scopes lying in the street right now. */
         fun onPickups(pickups: List<Pickup>) = Unit
+        /** Whether this room allows cheat codes (then scores don't count toward the ranking). */
+        fun onCheatsAllowed(allowed: Boolean) = Unit
     }
 
     var listener: Listener? = null
@@ -213,6 +216,8 @@ class OnlineWorld(
 
     private var gameStartedAt = 0L
     private var gameDurationMs = 0L
+    /** Whether the room allows cheats; null until the server says. Career counts wait until it's known. */
+    private var cheatsAllowed: Boolean? = null
     private var startRequested = false
 
     /** Counts not yet added to my `stats/{uid}` (sent in batches: shooting can be many per second). */
@@ -475,6 +480,11 @@ class OnlineWorld(
             gameDurationMs = (snap.value as? Number)?.toLong() ?: 0L
             listener?.onGameClock(gameStartedAt, gameDurationMs)
         }
+        listenValue(info.child("cheats")) { snap ->
+            val allowed = snap.value == true
+            cheatsAllowed = allowed
+            listener?.onCheatsAllowed(allowed)
+        }
         listenValue(info.child("startedAt")) { snap ->
             gameStartedAt = (snap.value as? Number)?.toLong() ?: 0L
             if (gameStartedAt == 0L) startGameClock()
@@ -513,22 +523,25 @@ class OnlineWorld(
     /**
      * Adds my pending counts to this room's `stats/{uid}` and to my `career/{uid}` in one write,
      * at most every [STATS_WRITE_MS] unless [force]. They are increments, so counts from before
-     * the screen was rebuilt, and from earlier games, are kept.
+     * the screen was rebuilt, and from earlier games, are kept. In a room that allows cheats only
+     * the room's stats are written, not the career.
      */
     private fun flushStats(force: Boolean = false) {
         val database = db ?: return
         val userId = uid ?: return
         if (!statsDirty) return
+        val countsForCareer = !(cheatsAllowed ?: return)
         val now = System.currentTimeMillis()
         if (!force && now - lastStatsWrite < STATS_WRITE_MS) return
         lastStatsWrite = now
         val update = mutableMapOf<String, Any>()
-        for (path in listOf("${room}stats/$userId", "career/$userId")) {
+        val paths = if (countsForCareer) listOf("${room}stats/$userId", "career/$userId") else listOf("${room}stats/$userId")
+        for (path in paths) {
             update["$path/name"] = name
             update["$path/team"] = team
             for ((key, count) in pendingStats) update["$path/$key"] = ServerValue.increment(count)
         }
-        update["career/$userId/updated"] = ServerValue.TIMESTAMP
+        if (countsForCareer) update["career/$userId/updated"] = ServerValue.TIMESTAMP
         pendingStats.clear()
         statsDirty = false
         database.reference.updateChildren(update)
