@@ -194,17 +194,46 @@
     <string name="delete_data_failed">Deleted from this phone, but the server couldn\'t be reached. Try again when online, or email us to finish deleting it</string>
 
     <!-- Guns and pickups -->
-    <string name="weapon_pistol">Pistol</string>
-    <string name="weapon_ak47">AK-47</string>
-    <string name="weapon_ammo">%1$s · %2$d</string>
-    <string name="out_of_ammo">No %1$s bullets. Find a pack or switch guns</string>
-    <string name="pickup_ammo">%1$s ×%2$d</string>
+    <!-- Gun button: name, rounds in the magazine / rounds in spare magazines. -->
+    <string name="weapon_ammo">%1$s · %2$d / %3$d</string>
+    <string name="weapon_reloading">%1$s · reloading…</string>
+    <string name="out_of_ammo">No %1$s rounds left. Find a magazine or switch guns</string>
+    <string name="reload">Reload</string>
+    <string name="zoom_in">Zoom in</string>
+    <string name="zoom_out">Zoom out</string>
+    <string name="zoom_level">Scope %1$d×</string>
+    <string name="pickup_pistol_mag">Pistol magazine</string>
+    <string name="pickup_primary_mag">Rifle magazine</string>
+    <string name="pickup_sniper_mag">Sniper rounds</string>
     <string name="pickup_scope">Scope</string>
-    <string name="picked_ammo">+%1$d %2$s bullets</string>
+    <!-- A magazine picked up: "+1 magazine for the AK-47 (30 rounds)". -->
+    <string name="picked_magazine">+1 magazine for the %1$s (%2$d rounds)</string>
     <string name="picked_scope">Scope found! Tap the scope button to aim further</string>
+    <string name="picked_scope_has_one">Your %1$s already has a scope</string>
     <string name="scope">Scope</string>
     <string name="scope_off">Lower scope</string>
     <string name="weapon_ammo_unlimited">%1$s · ∞</string>
+
+    <!-- Loadout: choosing the three guns -->
+    <string name="loadout_title">Choose your guns</string>
+    <string name="loadout_hint">You carry one of each. Tap the gun button in the city to switch.</string>
+    <string name="loadout_pistol">Pistol</string>
+    <string name="loadout_primary">Primary</string>
+    <string name="loadout_sniper">Sniper rifle</string>
+    <string name="loadout_play">Play</string>
+    <string name="loadout_photo_credits">Photo credits</string>
+    <string name="gun_rounds">%1$d × %2$d rounds</string>
+    <string name="gun_rpm">%1$d/min</string>
+    <string name="gun_semi">semi-auto</string>
+    <string name="gun_bolt">bolt action</string>
+    <string name="gun_reload">reload %1$.1f s</string>
+    <string name="gun_scope">%1$s scope</string>
+    <string name="stat_damage">Damage</string>
+    <string name="stat_fire_rate">Fire rate</string>
+    <string name="stat_range">Range</string>
+    <string name="stat_accuracy">Accuracy</string>
+    <string name="stat_mobility">Mobility</string>
+    <string name="menu_change_guns">Change guns</string>
 
     <!-- Cheat codes (typed in the Say box) -->
     <string name="cheat_unlimited_ammo">Cheat on: unlimited ammo</string>

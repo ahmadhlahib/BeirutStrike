@@ -39,6 +39,7 @@ import com.example.beirutrun.city.JoystickView
 import com.example.beirutrun.city.MiniMapView
 import com.example.beirutrun.city.Pickup
 import com.example.beirutrun.city.PickupKind
+import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.city.SoundEffects
 import com.example.beirutrun.city.SoldierRig
@@ -109,9 +110,14 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private var stats: List<PlayerStats> = emptyList()
 
     private lateinit var weaponButton: MaterialButton
+    private lateinit var reloadButton: MaterialButton
     private lateinit var scopeButton: MaterialButton
+    private lateinit var zoomInButton: MaterialButton
+    private lateinit var zoomOutButton: MaterialButton
     private lateinit var scopeOverlay: View
-    /** Found a scope (lost again on dying): the AK-47 can zoom in. */
+    /** The pistol, primary and sniper rifle the player carries (see LoadoutActivity). */
+    private lateinit var guns: Map<GunSlot, Weapon>
+    /** Found a scope (lost again on dying): a primary without a built-in one can zoom in. */
     private var hasScope = false
     /** Ammo packs and scopes in the street (shared online; this phone's own when offline). */
     private var pickups: List<Pickup> = emptyList()
@@ -237,16 +243,22 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 online.sendShot(x, y, z, dx, dy, dz)
                 if (!gameOver) online.countShot()
             },
-            onHitPlayer = { uid ->
+            onHitPlayer = { uid, damage ->
                 sounds.ouch()
-                online.sendHit(uid)
+                online.sendHit(uid, damage)
                 if (!gameOver) online.countHit()
             },
             playerTeam = playerTeam.id,
             teamFlag = { id -> Teams.byId(id)?.let { TeamFlags.load(applicationContext, it) } },
             teamColor = { id -> Teams.byId(id)?.color },
             teamUniform = { id -> Teams.byId(id)?.let { it.uniform to it.gear } },
-            onOutOfAmmo = { gun -> showBanner(getString(R.string.out_of_ammo, weaponName(gun))) },
+            onOutOfAmmo = { gun -> showBanner(getString(R.string.out_of_ammo, gun.displayName)) },
+            onReloadStart = { gun ->
+                sounds.reload(gun)
+                setScoped(false)
+                updateWeaponButtons()
+            },
+            onReloaded = { updateWeaponButtons() },
             pickupLabel = ::pickupLabel,
         )
         renderer.setDrops(drops)
@@ -294,9 +306,18 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         bindShootButton(shootButton)
         weaponButton = findViewById(R.id.weaponButton)
         weaponButton.setOnClickListener { switchWeapon() }
+        reloadButton = findViewById(R.id.reloadButton)
+        reloadButton.setOnClickListener { if (!dead && !gameOver) renderer.reload() }
         scopeButton = findViewById(R.id.scopeButton)
         scopeButton.setOnClickListener { setScoped(!renderer.scoped) }
+        zoomInButton = findViewById(R.id.zoomInButton)
+        zoomInButton.setOnClickListener { changeZoom(+1) }
+        zoomOutButton = findViewById(R.id.zoomOutButton)
+        zoomOutButton.setOnClickListener { changeZoom(-1) }
         scopeOverlay = findViewById(R.id.scopeOverlay)
+        // The three guns chosen on the loadout screen; the primary in hand to start with.
+        guns = GunSlot.entries.associateWith { Session.gun(this, it) }
+        renderer.weapon = guns.getValue(GunSlot.PRIMARY)
         online.setWeapon(renderer.weapon.id)
         online.pickupSpot = { city.randomStreetPoint() }
         if (!online.configured) scatterLocalPickups()
@@ -462,16 +483,19 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     override fun onFacesChanged() = renderer.reloadFaces()
 
     override fun onRemoteShot(player: RemotePlayer) {
-        renderer.addRemoteShot(player.uid, player.shotX, player.shotY, player.shotZ, player.shotDX, player.shotDY, player.shotDZ)
-        // Other players' shots are quieter the further away they are, silent beyond ~60 m.
+        val gun = Weapon.byId(player.weapon)
+        renderer.addRemoteShot(player.uid, player.shotX, player.shotY, player.shotZ, player.shotDX, player.shotDY, player.shotDZ, gun)
+        // Other players' shots are quieter the further away they are: silent beyond ~60 m, or
+        // three times that for a sniper rifle's boom.
+        val hearing = HEARING_RANGE * if (gun.slot == GunSlot.SNIPER) 3f else 1f
         val distance = hypot(player.shotX - renderer.playerX, player.shotZ - renderer.playerZ)
-        sounds.shoot(volume = 0.8f * (1f - distance / HEARING_RANGE), weapon = Weapon.byId(player.weapon))
+        sounds.shoot(volume = 0.8f * (1f - distance / hearing), weapon = gun)
     }
 
-    override fun onHitBy(fromUid: String, fromName: String) {
+    override fun onHitBy(fromUid: String, fromName: String, damage: Int) {
         if (dead || gameOver) return
         online.countHitTaken()
-        if (!unlimitedHealth) health -= 1
+        if (!unlimitedHealth) health = (health - damage).coerceAtLeast(0)
         renderer.health = health
         updateHearts()
         if (health > 0) sounds.ouch() else sounds.death()
@@ -487,6 +511,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         online.countDeath()
         renderer.down = true
         renderer.triggerHeld = false
+        sounds.cancelReload()
         // The scope is lost with your life; find another.
         hasScope = false
         cheatScope = false
@@ -525,43 +550,84 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     // ---- Guns and pickups ---------------------------------------------------------------------
 
-    private fun weaponName(gun: Weapon) =
-        getString(if (gun == Weapon.PISTOL) R.string.weapon_pistol else R.string.weapon_ak47)
+    private fun pickupLabel(kind: PickupKind) = getString(when (kind) {
+        PickupKind.SCOPE -> R.string.pickup_scope
+        PickupKind.PISTOL_AMMO -> R.string.pickup_pistol_mag
+        PickupKind.AK_AMMO -> R.string.pickup_primary_mag
+        PickupKind.SNIPER_AMMO -> R.string.pickup_sniper_mag
+    })
 
-    private fun pickupLabel(kind: PickupKind) = when (kind) {
-        PickupKind.SCOPE -> getString(R.string.pickup_scope)
-        else -> getString(R.string.pickup_ammo, weaponName(kind.weapon!!), PickupKind.PACK_SIZE)
-    }
-
-    /** Pistol ⇄ AK-47. The scope only fits the AK-47, so switching to the pistol lowers it. */
+    /** The next of the three guns carried: pistol → primary → sniper rifle → pistol. */
     private fun switchWeapon() {
-        val next = if (renderer.weapon == Weapon.AK47) Weapon.PISTOL else Weapon.AK47
+        val slots = GunSlot.entries
+        val next = guns.getValue(slots[(renderer.weapon.slot.ordinal + 1) % slots.size])
         renderer.weapon = next
         renderer.triggerHeld = false
-        if (next != Weapon.AK47) setScoped(false)
+        sounds.cancelReload()
+        setScoped(false)
         online.setWeapon(next.id)
         updateWeaponButtons()
     }
 
-    /** Looks through the scope (AK-47 with a scope only), or back out. */
+    /** Whether the gun in hand has a scope: built in (sniper rifles, the M4), or one found for a primary. */
+    private fun canScope(gun: Weapon = renderer.weapon) = gun.hasScope || (gun.slot == GunSlot.PRIMARY && hasScope)
+
+    /** The magnifications the gun in hand's scope offers, lowest first. */
+    private fun zoomLevels(gun: Weapon = renderer.weapon) = gun.zooms.ifEmpty { listOf(Weapon.PICKUP_SCOPE_ZOOM) }
+
+    /** Which of [zoomLevels] the scope is set to; each time the scope is raised it starts at the lowest. */
+    private var zoomIndex = 0
+
+    /** Looks through the scope, or back out. There's no aiming through a scope while reloading. */
     private fun setScoped(on: Boolean) {
-        val scoped = on && hasScope && renderer.weapon == Weapon.AK47 && !dead && !gameOver
+        val scoped = on && canScope() && !dead && !gameOver && renderer.reloading == null
+        if (scoped && !renderer.scoped) zoomIndex = 0
+        renderer.zoom = zoomLevels()[zoomIndex.coerceIn(0, zoomLevels().lastIndex)]
         renderer.scoped = scoped
         scopeOverlay.visibility = if (scoped) View.VISIBLE else View.GONE
         showToggle(scopeButton, scoped, if (scoped) R.string.scope_off else R.string.scope)
+        updateZoomButtons()
         updateCrosshair()
     }
 
-    /** The gun button shows the gun in hand and its bullets (red when empty). */
+    /** Zooms the scope in (+1) or out (-1) through its magnifications. */
+    private fun changeZoom(step: Int) {
+        val levels = zoomLevels()
+        zoomIndex = (zoomIndex + step).coerceIn(0, levels.lastIndex)
+        renderer.zoom = levels[zoomIndex]
+        updateZoomButtons()
+        showBanner(getString(R.string.zoom_level, levels[zoomIndex].toInt()))
+    }
+
+    /** Zoom in and out show while looking through a scope that has more than one magnification. */
+    private fun updateZoomButtons() {
+        val levels = zoomLevels()
+        val show = renderer.scoped && levels.size > 1
+        zoomInButton.visibility = if (show) View.VISIBLE else View.GONE
+        zoomOutButton.visibility = if (show) View.VISIBLE else View.GONE
+        zoomInButton.alpha = if (zoomIndex < levels.lastIndex) 1f else 0.4f
+        zoomOutButton.alpha = if (zoomIndex > 0) 1f else 0.4f
+    }
+
+    /**
+     * The gun button shows the gun in hand, the rounds in its magazine and in its spare
+     * magazines (red when there's nothing left), or that it's reloading.
+     */
     private fun updateWeaponButtons() {
         val gun = renderer.weapon
-        val left = renderer.ammo(gun)
+        val loaded = renderer.loaded(gun)
+        val spare = renderer.spare(gun)
         val unlimited = renderer.unlimitedAmmo
-        val text = if (unlimited) getString(R.string.weapon_ammo_unlimited, weaponName(gun))
-            else getString(R.string.weapon_ammo, weaponName(gun), left)
+        val text = when {
+            unlimited -> getString(R.string.weapon_ammo_unlimited, gun.displayName)
+            renderer.reloading == gun -> getString(R.string.weapon_reloading, gun.displayName)
+            else -> getString(R.string.weapon_ammo, gun.displayName, loaded, spare)
+        }
         if (weaponButton.text.toString() != text) weaponButton.text = text
-        weaponButton.setTextColor(if (unlimited || left > 0) 0xFFFFFFFF.toInt() else 0xFFFF5252.toInt())
-        scopeButton.visibility = if (hasScope && gun == Weapon.AK47) View.VISIBLE else View.GONE
+        weaponButton.setTextColor(if (unlimited || loaded > 0 || spare > 0) 0xFFFFFFFF.toInt() else 0xFFFF5252.toInt())
+        // Reloading only does something with room in the magazine and a spare one to put in.
+        reloadButton.alpha = if (!unlimited && loaded < gun.magazine && spare > 0 && renderer.reloading == null) 1f else 0.4f
+        scopeButton.visibility = if (canScope(gun)) View.VISIBLE else View.GONE
     }
 
     private fun showPickups(list: List<Pickup>) {
@@ -588,15 +654,19 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
     }
 
+    /** A magazine goes to the gun carried in its slot; a scope fits the primary (until death). */
     private fun collect(p: Pickup) {
-        val gun = p.kind.weapon
-        if (gun != null) {
-            renderer.addAmmo(gun, PickupKind.PACK_SIZE)
-            showBanner(getString(R.string.picked_ammo, PickupKind.PACK_SIZE, weaponName(gun)))
+        val slot = p.kind.slot
+        if (slot != null) {
+            val gun = guns.getValue(slot)
+            renderer.addMagazine(gun)
+            showBanner(getString(R.string.picked_magazine, gun.displayName, gun.magazine))
         } else {
+            val primary = guns.getValue(GunSlot.PRIMARY)
             hasScope = true
             cheatScope = false // a real scope: kept when cheats are cancelled
-            showBanner(getString(R.string.picked_scope))
+            showBanner(if (primary.hasScope) getString(R.string.picked_scope_has_one, primary.displayName)
+                else getString(R.string.picked_scope))
         }
         updateWeaponButtons()
     }
@@ -633,6 +703,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     /** Time's up: stop the fighting and show everyone the results. */
     private fun endGame() {
         gameOver = true
+        sounds.cancelReload()
         renderer.triggerHeld = false
         setScoped(false)
         shootButton.alpha = 0.4f
@@ -1034,6 +1105,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         actions += listOf<Pair<Int, () -> Unit>>(
             R.string.menu_change_team to {
                 startActivity(Intent(this, TeamSelectActivity::class.java))
+                finish()
+            },
+            R.string.menu_change_guns to {
+                startActivity(Intent(this, LoadoutActivity::class.java))
                 finish()
             },
             R.string.face_retake to { takeFace.launch(Intent(this, FaceCaptureActivity::class.java)) },

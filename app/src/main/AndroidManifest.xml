@@ -34,6 +34,7 @@
 
         <activity android:name=".RoomsActivity" />
         <activity android:name=".TeamSelectActivity" />
+        <activity android:name=".LoadoutActivity" />
         <activity android:name=".RankingActivity" />
 
         <activity

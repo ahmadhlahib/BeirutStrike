@@ -251,16 +251,9 @@ class TeamSelectActivity : AppCompatActivity() {
 
     // ---- Joining ------------------------------------------------------------------------------
 
-    /** Your team decides your soldier; take a face photo first if there isn't one yet. */
+    /** Your team decides your soldier's uniform; next, choose the guns to carry. */
     private fun choose(team: Team) {
         Session.setTeamId(this, team.id)
-        if (Session.faceFile(this).exists()) openCity() else takeFace.launch(Intent(this, FaceCaptureActivity::class.java))
-    }
-
-    /** Skipping the photo is fine too: the soldier keeps their own face. */
-    private val takeFace = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { openCity() }
-
-    private fun openCity() {
-        startActivity(Intent(this, CityActivity::class.java))
+        startActivity(Intent(this, LoadoutActivity::class.java))
     }
 }

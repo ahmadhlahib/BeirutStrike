@@ -3,6 +3,8 @@ package com.example.beirutrun.city
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
+import android.os.Handler
+import android.os.Looper
 import java.io.File
 import java.util.concurrent.Executors
 import kotlin.random.Random
@@ -15,7 +17,7 @@ import kotlin.random.Random
 class SoundEffects(context: Context) {
 
     private val pool = SoundPool.Builder()
-        .setMaxStreams(8)
+        .setMaxStreams(10)
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_GAME)
@@ -25,18 +27,35 @@ class SoundEffects(context: Context) {
         .build()
 
     private val dir = File(context.cacheDir, "sfx_v$VERSION").apply { mkdirs() }
-    @Volatile private var shot = 0
+    private val main = Handler(Looper.getMainLooper())
+    /** Marks the reload sounds waiting to play, so switching guns can cancel them. */
+    private val reloadToken = Any()
+    @Volatile private var shots = emptyMap<ShotSound, Int>()
     @Volatile private var ouch = intArrayOf()
     @Volatile private var death = 0
+    @Volatile private var magOut = 0
+    @Volatile private var magIn = 0
+    @Volatile private var rack = 0
+    @Volatile private var bolt = 0
+    @Volatile private var roundIn = 0
+    @Volatile private var cover = 0
+    @Volatile private var belt = 0
 
     init {
         // Generating takes a moment, so do it off the main thread.
         val worker = Executors.newSingleThreadExecutor()
         worker.execute {
-            shot = load("shot") { SoundSynth.gunshot() }
+            shots = ShotSound.entries.associateWith { kind -> load("shot_${kind.name.lowercase()}") { SoundSynth.gunshot(kind) } }
             // A few pitches so repeated hits don't all sound identical.
             ouch = floatArrayOf(0.92f, 1f, 1.1f).mapIndexed { i, p -> load("ouch$i") { SoundSynth.ouch(p) } }.toIntArray()
             death = load("death") { SoundSynth.death() }
+            magOut = load("mag_out") { SoundSynth.magazineOut() }
+            magIn = load("mag_in") { SoundSynth.magazineIn() }
+            rack = load("rack") { SoundSynth.rack() }
+            bolt = load("bolt") { SoundSynth.bolt() }
+            roundIn = load("round_in") { SoundSynth.roundIn() }
+            cover = load("feed_cover") { SoundSynth.feedCover() }
+            belt = load("belt") { SoundSynth.beltRattle() }
         }
         worker.shutdown()
     }
@@ -48,13 +67,54 @@ class SoundEffects(context: Context) {
     }
 
     /**
-     * A gunshot; [volume] 0..1 (quieter for other players' shots far away). The pistol is the
-     * same shot played faster: higher and snappier than the AK-47's boom.
+     * [weapon]'s shot; [volume] 0..1 (quieter for other players' shots far away). A bolt-action
+     * rifle then works its bolt, the way a sniper does between shots.
      */
     fun shoot(volume: Float = 1f, weapon: Weapon = Weapon.AK47) {
-        val pitch = if (weapon == Weapon.PISTOL) 1.4f else 0.95f
-        play(shot, volume, pitch + Random.nextFloat() * 0.1f)
+        play(shots[weapon.sound] ?: 0, volume, 0.97f + Random.nextFloat() * 0.06f)
+        if (weapon.boltAction) main.postDelayed({ play(bolt, volume * 0.7f, 1f) }, BOLT_DELAY_MS)
     }
+
+    /**
+     * The sounds of changing [weapon]'s magazine (or belt, or loading a bolt action's rounds),
+     * spread over its reload time the way the real gun is handled: out, in, and the slide,
+     * charging handle or bolt at the end.
+     */
+    fun reload(weapon: Weapon) {
+        cancelReload()
+        val ms = weapon.reloadSeconds * 1000f
+        fun at(fraction: Float, id: () -> Int, rate: Float = 1f) =
+            main.postAtTime({ play(id(), 0.9f, rate) }, reloadToken, android.os.SystemClock.uptimeMillis() + (ms * fraction).toLong())
+        when {
+            weapon == Weapon.M249 -> {
+                at(0.08f, { cover })                                  // feed cover up
+                at(0.25f, { magOut })                                 // empty pouch off
+                at(0.45f, { magIn })                                  // new pouch on
+                at(0.6f, { belt })                                    // belt laid in the tray
+                at(0.78f, { cover }, 0.8f)                            // cover slammed shut
+                at(0.9f, { rack })                                    // charging handle
+            }
+            weapon == Weapon.M24 -> {
+                // Internal magazine: bolt open, five rounds pressed in, bolt closed.
+                at(0.06f, { bolt })
+                for (i in 0 until weapon.magazine) at(0.25f + i * 0.11f, { roundIn }, 0.95f + i * 0.02f)
+                at(0.88f, { bolt })
+            }
+            weapon.boltAction -> {
+                at(0.18f, { magOut })
+                at(0.55f, { magIn })
+                at(0.82f, { bolt })
+            }
+            else -> {
+                at(if (weapon.slot == GunSlot.PISTOL) 0.12f else 0.18f, { magOut })
+                at(0.58f, { magIn })
+                at(0.84f, { rack }, if (weapon.slot == GunSlot.PISTOL) 1.25f else 1f)
+            }
+        }
+    }
+
+    /** Stops the reload sounds still to come (the reload was cut short). */
+    fun cancelReload() = main.removeCallbacksAndMessages(reloadToken)
 
     /** "Ay!" when a bullet hits someone. */
     fun ouch(volume: Float = 1f) {
@@ -71,10 +131,16 @@ class SoundEffects(context: Context) {
         pool.play(id, v, v, 1, 0, rate)
     }
 
-    fun release() = pool.release()
+    fun release() {
+        cancelReload()
+        main.removeCallbacksAndMessages(null)
+        pool.release()
+    }
 
     private companion object {
         /** Bump when the synthesized sounds change, so old cached files are not reused. */
-        const val VERSION = 1
+        const val VERSION = 2
+        /** After a bolt-action shot, the bolt is worked this much later. */
+        const val BOLT_DELAY_MS = 450L
     }
 }

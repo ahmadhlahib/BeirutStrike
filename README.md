@@ -77,36 +77,59 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Joystick (bottom left) | Walk; push further to run |
 | Swipe on the city | Look and aim |
 | Big red button (bottom right) | Shoot. Hold for the AK-47; tap for the pistol |
-| Gun button (above Shoot) | Switch between the pistol and the AK-47 (shows bullets left) |
-| Scope (round, left of Crawl) | Zoom in (AK-47 with a scope only); lit while zoomed in |
+| Gun button (above Shoot) | Switch between your pistol, primary and sniper rifle (shows rounds in the magazine / spare) |
+| Reload (round, left of the gun button) | Change the magazine |
+| Scope (round, left of Crawl) | Look through the scope (sniper rifles, the M4, or a primary with a found scope); lit while scoped |
+| Zoom in / out (round, far left of the controls) | Change the scope's magnification, while scoped |
 | Jump / Crawl (round, left of Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
 | **1st / 3rd person** | Switch camera view |
 | Say (round, left of Jump) | Speech bubble, or a cheat code (see below) |
 | Camera (round, above the joystick) | Leave a photo in the street |
 | Timer (top centre) | Open the scoreboard |
-| Name button (top left) | Menu: scoreboard, players (report / block), change team, retake face photo, street photos, leave room, log out, delete my data |
+| Name button (top left) | Menu: scoreboard, players (report / block), change team, change guns, retake face photo, street photos, leave room, log out, delete my data |
 | Minimap (top right) | Open the full map |
 
 ### Weapons
 
-| | Pistol | AK-47 |
-| --- | --- | --- |
-| Fire mode | One shot per tap | Automatic while held |
-| Fire rate | 1 shot per second | 10 shots per second |
-| Starting bullets | 12 | 30 |
-| Accuracy | High | Moderate spread |
-| Ammo pack | +10 | +10 |
+After choosing a team, each player picks **three guns**: a pistol, a primary and a sniper rifle
+(defaults in bold). The gun button switches between them. Figures follow the real guns, scaled
+to the game: distances are about a fifth of the real ones and bullets fly at a tenth of their
+real speed, so they can be seen. Damage is in hearts; every player has 5.
 
-Each player has 5 health, and each hit removes 1. Killed players respawn after 4 seconds at a
-random street and get at least their starting bullets back.
+| Slot | Gun | Magazine × mags | Fire | Reload | Range | Damage | Scope |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Pistol | **Beretta M9** | 15 × 6 = 90 | semi-auto | 2.2 s | 40 m | 1 | – |
+| | Glock 17 | 17 × 6 = 102 | semi-auto, quicker | 2.0 s | 38 m | 1 | – |
+| | Desert Eagle | 7 × 6 = 42 | semi-auto, slow | 2.6 s | 45 m | 2 | – |
+| Primary | **AK-47** | 30 × 4 = 120 | 600/min | 2.6 s | 80 m | 1 | pickup |
+| | M4A1 | 30 × 4 = 120 | 800/min | 2.4 s | 90 m | 1 | 4× ACOG |
+| | MP5 | 30 × 4 = 120 | 800/min | 2.5 s | 55 m | 1 | pickup |
+| | RPK | 40 × 4 = 160 | 600/min | 3.2 s | 100 m | 1 | pickup |
+| | M249 SAW | 100 × 3 = 300 | 750/min | 6.5 s | 100 m | 1 | pickup |
+| Sniper | **SVD Dragunov** | 10 × 4 = 40 | semi-auto | 3.0 s | 170 m | 3 | 2× / 4× |
+| | M24 | 5 × 4 = 20 | bolt action | 4.5 s | 200 m | 4 | 4× / 10× |
+| | AWM | 5 × 4 = 20 | bolt action | 3.7 s | 215 m | 5 | 3× / 6× / 12× |
+| | Barrett M82 | 10 × 4 = 40 | semi-auto | 4.5 s | 230 m | 5 | 5× / 10× |
+
+- **Handling** differs too: hip-fire spread, recoil, and walking speed (the M249 and Barrett are
+  heavy, the MP5 is light). Sniper rifles are only accurate through their scope.
+- **Reloading** happens on its own when a magazine runs dry, or with the reload button. It takes
+  as long as with the real gun, with its sounds (magazine out and in, slide, charging handle,
+  belt cover or bolt), and switching guns cuts it short. Rounds left in the old magazine are kept.
+- **Scopes:** tap the scope button to look through it, then zoom in and out between its
+  magnifications. Sniper rifles and the M4 always have one; the other primaries can pick one up.
+
+Killed players respawn after 4 seconds at a random street, with every gun loaded and at least
+its starting rounds.
 
 ### Pickups
 
 | Pickup | Per room | Effect | Respawns after |
 | --- | --- | --- | --- |
-| AK-47 ammo | 5 | +10 AK-47 bullets | 20 s |
-| Pistol ammo | 4 | +10 pistol bullets | 20 s |
-| Scope | 2 | Enables the AK-47 scope until death | 60 s |
+| Rifle magazine | 5 | +1 magazine for the primary carried | 20 s |
+| Pistol magazine | 4 | +1 magazine for the pistol carried | 20 s |
+| Sniper rounds | 2 | +1 magazine for the sniper rifle carried | 40 s |
+| Scope | 2 | A 4× scope for a primary without one, until death | 60 s |
 
 ### Cheat codes
 
@@ -252,6 +275,10 @@ Release builds are signed with an upload key described in a local, git-ignored
 - Soldier model by [Quaternius](https://quaternius.com); animations from
   [Mixamo](https://www.mixamo.com). Mixamo source files are not redistributed in this repository.
 - Model conversion with [FBX2glTF](https://github.com/facebookincubator/FBX2glTF).
+- Gun photos on the loadout screen from [Wikimedia Commons](https://commons.wikimedia.org),
+  public domain or under Creative Commons licences; authors and licences are in
+  [`app/src/main/assets/guns/CREDITS.txt`](app/src/main/assets/guns/CREDITS.txt) and in the app
+  (**Photo credits** on the loadout screen). The adapted photos keep their original licences.
 
 ## License
 

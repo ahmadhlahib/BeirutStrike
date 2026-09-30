@@ -3,6 +3,8 @@ package com.example.beirutrun
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.example.beirutrun.city.GunSlot
+import com.example.beirutrun.city.Weapon
 import java.io.File
 
 /** The logged-in player: their name, room, team, face photo and where they last stood. */
@@ -32,6 +34,15 @@ object Session {
         File(context.filesDir, "faces_remote").deleteRecursively()
         facesDirReady = false
     }
+
+    /** The gun the player carries in [slot] (see LoadoutActivity); the default one until they choose. */
+    fun gun(context: Context, slot: GunSlot): Weapon =
+        prefs(context).getString("gun_${slot.name.lowercase()}", null)
+            ?.let { id -> Weapon.entries.firstOrNull { it.id == id && it.slot == slot } }
+            ?: Weapon.defaults.getValue(slot)
+
+    fun setGun(context: Context, weapon: Weapon) =
+        prefs(context).edit().putString("gun_${weapon.slot.name.lowercase()}", weapon.id).apply()
 
     /** The online room the player is in (null = not chosen yet). */
     fun roomId(context: Context): String? = prefs(context).getString(KEY_ROOM_ID, null)
