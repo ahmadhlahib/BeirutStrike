@@ -22,10 +22,35 @@ import kotlin.random.Random
 object SoundSynth {
     const val SAMPLE_RATE = 22050
 
-    /** A short, sharp shot: bright noise crack with a falling low thump underneath. */
-    fun gunshot(seed: Int = 1): FloatArray {
-        val n = (0.38f * SAMPLE_RATE).toInt()
-        val out = FloatArray(n)
+    /**
+     * A shot: a noise crack with a falling low thump underneath, and for the big rifles an echo
+     * off the buildings. [kind] sets the character: a pistol's short snap, a submachine gun's
+     * muffled pop, a rifle's crack, a sniper rifle's long boom, a .50's deep blast.
+     */
+    fun gunshot(kind: ShotSound = ShotSound.RIFLE, seed: Int = 1): FloatArray {
+        // Length (s), how fast the crack dies away (s), and how bright it is (0 dull .. 1 bright).
+        val (length, crackDecay, bright) = when (kind) {
+            ShotSound.PISTOL -> Triple(0.26f, 0.022f, 0.75f)
+            ShotSound.MAGNUM -> Triple(0.45f, 0.032f, 0.6f)
+            ShotSound.SMG -> Triple(0.2f, 0.016f, 0.35f)
+            ShotSound.RIFLE -> Triple(0.38f, 0.035f, 0.55f)
+            ShotSound.LMG -> Triple(0.42f, 0.038f, 0.5f)
+            ShotSound.SNIPER -> Triple(1.0f, 0.05f, 0.6f)
+            ShotSound.FIFTY -> Triple(1.3f, 0.06f, 0.45f)
+        }
+        // The thump: its lowest pitch and how far above it starts (Hz), and how fast it dies away (s).
+        val (thumpBase, thumpSweep, thumpDecay) = when (kind) {
+            ShotSound.PISTOL -> Triple(60.0, 90.0, 0.05f)
+            ShotSound.MAGNUM -> Triple(45.0, 80.0, 0.09f)
+            ShotSound.SMG -> Triple(70.0, 60.0, 0.035f)
+            ShotSound.RIFLE -> Triple(40.0, 70.0, 0.09f)
+            ShotSound.LMG -> Triple(38.0, 70.0, 0.1f)
+            ShotSound.SNIPER -> Triple(34.0, 70.0, 0.17f)
+            ShotSound.FIFTY -> Triple(26.0, 60.0, 0.26f)
+        }
+        val echo = kind == ShotSound.SNIPER || kind == ShotSound.FIFTY || kind == ShotSound.MAGNUM
+        val n = (length * SAMPLE_RATE).toInt()
+        val dry = FloatArray(n)
         val rnd = Random(seed)
         var lowpassed = 0f
         var thumpPhase = 0.0
@@ -34,15 +59,77 @@ object SoundSynth {
             val noise = rnd.nextFloat() * 2f - 1f
             // A one-pole low-pass gives the crack some body instead of pure hiss.
             lowpassed += (noise - lowpassed) * 0.45f
-            val crack = (0.55f * noise + 0.45f * lowpassed) * exp(-t / 0.035f)
-            val thumpFreq = 40.0 + 70.0 * exp(-t / 0.05)
+            val crack = (bright * noise + (1f - bright) * lowpassed) * exp(-t / crackDecay)
+            val thumpFreq = thumpBase + thumpSweep * exp(-t / 0.05)
             thumpPhase += 2 * PI * thumpFreq / SAMPLE_RATE
-            val thump = sin(thumpPhase).toFloat() * exp(-t / 0.09f)
+            val thump = sin(thumpPhase).toFloat() * exp(-t / thumpDecay)
             val click = if (i < 40) (1f - i / 40f) else 0f
-            out[i] = crack * 0.9f + thump * 0.8f + click * 0.6f
+            dry[i] = crack * 0.9f + thump * 0.8f + click * 0.6f
+        }
+        if (!echo) return normalize(dry, 0.9f)
+        // Two softer, duller copies arriving later, as if off the street's walls.
+        val out = dry.copyOf()
+        for ((delay, gain) in listOf(0.16f to 0.35f, 0.34f to 0.18f)) {
+            val d = (delay * SAMPLE_RATE).toInt()
+            var lp = 0f
+            for (i in 0 until n - d) {
+                lp += (dry[i] - lp) * 0.15f
+                out[i + d] += lp * gain
+            }
         }
         return normalize(out, 0.9f)
     }
+
+    /**
+     * Gun mechanics: a sharp metallic [ring] (Hz) over a short noise burst, with a little low
+     * knock. Higher and shorter for small parts (a magazine release), lower and heavier for a slam.
+     */
+    private fun clack(ring: Float, seconds: Float, knock: Float, seed: Int): FloatArray {
+        val n = (seconds * SAMPLE_RATE).toInt()
+        val out = FloatArray(n)
+        val rnd = Random(seed)
+        val body = Resonator()
+        val bright = Resonator()
+        var knockPhase = 0.0
+        for (i in 0 until n) {
+            val t = i / SAMPLE_RATE.toFloat()
+            val noise = (rnd.nextFloat() * 2f - 1f) * exp(-t / (seconds * 0.18f))
+            val metal = body.process(noise, ring, 160f) * 3f + bright.process(noise, ring * 2.7f, 400f) * 1.5f
+            knockPhase += 2 * PI * 120.0 / SAMPLE_RATE
+            val low = sin(knockPhase).toFloat() * exp(-t / 0.025f) * knock
+            out[i] = metal + low + noise * 0.25f
+        }
+        return normalize(out, 0.8f)
+    }
+
+    /** Sounds joined one after the other with [gap] seconds between their starts. */
+    private fun sequence(gap: Float, vararg parts: FloatArray): FloatArray {
+        val step = (gap * SAMPLE_RATE).toInt()
+        val out = FloatArray(step * (parts.size - 1) + parts.last().size)
+        parts.forEachIndexed { k, part -> for (i in part.indices) out[k * step + i] += part[i] }
+        return normalize(out, 0.8f)
+    }
+
+    /** The empty magazine released and pulled out. */
+    fun magazineOut() = sequence(0.07f, clack(2600f, 0.06f, 0.1f, 11), clack(1500f, 0.12f, 0.2f, 12))
+
+    /** A full magazine pushed in until it locks. */
+    fun magazineIn() = sequence(0.05f, clack(1300f, 0.08f, 0.6f, 13), clack(2100f, 0.1f, 0.4f, 14))
+
+    /** Charging handle or slide pulled back and let go: a scrape and a snap forward. */
+    fun rack() = sequence(0.11f, clack(1800f, 0.1f, 0.2f, 15), clack(1100f, 0.14f, 0.8f, 16))
+
+    /** A bolt action worked: lifted and pulled back, pushed forward and turned down. */
+    fun bolt() = sequence(0.16f, clack(1400f, 0.1f, 0.3f, 17), clack(1700f, 0.08f, 0.2f, 18), clack(1000f, 0.12f, 0.7f, 19))
+
+    /** One round pressed into a rifle's magazine. */
+    fun roundIn() = clack(2400f, 0.07f, 0.3f, 20)
+
+    /** A machine gun's feed cover thrown open (or slammed shut, played lower). */
+    fun feedCover() = clack(900f, 0.18f, 1f, 21)
+
+    /** A new belt laid in the feed tray: a rattle of links. */
+    fun beltRattle() = sequence(0.035f, *Array(7) { clack(3000f + it * 150f, 0.04f, 0.05f, 30 + it) })
 
     /** "Ay!": a quick cry gliding from an "ah" to an "ee" sound, pitch falling. */
     fun ouch(pitch: Float = 1f): FloatArray = voice(

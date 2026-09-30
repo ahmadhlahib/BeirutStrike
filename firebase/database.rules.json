@@ -119,7 +119,7 @@
           "$slot": {
             ".write": "auth != null && root.child('rooms/' + $room + '/members/' + auth.uid).exists()",
             ".validate": "newData.hasChildren(['kind', 'x', 'z', 'takenAt'])",
-            "kind": { ".validate": "newData.val() === 'ak_ammo' || newData.val() === 'pistol_ammo' || newData.val() === 'scope'" },
+            "kind": { ".validate": "newData.val() === 'ak_ammo' || newData.val() === 'pistol_ammo' || newData.val() === 'sniper_ammo' || newData.val() === 'scope'" },
             "x": { ".validate": "newData.isNumber()" },
             "z": { ".validate": "newData.isNumber()" },
             "takenAt": { ".validate": "newData.isNumber()" },
@@ -131,7 +131,8 @@
           "$victim": {
             "$hit": {
               ".write": "auth != null && root.child('rooms/' + $room + '/members/' + auth.uid).exists() && ((!data.exists() && newData.child('from').val() === auth.uid) || (!newData.exists() && auth.uid === $victim))",
-              ".validate": "newData.hasChildren(['from', 'at'])"
+              ".validate": "newData.hasChildren(['from', 'at'])",
+              "damage": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5" }
             }
           }
         }

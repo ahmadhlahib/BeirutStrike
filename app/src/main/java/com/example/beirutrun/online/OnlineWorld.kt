@@ -151,8 +151,8 @@ class OnlineWorld(
         fun onFacesChanged()
         /** Another player fired a shot (draw it). */
         fun onRemoteShot(player: RemotePlayer) = Unit
-        /** One of [fromName]'s bullets hit me. */
-        fun onHitBy(fromUid: String, fromName: String) = Unit
+        /** One of [fromName]'s bullets hit me, taking [damage] hearts. */
+        fun onHitBy(fromUid: String, fromName: String, damage: Int) = Unit
         /** A player I shot has just died. */
         fun onKilled(victimName: String) = Unit
         /** The room's game length or start time is known or changed (both server ms; 0 = unknown). */
@@ -430,12 +430,14 @@ class OnlineWorld(
     }
 
     /** One of my bullets hit [victimUid]; their phone takes it from here. */
-    fun sendHit(victimUid: String) {
+    /** One of my bullets hit [victimUid], taking [damage] hearts (see Weapon.damage). */
+    fun sendHit(victimUid: String, damage: Int) {
         val database = db ?: return
         val from = uid ?: return
         database.getReference("${room}hits/$victimUid").push().setValue(mapOf(
             "from" to from,
             "fromName" to name,
+            "damage" to damage,
             "at" to ServerValue.TIMESTAMP,
         ))
     }
@@ -455,10 +457,12 @@ class OnlineWorld(
                 val at = snapshot.num("at").toLong()
                 val from = snapshot.child("from").getValue(String::class.java).orEmpty()
                 val fromName = snapshot.child("fromName").getValue(String::class.java).orEmpty()
+                // Older versions of the app don't send the damage: one heart, as it always was.
+                val damage = (snapshot.child("damage").value as? Number)?.toInt()?.coerceIn(1, MAX_DAMAGE) ?: 1
                 snapshot.ref.removeValue()
                 // Hits left over from before I joined (or while the app was closed) don't count.
                 val now = System.currentTimeMillis() + serverOffset
-                if (active && now - at < HIT_MAX_AGE_MS) listener?.onHitBy(from, fromName)
+                if (active && now - at < HIT_MAX_AGE_MS) listener?.onHitBy(from, fromName, damage)
             }
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) = Unit
             override fun onChildRemoved(snapshot: DataSnapshot) = Unit
@@ -982,6 +986,8 @@ class OnlineWorld(
         private const val STALE_MS = 75_000L
         /** Hits older than this when they arrive are ignored. */
         private const val HIT_MAX_AGE_MS = 10_000L
+        /** The most hearts one hit can take (a player has 5; see Weapon.damage). */
+        private const val MAX_DAMAGE = 5
         /** How often my scoreboard counts are sent while playing. */
         private const val STATS_WRITE_MS = 1_500L
         private const val KEY_FACE_UID = "face_uid"
