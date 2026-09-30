@@ -74,12 +74,13 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | --- | --- |
 | Joystick (bottom left) | Walk; push further to run |
 | Swipe on the city | Look and aim |
-| **Shoot** | Fire. Hold for the AK-47; tap for the pistol |
-| Gun button | Switch between the pistol and the AK-47 (shows bullets left) |
-| **Scope** | Zoom in (AK-47 with a scope only) |
-| **Jump** / **Crawl** | Jump, or lie down and crawl |
+| Big red button (bottom right) | Shoot. Hold for the AK-47; tap for the pistol |
+| Gun button (above Shoot) | Switch between the pistol and the AK-47 (shows bullets left) |
+| Scope (round, left of Crawl) | Zoom in (AK-47 with a scope only); lit while zoomed in |
+| Jump / Crawl (round, left of Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
 | **1st / 3rd person** | Switch camera view |
-| **Say** / **Drop photo** | Speech bubble / leave a photo in the street |
+| Say (round, left of Jump) | Speech bubble, or a cheat code (see below) |
+| Camera (round, above the joystick) | Leave a photo in the street |
 | Timer (top centre) | Open the scoreboard |
 | Name button (top left) | Menu: scoreboard, players (report / block), change team, retake face photo, street photos, leave room, log out, delete my data |
 | Minimap (top right) | Open the full map |

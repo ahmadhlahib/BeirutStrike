@@ -162,6 +162,18 @@
         android:layout_gravity="bottom|start"
         android:layout_margin="12dp" />
 
+    <!-- Drop photo: just above the joystick, centred over it. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/dropButton"
+        style="@style/HudRoundButton"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="66dp"
+        android:layout_marginBottom="182dp"
+        android:contentDescription="@string/drop_photo"
+        app:icon="@drawable/ic_camera" />
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/viewPhotoButton"
         style="@style/HudButton"
@@ -173,89 +185,88 @@
         app:backgroundTint="#DDFFB300"
         app:icon="@drawable/ic_photo" />
 
-    <!-- Jump and crawl, just left of Shoot. -->
+    <!--
+        Right-hand controls, kept low so nothing reaches the minimap (top right):
+
+                        [⇄ AK-47 · 30]
+         (say)  (jump)  (  SHOOT  )
+        (scope) (crawl)
+    -->
+
+    <!-- AK-47: hold to keep firing. Pistol: one shot per tap. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/shootButton"
+        style="@style/HudRoundButton"
+        android:layout_width="88dp"
+        android:layout_height="88dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/shoot"
+        app:backgroundTint="#DDD32F2F"
+        app:icon="@drawable/ic_target"
+        app:iconSize="40dp" />
+
+    <!-- The gun in hand and its bullets; tap to switch guns. Just above Shoot. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/weaponButton"
+        style="@style/HudButton"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="132dp"
+        android:fontFeatureSettings="tnum"
+        app:icon="@drawable/ic_swap" />
+
+    <!-- Jump and crawl: a column just left of Shoot. -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="170dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="116dp"
+        android:layout_marginBottom="12dp"
         android:orientation="vertical">
-
-        <!-- Only with a scope and the AK-47 in hand. -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/scopeButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
-            android:layout_height="56dp"
-            android:layout_marginBottom="10dp"
-            android:text="@string/scope"
-            android:visibility="gone"
-            app:icon="@drawable/ic_scope" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/jumpButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
-            android:layout_height="56dp"
-            android:text="@string/jump"
+            style="@style/HudRoundButton"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:contentDescription="@string/jump"
             app:icon="@drawable/ic_jump" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/crawlButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
-            android:layout_height="56dp"
-            android:layout_marginTop="10dp"
-            android:text="@string/crawl"
+            style="@style/HudRoundButton"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_marginTop="8dp"
+            android:contentDescription="@string/crawl"
             app:icon="@drawable/ic_crawl" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <!-- Say: left of Jump. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/sayButton"
+        style="@style/HudRoundButton"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:gravity="end"
-        android:orientation="vertical">
+        android:layout_marginEnd="180dp"
+        android:layout_marginBottom="72dp"
+        android:contentDescription="@string/say"
+        app:icon="@drawable/ic_chat" />
 
-        <!-- The gun in hand and its bullets; tap to switch guns. -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/weaponButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:layout_marginBottom="10dp"
-            android:fontFeatureSettings="tnum"
-            app:icon="@drawable/ic_swap" />
-
-        <!-- AK-47: hold to keep firing. Pistol: one shot per tap. -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/shootButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
-            android:layout_height="64dp"
-            android:layout_marginBottom="10dp"
-            android:text="@string/shoot"
-            android:textSize="16sp"
-            app:backgroundTint="#DDD32F2F"
-            app:icon="@drawable/ic_target" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/sayButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
-            android:layout_height="56dp"
-            android:text="@string/say"
-            app:icon="@drawable/ic_chat" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/dropButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
-            android:layout_height="56dp"
-            android:layout_marginTop="10dp"
-            android:text="@string/drop_photo"
-            app:icon="@drawable/ic_camera" />
-    </LinearLayout>
+    <!-- Only with a scope and the AK-47 in hand: left of Crawl. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/scopeButton"
+        style="@style/HudRoundButton"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="180dp"
+        android:layout_marginBottom="12dp"
+        android:contentDescription="@string/scope"
+        android:visibility="gone"
+        app:icon="@drawable/ic_scope" />
 </FrameLayout>
