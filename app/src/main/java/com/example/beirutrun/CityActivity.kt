@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
@@ -537,7 +538,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val scoped = on && hasScope && renderer.weapon == Weapon.AK47 && !dead && !gameOver
         renderer.scoped = scoped
         scopeOverlay.visibility = if (scoped) View.VISIBLE else View.GONE
-        scopeButton.setText(if (scoped) R.string.scope_off else R.string.scope)
+        showToggle(scopeButton, scoped, if (scoped) R.string.scope_off else R.string.scope)
         updateCrosshair()
     }
 
@@ -700,10 +701,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         showBanner(getString(R.string.respawned))
     }
 
-    /** Lie down to crawl, or stand back up; the button shows what tapping it will do. */
+    /** Lie down to crawl, or stand back up; the button lights up while lying down. */
     private fun setProne(on: Boolean) {
         renderer.prone = on
-        crawlButton.setText(if (on) R.string.stand_up else R.string.crawl)
+        showToggle(crawlButton, on, if (on) R.string.stand_up else R.string.crawl)
+    }
+
+    /** An icon-only button that stays on (scope, crawl): lit while [on], and says what a tap will do. */
+    private fun showToggle(button: MaterialButton, on: Boolean, action: Int) {
+        button.backgroundTintList = ColorStateList.valueOf(if (on) TOGGLE_ON_COLOR else TOGGLE_OFF_COLOR)
+        button.contentDescription = getString(action)
     }
 
     /** The centre crosshair turns red while it's over an enemy; hidden when dead or scoped in. */
@@ -1071,6 +1078,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val BANNER_MS = 2_500L
         private const val HEARING_RANGE = 60f
         private const val FLAG_ICON_DP = 22f
+        /** Scope and crawl buttons: amber while on, the usual translucent black while off. */
+        private const val TOGGLE_ON_COLOR = 0xDDFFB300.toInt()
+        private const val TOGGLE_OFF_COLOR = 0x99000000.toInt()
         /** Super speed cheat: walking and running twice as fast. */
         private const val SUPER_SPEED = 2f
     }
