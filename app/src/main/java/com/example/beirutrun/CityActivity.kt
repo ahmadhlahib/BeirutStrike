@@ -291,6 +291,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         online.setWeapon(renderer.weapon.id)
         online.pickupSpot = { city.randomStreetPoint() }
         if (!online.configured) scatterLocalPickups()
+        // Offline there is no ranking to protect, so cheats always work.
+        cheatsAllowed = !online.configured
         updateWeaponButtons()
         gameTimer = findViewById(R.id.gameTimer)
         gameTimer.setOnClickListener { showScoreboard() }
@@ -458,7 +460,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     override fun onHitBy(fromUid: String, fromName: String) {
         if (dead || gameOver) return
         online.countHitTaken()
-        health -= 1
+        if (!unlimitedHealth) health -= 1
         renderer.health = health
         updateHearts()
         if (health > 0) sounds.ouch() else sounds.death()
@@ -476,6 +478,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         renderer.triggerHeld = false
         // The scope is lost with your life; find another.
         hasScope = false
+        cheatScope = false
         setScoped(false)
         online.setHealth(0, true, fromUid)
         showBanner(getString(R.string.killed_by, fromName.ifBlank { getString(R.string.someone) }))
@@ -503,6 +506,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     override fun onCareerScores(scores: Map<String, Int>) = scoreboard.updateCareer(scores)
 
     override fun onPickups(pickups: List<Pickup>) = showPickups(pickups)
+
+    override fun onCheatsAllowed(allowed: Boolean) {
+        if (allowed && !cheatsAllowed) showBanner(getString(R.string.cheats_room_notice))
+        cheatsAllowed = allowed
+    }
 
     // ---- Guns and pickups ---------------------------------------------------------------------
 
@@ -537,9 +545,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun updateWeaponButtons() {
         val gun = renderer.weapon
         val left = renderer.ammo(gun)
-        val text = getString(R.string.weapon_ammo, weaponName(gun), left)
+        val unlimited = renderer.unlimitedAmmo
+        val text = if (unlimited) getString(R.string.weapon_ammo_unlimited, weaponName(gun))
+            else getString(R.string.weapon_ammo, weaponName(gun), left)
         if (weaponButton.text.toString() != text) weaponButton.text = text
-        weaponButton.setTextColor(if (left > 0) 0xFFFFFFFF.toInt() else 0xFFFF5252.toInt())
+        weaponButton.setTextColor(if (unlimited || left > 0) 0xFFFFFFFF.toInt() else 0xFFFF5252.toInt())
         scopeButton.visibility = if (hasScope && gun == Weapon.AK47) View.VISIBLE else View.GONE
     }
 
@@ -574,6 +584,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             showBanner(getString(R.string.picked_ammo, PickupKind.PACK_SIZE, weaponName(gun)))
         } else {
             hasScope = true
+            cheatScope = false // a real scope: kept when cheats are cancelled
             showBanner(getString(R.string.picked_scope))
         }
         updateWeaponButtons()
@@ -930,9 +941,68 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             .setTitle(R.string.say_title)
             .setView(view)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.say) { _, _ -> say(input.text.toString().trim()) }
+            .setPositiveButton(R.string.say) { _, _ ->
+                // A cheat code is never said out loud.
+                val text = input.text.toString().trim()
+                Cheat.parse(text)?.let(::applyCheat) ?: say(text)
+            }
             .show()
         input.requestFocus()
+    }
+
+    // ---- Cheat codes --------------------------------------------------------------------------
+
+    /**
+     * Whether cheat codes work here: in rooms created with "Allow cheats" (whose scores don't count
+     * toward the ranking, see OnlineWorld), and offline.
+     */
+    private var cheatsAllowed = false
+    /** Cheat: hits still flash and hurt, but never cost a heart. */
+    private var unlimitedHealth = false
+    /** The scope came from the "find a scope" cheat, so cancelling cheats takes it back. */
+    private var cheatScope = false
+
+    /** Turns on the cheat typed in the Say box (see [Cheat]). Cheats only change this phone's game. */
+    private fun applyCheat(cheat: Cheat) {
+        if (!cheatsAllowed) return showBanner(getString(R.string.cheat_not_allowed))
+        if (dead || gameOver) return showBanner(getString(R.string.cheat_not_now))
+        when (cheat) {
+            Cheat.UNLIMITED_AMMO -> renderer.unlimitedAmmo = true
+            Cheat.UNLIMITED_HEALTH -> {
+                unlimitedHealth = true
+                healFully()
+            }
+            Cheat.FIND_SCOPE -> if (!hasScope) {
+                hasScope = true
+                cheatScope = true
+            }
+            Cheat.FULL_HEALTH -> healFully()
+            Cheat.SUPER_SPEED -> renderer.speedBoost = SUPER_SPEED
+            Cheat.RAPID_FIRE -> renderer.rapidFire = true
+            Cheat.CANCEL -> cancelCheats()
+        }
+        updateWeaponButtons()
+        showBanner(getString(cheat.message))
+    }
+
+    /** Turns every cheat off. Health and bullets stay as they are; a cheat scope is taken back. */
+    private fun cancelCheats() {
+        renderer.unlimitedAmmo = false
+        renderer.rapidFire = false
+        renderer.speedBoost = 1f
+        unlimitedHealth = false
+        if (cheatScope) {
+            hasScope = false
+            setScoped(false)
+        }
+        cheatScope = false
+    }
+
+    private fun healFully() {
+        health = CityRenderer.MAX_HEALTH
+        renderer.health = health
+        online.setHealth(health, false, "")
+        updateHearts()
     }
 
     // ---- Player menu --------------------------------------------------------------------------
@@ -1001,5 +1071,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val BANNER_MS = 2_500L
         private const val HEARING_RANGE = 60f
         private const val FLAG_ICON_DP = 22f
+        /** Super speed cheat: walking and running twice as fast. */
+        private const val SUPER_SPEED = 2f
     }
 }

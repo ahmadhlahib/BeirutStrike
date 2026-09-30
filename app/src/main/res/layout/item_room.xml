@@ -41,6 +41,18 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:textColor="#FF888888" />
+
+            <!-- Rooms that allow cheats: just for fun, scores don't count toward the ranking. -->
+            <TextView
+                android:id="@+id/roomCheats"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/room_cheats_badge"
+                android:textColor="#FFFFB300"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
         </LinearLayout>
 
         <ImageView

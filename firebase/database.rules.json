@@ -27,6 +27,10 @@
           ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
           ".validate": "newData.isNumber() && newData.val() >= 30000 && newData.val() <= 3600000"
         },
+        "cheats": {
+          ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
+          ".validate": "newData.isBoolean()"
+        },
         "startedAt": {
           ".write": "auth != null && !data.exists() && root.child('rooms/' + $room + '/members/' + auth.uid).exists()",
           ".validate": "newData.isNumber() && newData.val() <= now"
