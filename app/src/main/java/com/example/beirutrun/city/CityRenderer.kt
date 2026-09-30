@@ -159,6 +159,10 @@ class CityRenderer(
     /** A face photo changed or arrived; reload face textures on the next frame. */
     fun reloadFaces() { pendingFaceReload = true }
 
+    /** Teams were added to the room: look again for flags that weren't known before. */
+    fun reloadTeams() { pendingTeamReload = true }
+    @Volatile private var pendingTeamReload = false
+
     /** Latest positions of the other players (from Firebase). */
     fun setRemotePlayers(players: List<RemotePlayer>) { pendingRemote = players }
 
@@ -685,6 +689,10 @@ class CityRenderer(
             pendingFaceReload = false
             faces.values.forEach { Textures.delete(it) }
             faces.clear()
+        }
+        if (pendingTeamReload) {
+            pendingTeamReload = false
+            unknownTeams.clear()
         }
         pendingRespawn?.let { (x, z) ->
             pendingRespawn = null

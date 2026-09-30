@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
+import com.example.beirutrun.online.RoomTeams
 
 /**
  * A team players can join in a room.
@@ -37,7 +38,8 @@ private fun mix(a: Int, b: Int, k: Float): Int {
 private fun shade(color: Int, k: Float): Int = mix(0xFF000000.toInt(), color, k)
 
 /**
- * All the teams. To add a team, add a line here and put its flag in
+ * The teams. Every room offers the [builtIn] teams, plus the teams its players added (see
+ * [RoomTeams]). To add a built-in team, add a line to [builtIn] and put its flag in
  * `app/src/main/assets/flags/<id>.png`. Don't change an existing id once people have played,
  * because players online are stored with their team id.
  *
@@ -50,24 +52,43 @@ private fun shade(color: Int, k: Float): Int = mix(0xFF000000.toInt(), color, k)
  * `Team("golden_lions", "Golden Lions", 0xFFF9A825.toInt(), uniform = 0xFF5B5A2E.toInt(), gear = 0xFF3A3A1E.toInt()),`
  */
 object Teams {
-    val all = listOf(
+    /** Offered in every room. */
+    val builtIn = listOf(
         Team("el_lahib", "عشيرة اللهيب", 0xFF6A1B9A.toInt()),
         Team("corniche_sharks", "Corniche Sharks", 0xFF1565C0.toInt()),
         Team("golden_lions", "Golden Lions", 0xFFF9A825.toInt()),
+    )
+
+    /**
+     * No longer offered, but still recognised: players on older versions of the app can be on
+     * them, and should still get their flag and uniform.
+     */
+    private val retired = listOf(
         Team("evergreen_squad", "Evergreen Squad", 0xFF2E7D32.toInt()),
         Team("raouche_eagles", "Raouche Eagles", 0xFFC62828.toInt()),
         Team("phoenix_legion", "Phoenix Legion", 0xFFEF6C00.toInt()),
         Team("summit_rangers", "Summit Rangers", 0xFF00897B.toInt()),
     )
 
-    fun byId(id: String?): Team? = all.firstOrNull { it.id == id }
+    /** The teams to choose from in the current room: the built-in ones, then the ones players added. */
+    fun inRoom(): List<Team> = builtIn + RoomTeams.teams()
+
+    fun byId(id: String?): Team? =
+        builtIn.firstOrNull { it.id == id } ?: RoomTeams.byId(id) ?: retired.firstOrNull { it.id == id }
 }
 
-/** Loads team flags from `assets/flags/`, or draws a stand-in flag when the file isn't there yet. */
+/**
+ * Loads team flags: a team added in the room has its uploaded flag (see [RoomTeams]); built-in
+ * teams have theirs in `assets/flags/`. Draws a stand-in flag when there is none.
+ */
 object TeamFlags {
     private val extensions = listOf("png", "jpg", "jpeg", "webp")
 
+    /** A new bitmap each time (callers may recycle it). */
     fun load(context: Context, team: Team): Bitmap {
+        RoomTeams.flag(team.id)?.let { bytes ->
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { return it }
+        }
         for (ext in extensions) {
             val bitmap = runCatching {
                 context.assets.open("flags/${team.id}.$ext").use { BitmapFactory.decodeStream(it) }

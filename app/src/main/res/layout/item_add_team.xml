@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Under the team list (online only): add a team of your own to this room. -->
+<com.google.android.material.button.MaterialButton xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+    android:layout_width="match_parent"
+    android:layout_height="60dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="10dp"
+    android:text="@string/add_team"
+    android:textColor="@android:color/white"
+    android:textSize="16sp"
+    app:cornerRadius="14dp"
+    app:icon="@drawable/ic_add"
+    app:iconTint="@android:color/white"
+    app:strokeColor="#CCFFFFFF"
+    app:strokeWidth="2dp" />

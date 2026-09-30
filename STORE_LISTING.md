@@ -26,8 +26,8 @@ built from OpenStreetMap data: Downtown, the Souks, Hamra, Ain El Mreisseh and R
 
 JOIN A ROOM, PICK A SIDE
 Create a public or password-protected room, choose the map, the play area and the match length
-(30 seconds to 1 hour), and invite your friends. Pick one of seven factions, each with its own
-flag and uniform, and fight until the clock runs out.
+(30 seconds to 1 hour), and invite your friends. Pick one of three factions, or create your own
+team with its own name, flag and colour, and fight until the clock runs out.
 
 TWO GUNS, REAL CHOICES
 • Pistol: precise, one shot per tap.
@@ -78,7 +78,7 @@ Answer as **Game**, and:
 | Language | No profanity in the game itself (players can type messages; see below) |
 | Controlled substances (drugs, alcohol, tobacco) | No |
 | Gambling / simulated gambling | No |
-| **Users can interact or exchange content** | **Yes:** players chat with speech bubbles and share photos in rooms |
+| **Users can interact or exchange content** | **Yes:** players chat with speech bubbles, share photos and create teams (name and flag picture) in rooms |
 | Shares user's location with other users | No (positions are inside the game's map only) |
 | Allows purchases of digital goods | No |
 | Unrestricted internet access | No |
@@ -95,7 +95,7 @@ Expect roughly **PEGI 16 / ESRB Teen–Mature 17+ / USK 16**.
 | --- | --- | --- | --- | --- |
 | Personal info → **Name** (player name) | Yes | No | No (a name is needed to play) | App functionality |
 | Personal info → **User IDs** (Firebase anonymous ID) | Yes | No | No | App functionality, fraud prevention/security |
-| Photos and videos → **Photos** (face photo, dropped photos) | Yes | No | Yes | App functionality |
+| Photos and videos → **Photos** (face photo, dropped photos, team flags) | Yes | No | Yes | App functionality |
 | Messages → **Other in-app messages** (speech bubbles, captions) | Yes | No | Yes | App functionality |
 | App activity → **Other user-generated content / in-app actions** (game stats, scores) | Yes | No | No | App functionality |
 

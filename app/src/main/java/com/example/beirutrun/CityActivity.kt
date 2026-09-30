@@ -46,6 +46,7 @@ import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.OnlineWorld
 import com.example.beirutrun.online.PlayerStats
 import com.example.beirutrun.online.RemotePlayer
+import com.example.beirutrun.online.RoomTeams
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
@@ -69,6 +70,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     /** Side of the play area in metres; null = the whole map. */
     private var mapSize: Int? = null
     private lateinit var renderer: CityRenderer
+    /** A team was added to the room: its players now get their flag, colour and name. */
+    private val onTeamsChanged: () -> Unit = {
+        renderer.reloadTeams()
+        scoreboard.update(stats)
+    }
     private lateinit var glView: GLSurfaceView
     private lateinit var miniMap: MiniMapView
     private lateinit var statusLabel: TextView
@@ -170,6 +176,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
         // Online play needs a room, and everyone needs a team; send the player back to choose.
         val roomId = Session.roomId(this)
+        // Teams added to this room (their flags and colours), usually already loaded by the team screen.
+        RoomTeams.follow(if (FirebaseSession.configured(this)) roomId else null)
         val team = Teams.byId(Session.teamId(this))
         val missing = when {
             FirebaseSession.configured(this) && roomId == null -> RoomsActivity::class.java
@@ -315,6 +323,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         findViewById<MaterialButton>(R.id.dropButton).setOnClickListener { takeDropPhoto() }
         viewPhotoButton = findViewById(R.id.viewPhotoButton)
         viewPhotoButton.setOnClickListener { nearby?.let(::showPhotoDialog) }
+        RoomTeams.watch(onTeamsChanged)
 
         online.start(playerName)
     }
@@ -338,6 +347,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     override fun onDestroy() {
         super.onDestroy()
+        RoomTeams.unwatch(onTeamsChanged)
         ticker.removeCallbacks(respawn)
         sceneBuilder.shutdown()
         ticker.removeCallbacks(hideBanner)
