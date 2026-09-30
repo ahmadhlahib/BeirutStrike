@@ -49,6 +49,16 @@
             android:textStyle="bold" />
     </FrameLayout>
 
+    <!-- Characters with dances: a small round button per dance under the preview, to watch it. -->
+    <LinearLayout
+        android:id="@+id/characterDances"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:visibility="gone" />
+
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -51,9 +51,10 @@ class LoadoutActivity : AppCompatActivity() {
         findViewById<View>(R.id.loadoutCredits).setOnClickListener {
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.loadout_photo_credits)
-                // Who took the gun photos and recorded the gunshots, under which licences.
-                .setMessage(GunPhotos.credits(this) + "\n\n" +
-                    runCatching { assets.open("sounds/CREDITS.txt").bufferedReader().use { it.readText() } }.getOrDefault(""))
+                // Who made the gun models, took the photos and recorded the sounds, under which licences.
+                .setMessage(listOf("guns3d/CREDITS.txt", "guns/CREDITS.txt", "sounds/CREDITS.txt").joinToString("\n\n") { file ->
+                    runCatching { assets.open(file).bufferedReader().use { it.readText() } }.getOrDefault("")
+                })
                 .setPositiveButton(R.string.close, null)
                 .show()
         }

@@ -182,7 +182,7 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
          * without a character, the built-in Quaternius soldier. [open] reads an asset's bytes, or
          * returns null if it's missing.
          */
-        fun load(folder: String? = null, open: (String) -> ByteArray?): SoldierRig {
+        fun load(folder: String? = null, dances: List<Dance> = emptyList(), open: (String) -> ByteArray?): SoldierRig {
             val character = folder?.let { open("$it/character.glb") }
             if (character != null) {
                 val clips = LinkedHashMap<String, SkinnedModel>()
@@ -193,6 +193,8 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
                     else open("$folder/$file.glb")?.let(SkinnedModel::load).also { loaded[file] = it }
                     if (anim != null) clips[name] = anim
                 }
+                // Dances play as "Dance:<file>" (see Dance.clip).
+                for (d in dances) open("$folder/${d.file}.glb")?.let(SkinnedModel::load)?.let { clips[d.clip] = it }
                 val model = SkinnedModel.load(character)
                 return SoldierRig(model.withClips(clips, rootBone = SoldierBones.hipsOf(model)))
             }
@@ -221,6 +223,22 @@ class SoldierAnimator(val rig: SoldierRig) {
     private var fade = 1f
     private var looping = true
 
+    /** A dance playing instead of the usual animation (see [dance]); null = none. */
+    var dancing: String? = null
+        private set
+    private var danceLoops = false
+    private var danceRestart = false
+
+    /**
+     * Plays the dance clip [clipName] (see Dance.clip) once, or over and over if [loop]; asking
+     * for the same dance again starts it from the beginning, and null stops dancing.
+     */
+    fun dance(clipName: String?, loop: Boolean = false) {
+        dancing = clipName?.takeIf { rig.model.clip(it) != null }
+        danceLoops = loop
+        danceRestart = dancing != null
+    }
+
     /** Goes up each time [pose] is re-skinned, so the GPU copy knows when to refresh. */
     var version = 0
         private set
@@ -237,8 +255,15 @@ class SoldierAnimator(val rig: SoldierRig) {
         dt: Float, speed: Float, moveAngle: Float, aiming: Boolean, dead: Boolean, skin: Boolean,
         prone: Boolean = false, airborne: Boolean = false,
     ) {
-        val (name, loop, fixedRate) = choose(speed, moveAngle, aiming, dead, prone, airborne)
+        val dance = dancing?.takeIf { !dead }
+        val (name, loop, fixedRate) = if (dance != null) Triple(dance, danceLoops, 1f)
+            else choose(speed, moveAngle, aiming, dead, prone, airborne)
         val wanted = rig.model.clip(name)
+        if (danceRestart && wanted != null) {
+            // Start the dance from its first step (even if it's the one already playing).
+            danceRestart = false
+            fromClip = clip; fromTime = time; clip = wanted; time = 0f; fade = 0f; looping = loop
+        }
         // Clips that originally walked the body forward play at the rate that makes their feet
         // match the player's real speed; in-place clips use the fixed rates in choose().
         val natural = (wanted?.rootSpeed ?: 0f) * rig.scale
@@ -255,6 +280,8 @@ class SoldierAnimator(val rig: SoldierRig) {
         if (c != null) {
             time += dt * rate
             if (looping && c.duration > 0f) time %= c.duration else time = min(time, c.duration)
+            // A dance played once ends with its last step; then back to the usual animation.
+            if (dance != null && !looping && time >= c.duration) dancing = null
         }
         fromClip?.let { f -> fromTime = (fromTime + dt) % max(f.duration, 0.01f) }
         val crawling = prone && !dead && crawl?.usable == true

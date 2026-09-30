@@ -13,13 +13,25 @@ import org.json.JSONObject
  * @property ownFace The character has a real face of its own, so a player's face photo is never
  *   put on it.
  */
-data class Character(val id: String, val name: String, val folder: String?, val ownFace: Boolean)
+data class Character(
+    val id: String, val name: String, val folder: String?, val ownFace: Boolean,
+    /** Dances the character can do (on the character screen, and when they win a game). */
+    val dances: List<Dance> = emptyList(),
+)
+
+/** A dance: its animation file in the character's folder (without .glb) and the name shown on its button. */
+data class Dance(val file: String, val name: String) {
+    /** The clip name the dance plays as (see SoldierRig.load). */
+    val clip get() = "Dance:$file"
+}
 
 /**
  * The characters: the built-in soldier, then every folder in `assets/models/characters/` that
  * has a `character.glb`. To add one, convert the Mixamo character and its clips to `.glb` (see
  * the README) into a new folder there, with a `character.json` such as
- * `{"name": "Ahmad El Lahib", "ownFace": true}`.
+ * `{"name": "Ahmad El Lahib", "ownFace": true}`, and optionally dances:
+ * `"dances": [{"file": "dance_wave", "name": "Wave hip-hop"}]` (each file a Mixamo animation
+ * converted to .glb, e.g. with tools/StripAnimation.java to keep only the motion).
  */
 object Characters {
     const val SOLDIER = "soldier"
@@ -48,6 +60,11 @@ object Characters {
                 name = info?.optString("name")?.takeIf { it.isNotBlank() } ?: id.replaceFirstChar { it.uppercase() },
                 folder = folder,
                 ownFace = info?.optBoolean("ownFace", false) ?: false,
+                // Only dances whose animation file is there.
+                dances = info?.optJSONArray("dances")?.let { list ->
+                    List(list.length()) { i -> list.getJSONObject(i).let { Dance(it.getString("file"), it.optString("name", it.getString("file"))) } }
+                        .filter { "${it.file}.glb" in files }
+                }.orEmpty(),
             )
         }
         return listOf(soldier) + found

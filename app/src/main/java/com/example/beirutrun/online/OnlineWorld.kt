@@ -67,6 +67,8 @@ data class RemotePlayer(
     val character: String = "",
     /** Whether their face photo goes on their character (older versions always did). */
     val showFace: Boolean = true,
+    /** The dance they're doing (a clip name, see Dance.clip; "" = none), e.g. after winning. */
+    val dance: String = "",
 )
 
 /** One player's score in the room's game, kept after they leave so the scoreboard stays whole. */
@@ -211,6 +213,7 @@ class OnlineWorld(
     private var weapon = ""
     private var character = ""
     private var showFace = true
+    private var dance = ""
     private var sentX = Float.NaN
     private var sentZ = 0f
     private var sentHeading = 0f
@@ -361,12 +364,20 @@ class OnlineWorld(
             "weapon" to weapon,
             "character" to character,
             "showFace" to showFace,
+            "dance" to dance,
             "updated" to ServerValue.TIMESTAMP,
         ))
         markSent()
     }
 
     /** The character I play as, and whether my face photo goes on it (see Characters). */
+    /** Starts (a clip name, see Dance.clip) or stops ("") my dance, which the other players see. */
+    fun setDance(clip: String) {
+        if (clip == dance) return
+        dance = clip
+        me?.updateChildren(mapOf("dance" to clip))
+    }
+
     fun setCharacter(id: String, face: Boolean) {
         if (id == character && face == showFace) return
         character = id
@@ -773,6 +784,7 @@ class OnlineWorld(
                     weapon = s.child("weapon").getValue(String::class.java).orEmpty(),
                     character = s.child("character").getValue(String::class.java).orEmpty(),
                     showFace = s.child("showFace").getValue(Boolean::class.java) ?: true,
+                    dance = s.child("dance").getValue(String::class.java).orEmpty(),
                 )
                 players[id] = player
                 // Events only for changes seen live, not for the state found on joining.

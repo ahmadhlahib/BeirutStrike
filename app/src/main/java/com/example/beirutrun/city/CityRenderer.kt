@@ -46,6 +46,8 @@ class CityRenderer(
     private val rigFor: (String) -> java.util.concurrent.Future<SoldierRig>,
     /** The character the player plays as. */
     private val playerCharacter: String,
+    /** The detailed gun models (see GunMeshes), read on a background thread; guns without one are drawn from boxes. */
+    private val gunMeshSource: java.util.concurrent.Future<GunMeshes.Library>? = null,
     start: Triple<Float, Float, Float>?,
     private val streetPhotos: List<File>,
     /** Face photo file for the player, a drop's author, or another player (may not exist). */
@@ -325,6 +327,8 @@ class CityRenderer(
     private val modelTextures = HashMap<SoldierRig, List<Int>>()
     private val bone = FloatArray(16)
     private val boneWorld = FloatArray(16)
+    /** A detailed gun model placed in a soldier's hand. */
+    private val gunInHand = FloatArray(16)
     /** Where my rifle's muzzle was last drawn (world space), so bullets leave the gun. */
     private val muzzle = FloatArray(3)
     private var muzzleKnown = false
@@ -415,6 +419,7 @@ class CityRenderer(
         dropVisuals.clear()
         murals.clear()
         soldierMeshes.clear()
+        gunGl.clear()
         modelTextures.clear()
         uploadedVersion.clear()
         drops.let { if (pendingDrops == null) pendingDrops = it }
@@ -560,6 +565,7 @@ class CityRenderer(
         Matrix.invertM(cameraToWorld, 0, view, 0)
         val gun = weapon
         val model = GunModels.of(gun)
+        val mesh = meshOf(gun)
         val sinceShot = (now - lastShotAt) / 1000f
         val recover = when (lastShotWeapon.slot) {
             GunSlot.PISTOL -> 0.18f
@@ -572,52 +578,127 @@ class CityRenderer(
         val bobX = if (isWalking) sin(t * 4.5f) * 0.008f else 0f
         val bobY = if (isWalking) -abs(sin(t * 4.5f)) * 0.012f else sin(t * 1.3f) * 0.002f
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT)
+        // The gun and arms get their own narrower field of view, so they look bigger than the
+        // world around them (as in most shooters), and a closer near plane so the hands aren't cut off.
+        Matrix.perspectiveM(heldProjection, 0, HELD_GUN_FOV, aspect, 0.03f, 10f)
+        Matrix.multiplyMM(viewProj, 0, heldProjection, 0, view, 0)
         val sleeve = teamUniform(playerTeam)?.first ?: 0xFF5E6266.toInt()
         // Camera space: x right, y up, looking down -z. The gun is angled a touch towards the
         // centre of the screen, where the crosshair is.
         val pistol = gun.slot == GunSlot.PISTOL
         if (pistol) {
-            Matrix.translateM(base, 0, cameraToWorld, 0, 0.11f + bobX, -0.16f + bobY - dip * 0.06f, -0.36f + kick * 0.05f)
+            Matrix.translateM(base, 0, cameraToWorld, 0, 0.075f + bobX, -0.095f + bobY - dip * 0.06f, -0.36f + kick * 0.05f)
             Matrix.rotateM(base, 0, 3f, 0f, 1f, 0f)
             Matrix.rotateM(base, 0, kick * 14f - dip * 35f, 1f, 0f, 0f)
         } else {
             val kickBack = if (gun.slot == GunSlot.SNIPER) 0.06f else 0.035f
             val kickUp = if (gun.slot == GunSlot.SNIPER) 8f else 3f
-            Matrix.translateM(base, 0, cameraToWorld, 0, 0.17f + bobX, -0.2f + bobY - dip * 0.08f, -0.4f + kick * kickBack)
+            Matrix.translateM(base, 0, cameraToWorld, 0, 0.12f + bobX, -0.13f + bobY - dip * 0.08f, -0.4f + kick * kickBack)
             Matrix.rotateM(base, 0, 4f + dip * 20f, 0f, 1f, 0f)
             Matrix.rotateM(base, 0, 1.5f + kick * kickUp - dip * 25f, 1f, 0f, 0f)
         }
-        for (part in model.parts) {
-            tiltedBox(part.x, part.y, part.z, part.sx, part.sy, part.sz, part.pitch, part.color)
-        }
-        if (pistol) drawPistolHands(model, sleeve) else drawRifleHands(model, sleeve)
+        // The detailed model when there is one (in the same gun space), else the gun built from boxes.
+        if (mesh != null) drawGunMesh(gun, mesh, base)
+        else for (part in model.parts) tiltedBox(part.x, part.y, part.z, part.sx, part.sy, part.sz, part.pitch, part.color)
+        val gripY = mesh?.gripY ?: model.gripY
+        val gripZ = mesh?.gripZ ?: model.gripZ
+        val supportZ = mesh?.supportZ ?: model.supportZ
+        val supportY = mesh?.supportY ?: -0.03f
+        // Real arms when they have been read (the right hand on the grip, the left under the
+        // handguard, or both round a pistol's grip); boxes until then.
+        val arms = library()?.arms.orEmpty()
+        val right = arms[if (pistol) GunMeshes.Arm.PISTOL_RIGHT else GunMeshes.Arm.RIFLE_RIGHT]
+        val left = arms[if (pistol) GunMeshes.Arm.PISTOL_LEFT else GunMeshes.Arm.RIFLE_LEFT]
+        if (right != null && left != null) {
+            if (pistol) {
+                drawArm(right, GunMeshes.Arm.PISTOL_RIGHT, gripY, gripZ, sleeve)
+                drawArm(left, GunMeshes.Arm.PISTOL_LEFT, gripY - 0.03f, gripZ - 0.03f, sleeve)
+            } else {
+                drawArm(right, GunMeshes.Arm.RIFLE_RIGHT, gripY, gripZ, sleeve)
+                drawArm(left, GunMeshes.Arm.RIFLE_LEFT, supportY - 0.012f, supportZ, sleeve)
+            }
+        } else if (pistol) drawPistolHands(gripY, gripZ, sleeve)
+        else drawRifleHands(gripY, gripZ, supportZ, supportY, sleeve)
         if (sinceShot < MUZZLE_FLASH_MS / 1000f && lastShotWeapon == gun) {
             val size = when (gun.slot) {
                 GunSlot.PISTOL -> 0.07f
                 GunSlot.PRIMARY -> 0.1f
                 GunSlot.SNIPER -> 0.14f
             }
-            muzzleFlash(0f, model.muzzleY, model.muzzleZ - size * 0.3f, size)
+            muzzleFlash(0f, mesh?.muzzleY ?: model.muzzleY, (mesh?.muzzleZ ?: model.muzzleZ) - size * 0.3f, size)
         }
+        // Back to the world's projection.
+        Matrix.multiplyMM(viewProj, 0, projection, 0, view, 0)
     }
+    private val heldProjection = FloatArray(16)
 
     /** Right hand on the pistol grip, left forward on the handguard, forearms in the team's uniform. */
-    private fun drawRifleHands(model: GunModel, sleeve: Int) {
-        val gy = model.gripY; val gz = model.gripZ; val sz = model.supportZ
+    private fun drawRifleHands(gy: Float, gz: Float, sz: Float, sy: Float, sleeve: Int) {
         tiltedBox(0f, gy + 0.007f, gz, 0.072f, 0.075f, 0.085f, -18f, SKIN)                 // right hand
         tiltedBox(0.03f, gy - 0.045f, gz + 0.12f, 0.1f, 0.1f, 0.2f, -30f, sleeve)            // right forearm
-        partBox(-0.004f, -0.03f, sz, 0.078f, 0.06f, 0.1f, SKIN)                            // left hand
-        tiltedBox(-0.07f, -0.1f, sz + 0.08f, 0.09f, 0.09f, 0.22f, -25f, sleeve, yawDeg = -35f) // left forearm
+        partBox(-0.004f, sy, sz, 0.078f, 0.06f, 0.1f, SKIN)                                // left hand
+        tiltedBox(-0.07f, sy - 0.07f, sz + 0.08f, 0.09f, 0.09f, 0.22f, -25f, sleeve, yawDeg = -35f) // left forearm
     }
 
     /** A two-handed pistol grip: the right hand round it, the left cupping it, both arms reaching forward. */
-    private fun drawPistolHands(model: GunModel, sleeve: Int) {
-        val gy = model.gripY; val gz = model.gripZ
+    private fun drawPistolHands(gy: Float, gz: Float, sleeve: Int) {
         tiltedBox(0.008f, gy + 0.002f, gz + 0.005f, 0.06f, 0.075f, 0.07f, -16f, SKIN)
         tiltedBox(-0.022f, gy - 0.008f, gz, 0.05f, 0.06f, 0.075f, -16f, SKIN)
         tiltedBox(0.05f, gy - 0.04f, gz + 0.125f, 0.09f, 0.09f, 0.2f, -22f, sleeve, yawDeg = 18f)
         tiltedBox(-0.07f, gy - 0.05f, gz + 0.115f, 0.09f, 0.09f, 0.2f, -22f, sleeve, yawDeg = -24f)
     }
+
+    // ---- Detailed gun models ------------------------------------------------------------------
+
+    /** A gun model's GPU copy: one mesh per part, and its textures. */
+    private class GunGl(val meshes: List<DynamicMesh>, val textures: IntArray)
+    private val gunGl = HashMap<Any, GunGl>()
+    private var gunLibrary: GunMeshes.Library? = null
+
+    /** The gun models and arms once they have been read (see [gunMeshSource]), else null. */
+    private fun library(): GunMeshes.Library? = gunLibrary ?: gunMeshSource?.takeIf { it.isDone }
+        ?.let { runCatching { it.get() }.getOrNull() ?: GunMeshes.Library(emptyMap(), emptyMap()) }
+        ?.also { gunLibrary = it }
+
+    /** [w]'s detailed model, if there is one and it has been read. */
+    private fun meshOf(w: Weapon): GunMesh? = library()?.guns?.get(w)
+
+    /** Draws [mesh] (a gun, or an arm keyed by its [GunMeshes.Arm]) with [matrix], uploading it the first time. */
+    private fun drawGunMesh(key: Any, mesh: GunMesh, matrix: FloatArray, sleeve: Int = 0) {
+        val gl = gunGl.getOrPut(key) {
+            GunGl(
+                mesh.parts.map { p -> DynamicMesh(p.vertices.size, p.indices).also { it.update(p.vertices) } },
+                IntArray(mesh.textures.size) { i ->
+                    val bytes = mesh.textures[i]
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let(::uploadAndRecycle) ?: 0
+                },
+            )
+        }
+        mesh.parts.forEachIndexed { i, p ->
+            val texture = if (p.texture >= 0) gl.textures.getOrElse(p.texture) { 0 } else 0
+            // Parts with no alpha are an arm's sleeve: the team's uniform. On a fabric texture
+            // (mid grey) it's brightened first, so the cloth keeps the uniform's shade.
+            val color = when {
+                p.color ushr 24 != 0 -> p.color
+                texture != 0 -> brighten(sleeve, SLEEVE_ON_FABRIC)
+                else -> sleeve
+            }
+            drawMesh(gl.meshes[i], matrix, tint(color), texture)
+        }
+    }
+
+    /** [color] with each channel multiplied by [k] (at most full). */
+    private fun brighten(color: Int, k: Float): Int {
+        fun ch(shift: Int) = (((color shr shift) and 0xFF) * k).toInt().coerceAtMost(255)
+        return (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+    }
+
+    /** One posed arm, its palm moved to (0, [y], [z]) in the held gun's space ([base]). */
+    private fun drawArm(arm: GunMesh, key: GunMeshes.Arm, y: Float, z: Float, sleeve: Int) {
+        Matrix.translateM(armMatrix, 0, base, 0, 0f, y, z)
+        drawGunMesh(key, arm, armMatrix, sleeve)
+    }
+    private val armMatrix = FloatArray(16)
 
     /** A bright flash at the muzzle (in [base] space), for the moment a shot leaves the gun. */
     private fun muzzleFlash(x: Float, y: Float, z: Float, size: Float) {
@@ -908,6 +989,15 @@ class CityRenderer(
         }
     }
 
+    /** My soldier's dance (a clip name, see Dance.clip; null = none), e.g. after winning; loops. */
+    @Volatile var playerDance: String? = null
+
+    /** Keeps [soldier] doing [clip] over and over (null or "": not dancing). */
+    private fun keepDancing(soldier: SoldierAnimator, clip: String?) {
+        val want = clip?.takeIf { it.isNotEmpty() }
+        if (soldier.dancing != want) soldier.dance(want, loop = true)
+    }
+
     /** [id]'s rig once it has loaded (starting the load the first time it's asked for), else null. */
     private fun rigOf(id: String): SoldierRig? {
         rigs[id]?.let { return it }
@@ -934,6 +1024,7 @@ class CityRenderer(
         val rig = rigOf(Characters.SOLDIER) ?: return
         if (dt <= 0f) return
         val player = soldierFor(playerSoldier, rigOf(playerCharacter) ?: rig).also { playerSoldier = it }
+        keepDancing(player, playerDance)
         val statue = statueSoldier ?: SoldierAnimator(rig).also { statueSoldier = it }
 
         // My speed and direction come from how far I actually moved (walls stop you).
@@ -951,6 +1042,7 @@ class CityRenderer(
         for (r in remotes.values) {
             val want = rigOf(r.player.character.ifEmpty { Characters.SOLDIER }) ?: rig
             val soldier = soldierFor(r.soldier, want).also { r.soldier = it }
+            keepDancing(soldier, r.player.dance)
             val rvx = (r.x - r.lastX) / dt
             val rvz = (r.z - r.lastZ) / dt
             r.lastX = r.x
@@ -1413,17 +1505,33 @@ class CityRenderer(
         fun gunBox(up: Float, fwd: Float, width: Float, height: Float, length: Float, color: Int) =
             if (flat) partBox(wx, wy + fwd * u, wz - up * u, width * u, length * u, height * u, color)
             else partBox(wx, wy + up * u, wz + fwd * u, width * u, height * u, length * u, color)
-        // The gun's own parts, moved so its grip sits in the hand; tiny details are left out at
-        // this size. Pistols are held a little higher and closer than long guns.
+        // The gun, moved so its grip sits in the hand. Pistols are held a little higher and closer
+        // than long guns.
         val model = GunModels.of(gun)
+        val mesh = meshOf(gun)
         val handUp = if (gun.slot == GunSlot.PISTOL) -0.03f else -0.06f
         val handFwd = if (gun.slot == GunSlot.PISTOL) 0.03f else 0.02f
-        for (p in model.parts) {
-            if (maxOf(p.sx, p.sy, p.sz) < 0.03f) continue
-            gunBox(p.y - model.gripY + handUp, model.gripZ - p.z + handFwd, p.sx, p.sy, p.sz, p.color)
+        val gripY = mesh?.gripY ?: model.gripY
+        val gripZ = mesh?.gripZ ?: model.gripZ
+        if (mesh != null) {
+            // Gun space (muzzle along -z) to the hand: grip to the origin, half a turn so the
+            // muzzle points the way the soldier faces (+z), out to the hand, into model units.
+            Matrix.translateM(gunInHand, 0, base, 0, wx, wy, wz)
+            if (flat) Matrix.rotateM(gunInHand, 0, -90f, 1f, 0f, 0f)
+            Matrix.scaleM(gunInHand, 0, u, u, u)
+            Matrix.translateM(gunInHand, 0, 0f, handUp, handFwd)
+            Matrix.rotateM(gunInHand, 0, 180f, 0f, 1f, 0f)
+            Matrix.translateM(gunInHand, 0, 0f, -gripY, -gripZ)
+            drawGunMesh(gun, mesh, gunInHand)
+        } else {
+            // Tiny details are left out at this size.
+            for (p in model.parts) {
+                if (maxOf(p.sx, p.sy, p.sz) < 0.03f) continue
+                gunBox(p.y - model.gripY + handUp, model.gripZ - p.z + handFwd, p.sx, p.sy, p.sz, p.color)
+            }
         }
-        val muzzleAhead = model.gripZ - model.muzzleZ + handFwd
-        val muzzleUp = model.muzzleY - model.gripY + handUp
+        val muzzleAhead = gripZ - (mesh?.muzzleZ ?: model.muzzleZ) + handFwd
+        val muzzleUp = (mesh?.muzzleY ?: model.muzzleY) - gripY + handUp
         if (anim === playerSoldier) {
             if (flat) Mat.transformPoint(base, wx, wy + muzzleAhead * u, wz - muzzleUp * u, muzzle)
             else Mat.transformPoint(base, wx, wy + muzzleUp * u, wz + muzzleAhead * u, muzzle)
@@ -1636,6 +1744,10 @@ class CityRenderer(
         /** How often "out of bullets" is reported while Shoot is held with an empty gun. */
         private const val EMPTY_CLICK_INTERVAL = 0.6f
         private const val NORMAL_FOV = 60f
+        /** Field of view the held gun is drawn with in Gun view: narrower than the world's, so it looks bigger. */
+        private const val HELD_GUN_FOV = 40f
+        /** A textured sleeve (grey cloth) is tinted with the team colour brightened this much. */
+        private const val SLEEVE_ON_FABRIC = 2.2f
         /** Through the scope: fog, pickups and soldiers can be seen this many times further. */
         private const val SCOPE_RANGE_SCALE = 2.5f
         private const val SCOPE_DRAW_SCALE = 1.6f
