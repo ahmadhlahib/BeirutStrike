@@ -161,8 +161,8 @@
     <string name="menu_leave_room">Leave room</string>
 
     <!-- View mode button: shows the current view; tap to switch. -->
-    <string name="view_first_person">1st person</string>
-    <string name="view_third_person">3rd person</string>
+    <string name="view_gun">Gun view</string>
+    <string name="view_3d_person">3D person</string>
 
     <!-- Shooting -->
     <string name="shoot">Shoot</string>
@@ -221,7 +221,7 @@
     <string name="loadout_primary">Primary</string>
     <string name="loadout_sniper">Sniper rifle</string>
     <string name="loadout_play">Play</string>
-    <string name="loadout_photo_credits">Photo credits</string>
+    <string name="loadout_photo_credits">Photo and sound credits</string>
     <string name="gun_rounds">%1$d × %2$d rounds</string>
     <string name="gun_rpm">%1$d/min</string>
     <string name="gun_semi">semi-auto</string>
@@ -234,6 +234,15 @@
     <string name="stat_accuracy">Accuracy</string>
     <string name="stat_mobility">Mobility</string>
     <string name="menu_change_guns">Change guns</string>
+    <string name="menu_change_character">Change character</string>
+
+    <!-- Character: who to play as -->
+    <string name="character_title">Choose your character</string>
+    <string name="character_next">Next: choose guns</string>
+    <string name="character_face_switch">Put my face photo on the character</string>
+    <string name="character_face_off">Off: the character keeps its own face.</string>
+    <string name="character_face_on">On: your face photo goes on the character\'s head. Change it with Retake face photo in the game menu.</string>
+    <string name="character_own_face">%1$s has a real face of their own, so no photo goes on it.</string>
 
     <!-- Cheat codes (typed in the Say box) -->
     <string name="cheat_unlimited_ammo">Cheat on: unlimited ammo</string>

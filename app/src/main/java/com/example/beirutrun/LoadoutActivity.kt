@@ -10,7 +10,6 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.beirutrun.city.GunIcon
 import com.example.beirutrun.city.GunPhotos
@@ -52,7 +51,9 @@ class LoadoutActivity : AppCompatActivity() {
         findViewById<View>(R.id.loadoutCredits).setOnClickListener {
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.loadout_photo_credits)
-                .setMessage(GunPhotos.credits(this))
+                // Who took the gun photos and recorded the gunshots, under which licences.
+                .setMessage(GunPhotos.credits(this) + "\n\n" +
+                    runCatching { assets.open("sounds/CREDITS.txt").bufferedReader().use { it.readText() } }.getOrDefault(""))
                 .setPositiveButton(R.string.close, null)
                 .show()
         }
@@ -140,15 +141,9 @@ class LoadoutActivity : AppCompatActivity() {
         for ((gun, card) in cards) card.strokeWidth = if (chosen[gun.slot] == gun) dp(3) else 0
     }
 
+    /** Saves the three guns and goes into the city (the face photo is chosen on the character screen). */
     private fun play() {
         chosen.values.forEach { Session.setGun(this, it) }
-        if (Session.faceFile(this).exists()) openCity() else takeFace.launch(Intent(this, FaceCaptureActivity::class.java))
-    }
-
-    /** Skipping the photo is fine too: the soldier keeps their own face. */
-    private val takeFace = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { openCity() }
-
-    private fun openCity() {
         startActivity(Intent(this, CityActivity::class.java))
     }
 

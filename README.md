@@ -20,6 +20,7 @@ shots and scores sync live between phones.
 - [Getting started](#getting-started)
 - [Project structure](#project-structure)
 - [Maps](#maps)
+- [Characters](#characters)
 - [Testing](#testing)
 - [Publishing](#publishing)
 - [Contributing](#contributing)
@@ -32,7 +33,7 @@ shots and scores sync live between phones.
 - **Real Beirut maps:** Downtown, Beirut Souks, Hamra, Ain El Mreisseh and Raouche, built from
   OpenStreetMap data (building footprints and heights, roads, parks, squares, the sea and trees).
 - **Adjustable play area:** from 200 m to 800 m square, or the whole map.
-- **Minimap** with a full-screen map view, and first- or third-person camera.
+- **Minimap** with a full-screen map view, and a gun view (first person) or 3D person (third person) camera.
 
 ### Multiplayer
 - **Rooms:** public or password-protected. The password is checked by the database's security
@@ -60,8 +61,11 @@ shots and scores sync live between phones.
   else is a Soldier.
 
 ### Social
-- **Your face on your soldier:** the front camera and ML Kit face detection put your photo on
-  your character's head.
+- **Characters:** after choosing a team, pick who to play as (the built-in soldier or Ahmad El
+  Lahib), shown turning in 3D. Everyone in the room sees your character.
+- **Your face on your character (optional):** turn it on on the character screen, and the front
+  camera and ML Kit face detection put your photo on the character's head. It's off by default,
+  and never used on characters with a real face of their own.
 - **Speech bubbles** and **photo drops** left in the city for other players to find.
 - **Safety and privacy:** report or block other players, and delete all your data from the menu.
 
@@ -82,7 +86,7 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Scope (round, left of Crawl) | Look through the scope (sniper rifles, the M4, or a primary with a found scope); lit while scoped |
 | Zoom in / out (round, far left of the controls) | Change the scope's magnification, while scoped |
 | Jump / Crawl (round, left of Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
-| **1st / 3rd person** | Switch camera view |
+| **Gun view / 3D person** | Switch between seeing through your soldier's eyes (gun in front) and seeing your soldier from behind |
 | Say (round, left of Jump) | Speech bubble, or a cheat code (see below) |
 | Camera (round, above the joystick) | Leave a photo in the street |
 | Timer (top centre) | Open the scoreboard |
@@ -234,6 +238,40 @@ optional parent map to cut from. To add or rebuild a map:
 The script downloads the area from OpenStreetMap and writes `assets/maps/<id>.bin` and a
 top-down preview image.
 
+## Characters
+
+Players choose a character after their team. The built-in soldier (`assets/models/soldier.glb`)
+is always there; every folder in `app/src/main/assets/models/characters/` with a
+`character.glb` adds another, found by the app on its own.
+
+To add a Mixamo character:
+
+1. Download the character and these animations from Mixamo as **FBX**, with **In Place** ticked
+   for the moving ones, and keep the sources in `tools/models/characters/<id>/`.
+2. Convert each to `.glb` with FBX2glTF, into `app/src/main/assets/models/characters/<id>/`:
+   ```bash
+   tools/bin/FBX2glTF.exe -b -i "character.fbx" -o app/src/main/assets/models/characters/<id>/character
+   ```
+3. Name the animation files after the clip they play:
+
+   | File | Mixamo animation (for example) |
+   | --- | --- |
+   | `idle.glb` | Rifle Aiming Idle |
+   | `shoot.glb` | Firing Rifle |
+   | `walk.glb` | Walking |
+   | `run.glb` | Rifle Run |
+   | `run_back.glb` | Run Backwards |
+   | `strafe_left.glb`, `strafe_right.glb` | Strafe (one each way) |
+   | `death.glb` | Dying |
+   | `jump.glb` (optional) | Jump |
+
+4. Add `character.json`: `{"name": "Ahmad El Lahib", "ownFace": true}`. Set `ownFace` when the
+   character has a real face, so players' face photos are never put on it.
+
+Bone names with or without the `mixamorig:` prefix both work. `MixamoSoldierTest` checks every
+character folder for the clips the game needs. Keep characters light: every player's character
+is animated on the phone each frame (Ahmad El Lahib has about 45,000 vertices).
+
 ## Testing
 
 ```bash
@@ -273,12 +311,17 @@ Release builds are signed with an upload key described in a local, git-ignored
 - Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available
   under the [Open Database License](https://opendatacommons.org/licenses/odbl/).
 - Soldier model by [Quaternius](https://quaternius.com); animations from
-  [Mixamo](https://www.mixamo.com). Mixamo source files are not redistributed in this repository.
+  [Mixamo](https://www.mixamo.com). The Ahmad El Lahib character and its animations are from
+  Mixamo too; their FBX sources are in `tools/models/characters/ahmad/`.
 - Model conversion with [FBX2glTF](https://github.com/facebookincubator/FBX2glTF).
+- Gunshot and reload recordings (by Beeld en Geluid and Mike Koenig) from
+  [Wikimedia Commons](https://commons.wikimedia.org) under CC BY-SA; details in
+  [`app/src/main/assets/sounds/CREDITS.txt`](app/src/main/assets/sounds/CREDITS.txt). The belt rattle
+  and the cries are generated by the game.
 - Gun photos on the loadout screen from [Wikimedia Commons](https://commons.wikimedia.org),
   public domain or under Creative Commons licences; authors and licences are in
   [`app/src/main/assets/guns/CREDITS.txt`](app/src/main/assets/guns/CREDITS.txt) and in the app
-  (**Photo credits** on the loadout screen). The adapted photos keep their original licences.
+  (**Photo and sound credits** on the loadout screen). The adapted photos keep their original licences.
 
 ## License
 

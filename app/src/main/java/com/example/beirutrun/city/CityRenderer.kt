@@ -39,8 +39,13 @@ class CityRenderer(
     private val sceneSource: java.util.concurrent.Future<CityScene>,
     private val repo: WorldRepository,
     private val playerName: String,
-    /** The animated soldier model and its attachment points, loaded on a background thread. */
-    private val soldierSource: java.util.concurrent.Future<SoldierRig>,
+    /**
+     * A character's animated model and its attachment points (see Characters), loaded on a
+     * background thread; asked for once per character id.
+     */
+    private val rigFor: (String) -> java.util.concurrent.Future<SoldierRig>,
+    /** The character the player plays as. */
+    private val playerCharacter: String,
     start: Triple<Float, Float, Float>?,
     private val streetPhotos: List<File>,
     /** Face photo file for the player, a drop's author, or another player (may not exist). */
@@ -304,7 +309,9 @@ class CityRenderer(
 
     // ---- Soldiers -----------------------------------------------------------------------------
 
-    private var rig: SoldierRig? = null
+    /** Characters' rigs by id once loaded (see [rigFor]); the soldier's stands in while one loads. */
+    private val rigSources = HashMap<String, java.util.concurrent.Future<SoldierRig>>()
+    private val rigs = HashMap<String, SoldierRig?>()
     private var playerSoldier: SoldierAnimator? = null
     /** One shared idle pose for every photo-drop statue. */
     private var statueSoldier: SoldierAnimator? = null
@@ -901,17 +908,32 @@ class CityRenderer(
         }
     }
 
+    /** [id]'s rig once it has loaded (starting the load the first time it's asked for), else null. */
+    private fun rigOf(id: String): SoldierRig? {
+        rigs[id]?.let { return it }
+        val source = rigSources.getOrPut(id) { rigFor(id) }
+        if (!source.isDone) return null
+        return runCatching { source.get() }.getOrNull().also { rigs[id] = it }
+    }
+
+    /** [current] if it already shows [rig]; otherwise a new animator for it (the old one's GPU copy is dropped). */
+    private fun soldierFor(current: SoldierAnimator?, rig: SoldierRig): SoldierAnimator {
+        if (current != null && current.rig === rig) return current
+        if (current != null) {
+            soldierMeshes.remove(current)?.forEach { it.release() }
+            uploadedVersion.remove(current)
+        }
+        return SoldierAnimator(rig)
+    }
+
     /**
      * Picks and advances each soldier's animation from how they're moving. Soldiers far away or
      * well behind the camera keep their clock running but aren't re-posed (saves battery).
      */
     private fun updateSoldiers(dt: Float) {
-        if (rig == null && soldierSource.isDone) {
-            rig = runCatching { soldierSource.get() }.getOrNull()
-        }
-        val rig = rig ?: return
+        val rig = rigOf(Characters.SOLDIER) ?: return
         if (dt <= 0f) return
-        val player = playerSoldier ?: SoldierAnimator(rig).also { playerSoldier = it }
+        val player = soldierFor(playerSoldier, rigOf(playerCharacter) ?: rig).also { playerSoldier = it }
         val statue = statueSoldier ?: SoldierAnimator(rig).also { statueSoldier = it }
 
         // My speed and direction come from how far I actually moved (walls stop you).
@@ -927,7 +949,8 @@ class CityRenderer(
 
         val now = SystemClock.uptimeMillis()
         for (r in remotes.values) {
-            val soldier = r.soldier ?: SoldierAnimator(rig).also { r.soldier = it }
+            val want = rigOf(r.player.character.ifEmpty { Characters.SOLDIER }) ?: rig
+            val soldier = soldierFor(r.soldier, want).also { r.soldier = it }
             val rvx = (r.x - r.lastX) / dt
             val rvz = (r.z - r.lastZ) / dt
             r.lastX = r.x
@@ -1367,10 +1390,11 @@ class CityRenderer(
             Matrix.multiplyMM(part, 0, boneWorld, 0, rig.faceAnchor, 0)
             draw(quad, part, WHITE, faceTex, lit = false)
         }
+        // The team flag on the back of the shirt.
         if (look.badgeTexture != 0) {
-            for ((k, arm) in rig.badgeBones.withIndex()) {
-                if (arm < 0) continue
-                anim.pose.nodeMatrix(arm, bone)
+            for ((k, badgeBone) in rig.badgeBones.withIndex()) {
+                if (badgeBone < 0) continue
+                anim.pose.nodeMatrix(badgeBone, bone)
                 Matrix.multiplyMM(boneWorld, 0, base, 0, bone, 0)
                 Matrix.multiplyMM(part, 0, boneWorld, 0, rig.badgeAnchors[k], 0)
                 draw(quad, part, WHITE, look.badgeTexture, lit = false)

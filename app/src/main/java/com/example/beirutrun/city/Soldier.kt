@@ -9,7 +9,7 @@ import kotlin.math.min
 
 /**
  * What a soldier looks like: uniform and gear colours for their team, plus the flag badge texture
- * (0 = none) drawn on both shoulders and the chest.
+ * (0 = none) drawn on the back of the shirt.
  */
 class SoldierLook(val uniform: Int, val gear: Int, val badgeTexture: Int)
 
@@ -23,8 +23,17 @@ class SoldierBones(val head: String, val wrist: String, val armL: String, val ar
         val QUATERNIUS = SoldierBones("Head", "Wrist.R", "UpperArm.L", "UpperArm.R", "Chest")
         /** Any Mixamo character (all use the same "mixamorig:" skeleton). */
         val MIXAMO = SoldierBones("mixamorig:Head", "mixamorig:RightHand", "mixamorig:LeftArm", "mixamorig:RightArm", "mixamorig:Spine2")
+        /** The same skeleton exported without the "mixamorig:" prefix (e.g. an uploaded avatar). */
+        val MIXAMO_PLAIN = SoldierBones("Head", "RightHand", "LeftArm", "RightArm", "Spine2")
 
-        fun detect(model: SkinnedModel) = if (model.nodeIndex("mixamorig:Hips") >= 0) MIXAMO else QUATERNIUS
+        fun detect(model: SkinnedModel) = when {
+            model.nodeIndex("mixamorig:Hips") >= 0 -> MIXAMO
+            model.nodeIndex("RightHand") >= 0 && model.nodeIndex("Spine2") >= 0 -> MIXAMO_PLAIN
+            else -> QUATERNIUS
+        }
+
+        /** The hips bone, which carries a Mixamo clip's walking motion, whichever naming the model uses. */
+        fun hipsOf(model: SkinnedModel) = if (model.nodeIndex("mixamorig:Hips") >= 0) "mixamorig:Hips" else "Hips"
     }
 }
 
@@ -39,8 +48,6 @@ class SoldierBones(val head: String, val wrist: String, val armL: String, val ar
 class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.detect(model)) {
     val head = model.nodeIndex(bones.head)
     val wrist = model.nodeIndex(bones.wrist)
-    val armL = model.nodeIndex(bones.armL)
-    val armR = model.nodeIndex(bones.armR)
     val chest = model.nodeIndex(bones.chest)
 
     /** Model units → metres, and the model's feet height (to stand it on the ground). */
@@ -51,9 +58,9 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
     /** Face photo: a disc just in front of the face, facing forward (+z in model space). */
     val faceAnchor = FloatArray(16)
 
-    /** Bones carrying a flag badge: both upper arms (facing outwards) and the chest (facing forwards). */
-    val badgeBones = listOf(armL, armR, chest)
-    val badgeAnchors = listOf(FloatArray(16), FloatArray(16), FloatArray(16))
+    /** Bones carrying the team flag: the chest bone, for a flag on the back of the shirt. */
+    val badgeBones = listOf(chest)
+    val badgeAnchors = listOf(FloatArray(16))
 
     /** Colour role of each primitive (see [roleOf]). */
     val roles: List<MaterialRole> = model.primitives.map { roleOf(it.material, it.image >= 0) }
@@ -86,40 +93,17 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
             if (frontZ > -Float.MAX_VALUE) anchor(faceAnchor, headM, faceX, faceY, frontZ + 0.012f * u, 0f, FACE_SIZE * u)
         }
 
-        // Arm badges: centre of each upper arm's vertices, on its outer side.
-        for ((k, bone) in listOf(armL, armR).withIndex()) {
-            if (bone < 0) continue
-            val boneM = FloatArray(16).also { pose.nodeMatrix(bone, it) }
-            var cx = 0f; var cy = 0f; var cz = 0f; var n = 0
-            var outer = boneM[12]
-            val side = if (boneM[12] >= 0f) 1f else -1f
-            model.primitives.forEachIndexed { p, prim ->
-                val slot = model.skins[prim.skin].joints.indexOf(bone)
-                if (slot < 0) return@forEachIndexed
-                val v = pose.vertices[p]
-                for (vi in 0 until prim.vertexCount) {
-                    var w = 0f
-                    for (j in 0..3) if (prim.joints[vi * 4 + j] == slot) w += prim.weights[vi * 4 + j]
-                    if (w < 0.5f) continue
-                    val x = v[vi * 8]; val y = v[vi * 8 + 1]; val z = v[vi * 8 + 2]
-                    cx += x; cy += y; cz += z; n++
-                    if (x * side > outer * side) outer = x
-                }
-            }
-            if (n == 0) continue
-            anchor(badgeAnchors[k], boneM, outer + side * 0.01f * u, cy / n + 0.04f * u, cz / n, side * 90f, BADGE_SIZE * u)
-        }
-
-        // Chest badge: on the soldier's left breast, just in front of the body at that height.
+        // The team flag: in the middle of the upper back, just behind the shirt, facing backwards
+        // (the character faces +z, so its back is the lowest z at that height).
         if (chest >= 0) {
             val chestM = FloatArray(16).also { pose.nodeMatrix(chest, it) }
-            val y = chestM[13] + 0.06f * u
-            val x = chestM[12] + 0.08f * u
-            var front = chestM[14]
+            val x = chestM[12]
+            val y = chestM[13] + 0.02f * u
+            var back = chestM[14]
             for (v in pose.vertices) for (i in v.indices step 8) {
-                if (abs(v[i + 1] - y) < 0.06f * u && abs(v[i] - x) < 0.06f * u) front = max(front, v[i + 2])
+                if (abs(v[i + 1] - y) < 0.08f * u && abs(v[i] - x) < 0.1f * u) back = min(back, v[i + 2])
             }
-            anchor(badgeAnchors[2], chestM, x, y, front + 0.012f * u, 0f, BADGE_SIZE * u)
+            anchor(badgeAnchors[0], chestM, x, y, back - 0.012f * u, 180f, BADGE_SIZE * u)
         }
     }
 
@@ -144,7 +128,8 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
         /** Every soldier is scaled to this height, metres. */
         const val HEIGHT = 1.82f
         private const val FACE_SIZE = 0.24f
-        private const val BADGE_SIZE = 0.13f
+        /** Width of the flag on the back, metres. */
+        private const val BADGE_SIZE = 0.22f
 
         /**
          * Guesses what a material is from its name. Textured materials keep their texture (a
@@ -192,22 +177,24 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
         }
 
         /**
-         * Loads the soldier: the Mixamo character with its animation files when
-         * assets/models/mixamo/character.glb exists, otherwise the built-in Quaternius soldier.
-         * [open] reads an asset's bytes, or returns null if it's missing.
+         * Loads a character (see Characters): from [folder], a Mixamo character (`character.glb`)
+         * with its animation files (named as in [MIXAMO_CLIPS]); for a null folder, or one
+         * without a character, the built-in Quaternius soldier. [open] reads an asset's bytes, or
+         * returns null if it's missing.
          */
-        fun load(open: (String) -> ByteArray?): SoldierRig {
-            val character = open("models/mixamo/character.glb")
+        fun load(folder: String? = null, open: (String) -> ByteArray?): SoldierRig {
+            val character = folder?.let { open("$it/character.glb") }
             if (character != null) {
                 val clips = LinkedHashMap<String, SkinnedModel>()
                 // Each file is read once even when it serves two clip names; missing files are skipped.
                 val loaded = HashMap<String, SkinnedModel?>()
                 for ((file, name) in MIXAMO_CLIPS) {
                     val anim = if (file in loaded) loaded[file]
-                    else open("models/mixamo/$file.glb")?.let(SkinnedModel::load).also { loaded[file] = it }
+                    else open("$folder/$file.glb")?.let(SkinnedModel::load).also { loaded[file] = it }
                     if (anim != null) clips[name] = anim
                 }
-                return SoldierRig(SkinnedModel.load(character).withClips(clips, rootBone = "mixamorig:Hips"))
+                val model = SkinnedModel.load(character)
+                return SoldierRig(model.withClips(clips, rootBone = SoldierBones.hipsOf(model)))
             }
             return SoldierRig(SkinnedModel.load(open("models/soldier.glb") ?: error("No soldier model in assets")))
         }
