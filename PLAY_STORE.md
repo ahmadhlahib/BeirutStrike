@@ -110,7 +110,10 @@ take longer for a new account.
 - **Teams must stay fictional.** Don't name teams after real parties, militias or other groups,
   or use their flags. Play rejects apps that depict or glorify real armed groups, and treats some
   (designated terrorist organisations) as a zero-tolerance violation.
-- **Content from players** (speech bubbles, photo drops) must stay reportable and blockable.
+- **Teams players create** (name and flag picture) fall under the same rule. The app asks for
+  fictional teams, but players can still upload a real party's flag: review `team` reports
+  quickly and delete the team from `rooms/{room}/teams/` in the Firebase console.
+- **Content from players** (speech bubbles, photo drops, created teams) must stay reportable and blockable.
   Review reports in the Firebase console under `reports/`, and delete offending content (and ban
   repeat offenders by removing their data) promptly.
 - **Delete my data** must keep working. The privacy policy also offers deletion by email; answer

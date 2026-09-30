@@ -103,6 +103,18 @@
             "$other": { ".validate": false }
           }
         },
+        "teams": {
+          "$id": {
+            ".write": "auth != null && root.child('rooms/' + $room + '/members/' + auth.uid).exists() && !data.exists() && newData.child('createdBy').val() === auth.uid",
+            ".validate": "newData.hasChildren(['name', 'color', 'flag', 'createdBy']) && $id.beginsWith('c_') && $id.length <= 40",
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 30" },
+            "color": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 16777215" },
+            "flag": { ".validate": "newData.isString() && newData.val().length <= 200000" },
+            "createdBy": { ".validate": "newData.isString()" },
+            "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now" },
+            "$other": { ".validate": false }
+          }
+        },
         "pickups": {
           "$slot": {
             ".write": "auth != null && root.child('rooms/' + $room + '/members/' + auth.uid).exists()",
@@ -130,7 +142,7 @@
       "$id": {
         ".write": "auth != null && !data.exists()",
         ".validate": "newData.hasChildren(['kind', 'by', 'target', 'at']) && newData.child('by').val() === auth.uid",
-        "kind": { ".validate": "newData.val() === 'photo' || newData.val() === 'message' || newData.val() === 'player'" },
+        "kind": { ".validate": "newData.val() === 'photo' || newData.val() === 'message' || newData.val() === 'player' || newData.val() === 'team'" },
         "target": { ".validate": "newData.isString() && newData.val().length <= 128" },
         "targetName": { ".validate": "newData.isString() && newData.val().length <= 40" },
         "detail": { ".validate": "newData.isString() && newData.val().length <= 200" },
