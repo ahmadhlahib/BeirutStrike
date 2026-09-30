@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Scrolls, so every option stays reachable on short screens and with the keyboard up. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -71,6 +76,23 @@
             app:singleSelection="true" />
     </HorizontalScrollView>
 
+    <!-- Just for fun: cheat codes work, and scores don't count toward the ranking. -->
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/roomCheatsSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/room_cheats"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/roomCheatsHelper"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:text="@string/room_cheats_off_helper"
+        android:textAppearance="?attr/textAppearanceCaption" />
+
     <com.google.android.material.textfield.TextInputLayout
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
@@ -103,20 +125,5 @@
             android:maxLength="40"
             android:maxLines="1" />
     </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- Just for fun: cheat codes work, and scores don't count toward the ranking. -->
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/roomCheatsSwitch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="@string/room_cheats"
-        android:textSize="16sp" />
-
-    <TextView
-        android:id="@+id/roomCheatsHelper"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/room_cheats_off_helper"
-        android:textAppearance="?attr/textAppearanceCaption" />
 </LinearLayout>
+</ScrollView>
