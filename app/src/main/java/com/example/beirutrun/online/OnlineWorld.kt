@@ -63,6 +63,10 @@ data class RemotePlayer(
     val jumpSeq: Long = 0L,
     /** The gun in their hands (a Weapon id). */
     val weapon: String = "",
+    /** The character they play as (see Characters; "" from older versions: the soldier). */
+    val character: String = "",
+    /** Whether their face photo goes on their character (older versions always did). */
+    val showFace: Boolean = true,
 )
 
 /** One player's score in the room's game, kept after they leave so the scoreboard stays whole. */
@@ -205,6 +209,8 @@ class OnlineWorld(
     private var prone = false
     private var jumpSeq = 0L
     private var weapon = ""
+    private var character = ""
+    private var showFace = true
     private var sentX = Float.NaN
     private var sentZ = 0f
     private var sentHeading = 0f
@@ -353,9 +359,19 @@ class OnlineWorld(
             "prone" to prone,
             "jumpSeq" to jumpSeq,
             "weapon" to weapon,
+            "character" to character,
+            "showFace" to showFace,
             "updated" to ServerValue.TIMESTAMP,
         ))
         markSent()
+    }
+
+    /** The character I play as, and whether my face photo goes on it (see Characters). */
+    fun setCharacter(id: String, face: Boolean) {
+        if (id == character && face == showFace) return
+        character = id
+        showFace = face
+        me?.updateChildren(mapOf("character" to id, "showFace" to face))
     }
 
     /** I switched guns ([id] is a Weapon id). */
@@ -755,6 +771,8 @@ class OnlineWorld(
                     jumpSeq = s.num("jumpSeq").toLong(),
                     shotDZ = s.num("shotDZ").toFloat(),
                     weapon = s.child("weapon").getValue(String::class.java).orEmpty(),
+                    character = s.child("character").getValue(String::class.java).orEmpty(),
+                    showFace = s.child("showFace").getValue(Boolean::class.java) ?: true,
                 )
                 players[id] = player
                 // Events only for changes seen live, not for the state found on joining.

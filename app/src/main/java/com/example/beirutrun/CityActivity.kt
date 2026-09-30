@@ -39,6 +39,7 @@ import com.example.beirutrun.city.JoystickView
 import com.example.beirutrun.city.MiniMapView
 import com.example.beirutrun.city.Pickup
 import com.example.beirutrun.city.PickupKind
+import com.example.beirutrun.city.Characters
 import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.city.SoundEffects
@@ -215,11 +216,20 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         mapSize = CityMaps.sizeOf(Session.roomMap(this))
         mapSize?.let { city.limitTo(it.toFloat()) }
         val scene = sceneBuilder.submit(Callable { CityScene.build(city, mapInfo.look) })
-        // The animated soldier everyone plays as, dressed in their team's uniform.
-        // (The Mixamo soldier in assets/models/mixamo/ if present, otherwise the built-in one.)
-        val soldier = sceneBuilder.submit(Callable {
-            SoldierRig.load { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
-        })
+        // Each character's animated model (see Characters), loaded in the background the first
+        // time a player uses it: mine, and whichever other players choose.
+        val rigLoads = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.Future<SoldierRig>>()
+        val rigFor: (String) -> java.util.concurrent.Future<SoldierRig> = { id ->
+            rigLoads.getOrPut(id) {
+                val folder = Characters.byId(this, id).folder
+                sceneBuilder.submit(Callable {
+                    SoldierRig.load(folder) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
+                })
+            }
+        }
+        val character = Characters.byId(this, Session.character(this))
+        // My face photo goes on my character only if I chose it and the character has no face of its own.
+        val showMyFace = Session.faceOnCharacter(this) && !character.ownFace
         // Offline, drops live on this phone. Online, they come from Firebase (see onDrops);
         // anything saved here meanwhile is waiting to be uploaded, so show it too.
         drops = repo.drops()
@@ -230,13 +240,17 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             sceneSource = scene,
             repo = repo,
             playerName = playerName,
-            soldierSource = soldier,
+            rigFor = rigFor,
+            playerCharacter = character.id,
             // Where you last stood on this map, or its start point facing its view.
             start = Session.position(this, mapInfo.id) ?: Triple(city.spawnX, city.spawnZ, mapInfo.startYaw),
             streetPhotos = repo.streets(),
-            playerFace = { myFace },
+            playerFace = { if (showMyFace) myFace else NO_FACE },
             dropFace = ::faceFileFor,
-            remoteFace = { online.remoteFaceFile(it.uid) },
+            // Other players' faces too only when they chose it, on a character without its own face.
+            remoteFace = { p ->
+                if (p.showFace && !Characters.byId(this, p.character).ownFace) online.remoteFaceFile(p.uid) else NO_FACE
+            },
             onNearbyDrop = ::onNearbyDrop,
             onShot = { x, y, z, dx, dy, dz ->
                 sounds.shoot(weapon = renderer.weapon)
@@ -294,7 +308,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         findViewById<MaterialButton>(R.id.sayButton).setOnClickListener { showSayDialog() }
         findViewById<MaterialButton>(R.id.viewModeButton).apply {
             renderer.firstPerson = Session.firstPerson(this@CityActivity)
-            fun label() = setText(if (renderer.firstPerson) R.string.view_first_person else R.string.view_third_person)
+            fun label() = setText(if (renderer.firstPerson) R.string.view_gun else R.string.view_3d_person)
             label()
             setOnClickListener {
                 renderer.firstPerson = !renderer.firstPerson
@@ -319,6 +333,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         guns = GunSlot.entries.associateWith { Session.gun(this, it) }
         renderer.weapon = guns.getValue(GunSlot.PRIMARY)
         online.setWeapon(renderer.weapon.id)
+        online.setCharacter(character.id, showMyFace)
         online.pickupSpot = { city.randomStreetPoint() }
         if (!online.configured) scatterLocalPickups()
         // Offline there is no ranking to protect, so cheats always work.
@@ -1107,6 +1122,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 startActivity(Intent(this, TeamSelectActivity::class.java))
                 finish()
             },
+            R.string.menu_change_character to {
+                startActivity(Intent(this, CharacterActivity::class.java))
+                finish()
+            },
             R.string.menu_change_guns to {
                 startActivity(Intent(this, LoadoutActivity::class.java))
                 finish()
@@ -1168,5 +1187,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val TOGGLE_OFF_COLOR = 0x99000000.toInt()
         /** Super speed cheat: walking and running twice as fast. */
         private const val SUPER_SPEED = 2f
+        /** A file that never exists: no face photo on this character. */
+        private val NO_FACE = File("")
     }
 }

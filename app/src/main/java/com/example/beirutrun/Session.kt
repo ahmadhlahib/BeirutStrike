@@ -44,6 +44,17 @@ object Session {
     fun setGun(context: Context, weapon: Weapon) =
         prefs(context).edit().putString("gun_${weapon.slot.name.lowercase()}", weapon.id).apply()
 
+    /** The character the player plays as (see Characters); null until they choose. */
+    fun character(context: Context): String? = prefs(context).getString(KEY_CHARACTER, null)
+
+    fun setCharacter(context: Context, id: String) = prefs(context).edit().putString(KEY_CHARACTER, id).apply()
+
+    /** Whether the player's face photo goes on their character's head (off unless they turn it on). */
+    fun faceOnCharacter(context: Context): Boolean = prefs(context).getBoolean(KEY_FACE_ON_CHARACTER, false)
+
+    fun setFaceOnCharacter(context: Context, on: Boolean) =
+        prefs(context).edit().putBoolean(KEY_FACE_ON_CHARACTER, on).apply()
+
     /** The online room the player is in (null = not chosen yet). */
     fun roomId(context: Context): String? = prefs(context).getString(KEY_ROOM_ID, null)
     fun roomName(context: Context): String? = prefs(context).getString(KEY_ROOM_NAME, null)
@@ -106,6 +117,8 @@ object Session {
     private const val KEY_ROOM_NAME = "room_name"
     private const val KEY_ROOM_MAP = "room_map"
     private const val KEY_TEAM = "team"
+    private const val KEY_CHARACTER = "character"
+    private const val KEY_FACE_ON_CHARACTER = "face_on_character"
     private const val KEY_FIRST_PERSON = "first_person"
     // "v2": maps got new start points; older saved positions are ignored.
     private const val KEY_X = "pos2_x"

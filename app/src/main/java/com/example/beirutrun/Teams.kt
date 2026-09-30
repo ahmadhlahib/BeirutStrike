@@ -47,7 +47,7 @@ private fun shade(color: Int, k: Float): Int = mix(0xFF000000.toInt(), color, k)
  * groups, or use their flags (Google Play rejects apps that do). The flags are drawn by
  * `tools/FactionFlags.java`.
  *
- * Every player on a team wears the same soldier uniform with the team flag on both shoulders.
+ * Every player on a team wears the same soldier uniform with the team flag on the back of the shirt.
  * To choose the uniform yourself, add the colours, e.g.
  * `Team("golden_lions", "Golden Lions", 0xFFF9A825.toInt(), uniform = 0xFF5B5A2E.toInt(), gear = 0xFF3A3A1E.toInt()),`
  */

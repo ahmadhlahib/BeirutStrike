@@ -173,6 +173,9 @@ class DynamicMesh(vertexFloats: Int, indices: ShortArray) {
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
+
+    /** Frees the GPU buffers (GL thread); the mesh can't be drawn afterwards. */
+    fun release() = GLES20.glDeleteBuffers(2, intArrayOf(vbo, ibo), 0)
 }
 
 class MeshBuilder {

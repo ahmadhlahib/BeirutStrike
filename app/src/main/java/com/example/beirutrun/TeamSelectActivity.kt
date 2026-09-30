@@ -251,9 +251,9 @@ class TeamSelectActivity : AppCompatActivity() {
 
     // ---- Joining ------------------------------------------------------------------------------
 
-    /** Your team decides your soldier's uniform; next, choose the guns to carry. */
+    /** Your team decides your soldier's uniform; next, choose your character, then your guns. */
     private fun choose(team: Team) {
         Session.setTeamId(this, team.id)
-        startActivity(Intent(this, LoadoutActivity::class.java))
+        startActivity(Intent(this, CharacterActivity::class.java))
     }
 }

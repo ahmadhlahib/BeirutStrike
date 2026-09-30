@@ -51,7 +51,26 @@ class CrawlPose(model: SkinnedModel, bones: Bones) {
                 toeL = "mixamorig:LeftFoot" to "mixamorig:LeftToeBase", toeR = "mixamorig:RightFoot" to "mixamorig:RightToeBase",
             )
 
-            fun detect(model: SkinnedModel) = if (model.nodeIndex("mixamorig:Hips") >= 0) MIXAMO else QUATERNIUS
+            /** The Mixamo skeleton exported without the "mixamorig:" prefix. */
+            val MIXAMO_PLAIN = MIXAMO.withoutPrefix("mixamorig:")
+
+            fun detect(model: SkinnedModel) = when {
+                model.nodeIndex("mixamorig:Hips") >= 0 -> MIXAMO
+                model.nodeIndex("RightHand") >= 0 && model.nodeIndex("Spine2") >= 0 -> MIXAMO_PLAIN
+                else -> QUATERNIUS
+            }
+        }
+
+        /** The same bones with [prefix] taken off every name. */
+        fun withoutPrefix(prefix: String): Bones {
+            fun p(pair: Pair<String, String>) = pair.first.removePrefix(prefix) to pair.second.removePrefix(prefix)
+            return Bones(
+                spine = spine.map(::p),
+                upperArmL = p(upperArmL), lowerArmL = p(lowerArmL), upperArmR = p(upperArmR), lowerArmR = p(lowerArmR),
+                upperLegL = p(upperLegL), lowerLegL = p(lowerLegL), upperLegR = p(upperLegR), lowerLegR = p(lowerLegR),
+                toeL = p(toeL), toeR = p(toeR),
+                footL = footL?.removePrefix(prefix), footR = footR?.removePrefix(prefix),
+            )
         }
     }
 
