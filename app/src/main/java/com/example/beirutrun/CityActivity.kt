@@ -40,6 +40,7 @@ import com.example.beirutrun.city.MiniMapView
 import com.example.beirutrun.city.Pickup
 import com.example.beirutrun.city.PickupKind
 import com.example.beirutrun.city.Characters
+import com.example.beirutrun.city.GunMeshes
 import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.city.SoundEffects
@@ -118,6 +119,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private lateinit var scopeOverlay: View
     /** The pistol, primary and sniper rifle the player carries (see LoadoutActivity). */
     private lateinit var guns: Map<GunSlot, Weapon>
+    /** The character I play as (see Characters): its dances are for winning. */
+    private lateinit var myCharacter: com.example.beirutrun.city.Character
     /** Found a scope (lost again on dying): a primary without a built-in one can zoom in. */
     private var hasScope = false
     /** Ammo packs and scopes in the street (shared online; this phone's own when offline). */
@@ -221,13 +224,18 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val rigLoads = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.Future<SoldierRig>>()
         val rigFor: (String) -> java.util.concurrent.Future<SoldierRig> = { id ->
             rigLoads.getOrPut(id) {
-                val folder = Characters.byId(this, id).folder
+                val c = Characters.byId(this, id)
                 sceneBuilder.submit(Callable {
-                    SoldierRig.load(folder) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
+                    SoldierRig.load(c.folder, c.dances) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
                 })
             }
         }
+        // The detailed gun models (see GunMeshes), read in the background; until then guns are drawn from boxes.
+        val gunMeshes = sceneBuilder.submit(Callable {
+            GunMeshes.loadAll { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
+        })
         val character = Characters.byId(this, Session.character(this))
+        myCharacter = character
         // My face photo goes on my character only if I chose it and the character has no face of its own.
         val showMyFace = Session.faceOnCharacter(this) && !character.ownFace
         // Offline, drops live on this phone. Online, they come from Firebase (see onDrops);
@@ -242,6 +250,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             playerName = playerName,
             rigFor = rigFor,
             playerCharacter = character.id,
+            gunMeshSource = gunMeshes,
             // Where you last stood on this map, or its start point facing its view.
             start = Session.position(this, mapInfo.id) ?: Triple(city.spawnX, city.spawnZ, mapInfo.startYaw),
             streetPhotos = repo.streets(),
@@ -727,7 +736,29 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         gameTimer.setTextColor(0xFFFFC107.toInt())
         sounds.death(volume = 0.5f)
         scoreboard.update(stats)
-        scoreboard.show(over = true)
+        // The winner's character dances (if it has dances) before the results come up.
+        if (victoryDance()) ticker.postDelayed({ if (!isFinishing) scoreboard.show(over = true) }, VICTORY_DANCE_MS)
+        else scoreboard.show(over = true)
+    }
+
+    /**
+     * If I won outright (the top score, not shared) and my character has dances: switch to the
+     * 3D-person view, where my soldier turns to face the camera, and dance one of them, picked at
+     * random; the other players see it too. Returns whether there's a dance.
+     */
+    private fun victoryDance(): Boolean {
+        val ranked = Scoreboard.ranked(stats)
+        val best = ranked.firstOrNull() ?: return false
+        val second = ranked.getOrNull(1)
+        val won = best.uid == online.uid && best.score > 0 && (second == null || second.score < best.score)
+        val dance = myCharacter.dances.randomOrNull()
+        if (!won || dance == null) return false
+        renderer.firstPerson = false
+        findViewById<MaterialButton>(R.id.viewModeButton).setText(R.string.view_3d_person)
+        renderer.playerDance = dance.clip
+        online.setDance(dance.clip)
+        showBanner(getString(R.string.victory_dance))
+        return true
     }
 
     private fun showScoreboard() {
@@ -1187,6 +1218,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val TOGGLE_OFF_COLOR = 0x99000000.toInt()
         /** Super speed cheat: walking and running twice as fast. */
         private const val SUPER_SPEED = 2f
+        /** After winning, the victory dance plays this long before the results come up. */
+        private const val VICTORY_DANCE_MS = 6_000L
         /** A file that never exists: no face photo on this character. */
         private val NO_FACE = File("")
     }

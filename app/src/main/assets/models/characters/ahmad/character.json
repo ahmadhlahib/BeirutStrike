@@ -1,4 +1,8 @@
 {
   "name": "Ahmad El Lahib",
-  "ownFace": true
+  "ownFace": true,
+  "dances": [
+    {"file": "dance_wave", "name": "Wave hip-hop"},
+    {"file": "dance_soul", "name": "Northern soul spin"}
+  ]
 }

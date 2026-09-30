@@ -13,6 +13,8 @@ import com.example.beirutrun.city.Character
 import com.example.beirutrun.city.CharacterPreview
 import com.example.beirutrun.city.Characters
 import com.example.beirutrun.city.DepthConfigChooser
+import com.example.beirutrun.city.GunMeshes
+import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.SoldierRig
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -50,6 +52,22 @@ class CharacterActivity : AppCompatActivity() {
         glView.setEGLContextClientVersion(2)
         glView.setEGLConfigChooser(DepthConfigChooser())
         glView.setRenderer(preview)
+        // Drag sideways to turn the character by hand (a full screen width is about one turn).
+        var lastX = 0f
+        glView.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> { lastX = e.x; preview.holding = true }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    preview.drag((e.x - lastX) / v.width.coerceAtLeast(1) * 360f)
+                    lastX = e.x
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    preview.holding = false
+                    if (e.actionMasked == android.view.MotionEvent.ACTION_UP) v.performClick()
+                }
+            }
+            true
+        }
         nameLabel = findViewById(R.id.characterName)
         loading = findViewById(R.id.characterLoading)
         faceSwitch = findViewById(R.id.characterFaceSwitch)
@@ -59,6 +77,13 @@ class CharacterActivity : AppCompatActivity() {
         val characters = Characters.all(this)
         for (c in characters) list.addView(card(c, list))
         chosen = Characters.byId(this, Session.character(this))
+
+        // The rifle in the preview's hands: the one chosen on the loadout screen, or the default.
+        val rifle = Session.gun(this, GunSlot.PRIMARY)
+        loader.execute {
+            val open = { path: String -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
+            preview.gun = open("guns3d/${rifle.name.lowercase()}.gun")?.let { runCatching { GunMeshes.parse(it, open) }.getOrNull() }
+        }
 
         faceSwitch.isChecked = Session.faceOnCharacter(this)
         faceSwitch.setOnCheckedChangeListener { _, on ->
@@ -121,9 +146,10 @@ class CharacterActivity : AppCompatActivity() {
         for ((id, card) in cards) card.strokeWidth = if (id == c.id) (3 * density).toInt() else 0
         nameLabel.text = c.name
         showFaceOption()
+        showDances(c)
         val source = rigs.getOrPut(c.id) {
             loader.submit<SoldierRig> {
-                SoldierRig.load(c.folder) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
+                SoldierRig.load(c.folder, c.dances) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
             }
         }
         loading.visibility = View.VISIBLE
@@ -135,6 +161,55 @@ class CharacterActivity : AppCompatActivity() {
                 preview.rig = rig
                 loading.visibility = View.GONE
             }
+        }
+    }
+
+    /**
+     * A small round dancer button per dance of [c] under the preview; tapping one plays it there
+     * once. With more than one dance each carries its number (and its name on a long press).
+     */
+    private fun showDances(c: Character) {
+        val box = findViewById<LinearLayout>(R.id.characterDances)
+        box.removeAllViews()
+        box.visibility = if (c.dances.isEmpty()) View.GONE else View.VISIBLE
+        val density = resources.displayMetrics.density
+        val size = (44 * density).toInt()
+        c.dances.forEachIndexed { i, d ->
+            val button = android.widget.FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                    marginStart = (6 * density).toInt()
+                    marginEnd = (6 * density).toInt()
+                }
+                // Amber like the chosen character's outline, so it stands out on the dark background.
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(0xFFFFB300.toInt())
+                }
+                isClickable = true
+                isFocusable = true
+                foreground = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x40000000), null,
+                    android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.BLACK) },
+                )
+                contentDescription = getString(R.string.character_dance, d.name)
+                tooltipText = d.name
+                setOnClickListener { preview.dance(d.clip) }
+            }
+            button.addView(android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_dance)
+                val pad = (10 * density).toInt()
+                setPadding(pad, pad, pad, pad)
+            }, android.widget.FrameLayout.LayoutParams(size, size))
+            if (c.dances.size > 1) button.addView(TextView(this).apply {
+                text = (i + 1).toString()
+                textSize = 10f
+                setTextColor(Color.BLACK)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }, android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM or android.view.Gravity.END,
+            ).apply { marginEnd = (9 * density).toInt(); bottomMargin = (5 * density).toInt() })
+            box.addView(button)
         }
     }
 

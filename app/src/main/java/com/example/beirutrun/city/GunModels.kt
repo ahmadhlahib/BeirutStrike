@@ -368,10 +368,6 @@ object GunPhotos {
         }
         return null
     }
-
-    /** Who took the photos and under which licences. */
-    fun credits(context: android.content.Context): String =
-        runCatching { context.assets.open("guns/CREDITS.txt").bufferedReader().use { it.readText() } }.getOrDefault("")
 }
 
 /** Side views of the guns drawn from the same boxes as the 3D guns, for a gun without a photo. */

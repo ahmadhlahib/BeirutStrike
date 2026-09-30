@@ -221,7 +221,7 @@
     <string name="loadout_primary">Primary</string>
     <string name="loadout_sniper">Sniper rifle</string>
     <string name="loadout_play">Play</string>
-    <string name="loadout_photo_credits">Photo and sound credits</string>
+    <string name="loadout_photo_credits">Credits: models, photos, sounds</string>
     <string name="gun_rounds">%1$d × %2$d rounds</string>
     <string name="gun_rpm">%1$d/min</string>
     <string name="gun_semi">semi-auto</string>
@@ -239,6 +239,9 @@
     <!-- Character: who to play as -->
     <string name="character_title">Choose your character</string>
     <string name="character_next">Next: choose guns</string>
+    <!-- A dance button on the character screen, e.g. "♪ Wave hip-hop". -->
+    <string name="character_dance">♪ %1$s</string>
+    <string name="victory_dance">You won! 🏆</string>
     <string name="character_face_switch">Put my face photo on the character</string>
     <string name="character_face_off">Off: the character keeps its own face.</string>
     <string name="character_face_on">On: your face photo goes on the character\'s head. Change it with Retake face photo in the game menu.</string>

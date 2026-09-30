@@ -1,0 +1,16 @@
+3D gun models from Sketchfab (sketchfab.com), licensed under CC BY 4.0 (creativecommons.org/licenses/by/4.0). Each was turned, scaled to the real gun's length and packed for the game (tools/GunModelTool.java); the AWM's scope was re-mounted on the rifle.
+
+Beretta M9 — "Low-Poly Beretta 92fs" by TastyTony: sketchfab.com/3d-models/low-poly-beretta-92fs-859943889553467eaa0203400117c595
+Glock 17 — "glock 17" by Friendly: sketchfab.com/3d-models/glock-17-ccf58223a7804de8b15d1d35b7d0b587
+Desert Eagle — "Low-Poly Desert Eagle" by TastyTony: sketchfab.com/3d-models/low-poly-desert-eagle-b81da261345f4462b2c4412352162287
+AK-47 — "Low-Poly AK-74" by TastyTony: sketchfab.com/3d-models/low-poly-ak-74-b27f9003622a4c7499bfd8d2a06dc47b
+M4A1 — "Low-Poly M4a1" by TastyTony: sketchfab.com/3d-models/low-poly-m4a1-8cab1cbeb82c4396a154f9fc8771417b
+MP5 — "HK MP5 (9mm submachine gun)" by quick_loop: sketchfab.com/3d-models/hk-mp5-9mm-submachine-gun-c503d96157614fb78b5953d49e643b78
+RPK — "Low-Poly RPK" by TastyTony: sketchfab.com/3d-models/low-poly-rpk-acdc6fe399514c41aa4130f8044875fb
+M249 SAW — "Low-Poly M249 SAW" by TastyTony: sketchfab.com/3d-models/low-poly-m249-saw-76011c365636451c90a8e3a46c2d8ca5
+SVD Dragunov — "Low-Poly SVD Dragunov" by TastyTony: sketchfab.com/3d-models/low-poly-svd-dragunov-fe40c5c2696441bc8696ed042056709e
+M24 — "Low-Poly M24a2" by TastyTony: sketchfab.com/3d-models/low-poly-m24a2-92a68245d813405f849fd0f023c09bfe
+AWM — "Low-Poly L118A1" by TastyTony: sketchfab.com/3d-models/low-poly-l118a1-5e2f001d6e6245bcacf2b1e2de8892f4
+Barrett M82 — "Low-Poly Barrett M82A1" by TastyTony: sketchfab.com/3d-models/low-poly-barrett-m82a1-9c7027e5a64e40e9ae927adb0872b6d8
+
+First-person arms — "AK74U | FREE ANIMATION." by BURNER (Alexander_Ovelar): sketchfab.com/3d-models/ak74u-free-animation-2ab66220c48b465e9501067667965569 (the arms in the idle pose, without the gun; the sleeves tinted in the team colour).

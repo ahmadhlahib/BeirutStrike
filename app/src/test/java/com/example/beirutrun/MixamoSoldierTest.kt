@@ -42,6 +42,31 @@ class MixamoSoldierTest {
     }
 
     @Test
+    fun ahmadsDancesLoadAndMoveHisBones() {
+        val folder = File(assets, "models/characters/ahmad")
+        assumeTrue(File(folder, "character.glb").exists())
+        val dances = listOf(com.example.beirutrun.city.Dance("dance_wave", "Wave"), com.example.beirutrun.city.Dance("dance_soul", "Soul"))
+        val rig = SoldierRig.load("models/characters/ahmad", dances) { path -> File(assets, path).takeIf { it.exists() }?.readBytes() }
+        for (d in dances) {
+            val clip = rig.model.clip(d.clip)
+            assertNotNull("${d.file} should load", clip)
+            // Enough of Ahmad's own bones move (so the dance's bone names match his skeleton).
+            assertTrue("${d.file} moves ${clip!!.channels.size} bones", clip.channels.size > 20)
+            assertTrue("${d.file} lasts ${clip.duration} s", clip.duration > 3f)
+            println("${d.file}: ${clip.duration} s, ${clip.channels.size} channels")
+        }
+        // Playing one changes the pose.
+        val anim = SoldierAnimator(rig)
+        anim.update(0.016f, 0f, 0f, aiming = false, dead = false, skin = true)
+        val before = anim.pose.vertices.map { it.copyOf() }
+        anim.dance(dances[0].clip)
+        repeat(60) { anim.update(0.033f, 0f, 0f, aiming = false, dead = false, skin = true) }
+        var moved = 0f
+        for (p in before.indices) for (i in before[p].indices) moved = maxOf(moved, abs(before[p][i] - anim.pose.vertices[p][i]))
+        assertTrue("dancing should move the body (moved $moved)", moved > 0.05f)
+    }
+
+    @Test
     fun runningMovesTheLegsAndSkinningIsFastEnough() {
         assumeTrue(folders.isNotEmpty())
         for (folder in folders) {
