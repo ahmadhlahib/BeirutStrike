@@ -53,6 +53,30 @@
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
+
+            <!-- Rooms with a minimum rank: its badge and "Captain or higher". -->
+            <LinearLayout
+                android:id="@+id/roomMinRank"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/roomMinRankBadge"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp" />
+
+                <TextView
+                    android:id="@+id/roomMinRankText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
         <ImageView

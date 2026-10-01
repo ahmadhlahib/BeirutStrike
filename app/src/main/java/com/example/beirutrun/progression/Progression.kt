@@ -19,6 +19,15 @@ object Progression {
     /** What adding [amount] XP to [totalXp] does (negative amounts count as none). */
     fun gain(totalXp: Long, amount: Int): XpGain =
         XpGain(stateFor(totalXp), stateFor(totalXp.coerceAtLeast(0) + amount.coerceAtLeast(0)))
+
+    /**
+     * The ranks a room's creator with [totalXp] may set as its minimum: their own and every one
+     * below it, never higher.
+     */
+    fun minimumRanksFor(totalXp: Long): List<Rank> = Rank.entries.filter { it.level <= levelFor(totalXp) }
+
+    /** Whether a player with [totalXp] may join a room that needs [minXp] (0 = anyone). */
+    fun meetsMinimum(totalXp: Long, minXp: Long): Boolean = totalXp >= minXp
 }
 
 /** Where a player with [totalXp] stands. */

@@ -46,6 +46,7 @@ tag, and a blue dot on the minimap. "Say" bubbles and dropped photos appear on b
 | `reports/{id}` | Reports of a player, message or photo, for the owner to review in the Firebase console. The app can only add reports, never read them. | The reporter |
 | `career/{uid}` | A player's totals over every game: shots, successful shots (their score), kills, deaths, hits taken, XP and wins. Used by the Ranking screen; XP decides their military rank (see `progression/`). | That player only |
 | `roomList/{room}/duration`, `startedAt` | Game length (30 s to 1 h) and when the game started. Each can only be set once. | Length: the room's creator. Start: the first player into the city |
+| `roomList/{room}/minXp` | Career XP needed to join (the lowest rank allowed in). Set once, never above the creator's own career XP; joining is refused below it. | The room's creator |
 
 **After updating the app, publish [`firebase/database.rules.json`](firebase/database.rules.json)
 again.** Older rules don't know about game lengths and scores, and refuse to create rooms.

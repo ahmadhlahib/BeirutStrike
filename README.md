@@ -39,6 +39,9 @@ shots and scores sync live between phones.
 ### Multiplayer
 - **Rooms:** public or password-protected. The password is checked by the database's security
   rules, not by the app.
+- **Minimum rank:** a room's creator can let in only players of a chosen rank or higher, up to
+  their own rank. The room list shows it, and the security rules enforce it against each
+  player's career XP.
 - **Teams:** three fictional factions in every room, each with its own flag, colours and uniform.
   Players can **add a team** to the room: a name, a flag picture from their phone and a colour
   (up to six per room). Everyone in the room sees it, and it can be reported with a long press.
@@ -166,6 +169,8 @@ shows "Cheats are off in this room".
   the top of the body), win +500 (the top score, not shared).
 - **Rank** follows from total XP. Everyone starts at level 1, جندي Private; level 20, أسطورة
   بيروت Beirut Legend, needs 45,500 XP.
+- **Room minimum rank:** stored as that rank's XP (`roomList/{room}/minXp`). Opening the rooms
+  screen brings this phone's XP and the online career's together, since rooms go by the career.
 
 #### Ranks and XP: where to change things
 

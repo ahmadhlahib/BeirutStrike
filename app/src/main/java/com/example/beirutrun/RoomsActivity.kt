@@ -22,6 +22,9 @@ import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.RoomDirectory
 import com.example.beirutrun.online.RoomInfo
 import com.example.beirutrun.progression.PlayerProgress
+import com.example.beirutrun.progression.ProgressState
+import com.example.beirutrun.progression.Progression
+import com.example.beirutrun.progression.Rank
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.card.MaterialCardView
@@ -74,6 +77,14 @@ class RoomsActivity : AppCompatActivity() {
             val dir = RoomDirectory(uid)
             directory = dir
             createButton.isEnabled = true
+            // Rooms with a minimum rank go by my online career's XP: bring it and this phone's
+            // together (e.g. XP whose upload failed), so both show the same rank.
+            dir.careerXp { careerXp ->
+                if (careerXp == null || isFinishing) return@careerXp
+                dir.addCareerXp(Session.name(this).orEmpty(), PlayerProgress.syncWithCareer(this, careerXp))
+                showRank()
+                adapter.notifyDataSetChanged()
+            }
             // Came from "New room" on a finished game's scoreboard: go straight to creating one.
             if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_CREATE_ROOM, false)) showCreateDialog()
             dir.listen(
@@ -99,8 +110,11 @@ class RoomsActivity : AppCompatActivity() {
         super.onResume()
         ticker.post(refresh)
         // The rank may have changed in a game since this screen was last shown.
-        RankViews.bindCard(findViewById(R.id.roomsRank), Session.name(this).orEmpty(), PlayerProgress.state(this))
+        showRank()
     }
+
+    private fun showRank() =
+        RankViews.bindCard(findViewById(R.id.roomsRank), Session.name(this).orEmpty(), PlayerProgress.state(this))
 
     override fun onPause() {
         super.onPause()
@@ -116,6 +130,20 @@ class RoomsActivity : AppCompatActivity() {
     private fun onRoomTapped(room: RoomInfo) {
         if (isOver(room)) {
             Toast.makeText(this, R.string.room_game_over_join, Toast.LENGTH_LONG).show()
+            return
+        }
+        val me = PlayerProgress.state(this)
+        if (!Progression.meetsMinimum(me.totalXp, room.minXp)) {
+            val needed = Rank.forXp(room.minXp)
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.room_rank_too_low_title)
+                .setIcon(needed.badge)
+                .setMessage(getString(
+                    R.string.room_rank_too_low, RankViews.bothNames(this, needed), needed.level,
+                    RankViews.bothNames(this, me.rank), RankViews.number(room.minXp - me.totalXp),
+                ))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
             return
         }
         val map = CityMaps.byId(room.map)
@@ -155,7 +183,12 @@ class RoomsActivity : AppCompatActivity() {
                 status.text = ""
                 Toast.makeText(
                     this,
-                    if (room.hasPassword) R.string.room_wrong_password else R.string.room_join_failed,
+                    when {
+                        room.hasPassword -> R.string.room_wrong_password
+                        // This phone says my rank is enough, but the server goes by my career's XP.
+                        room.minXp > 0 -> R.string.room_rank_join_failed
+                        else -> R.string.room_join_failed
+                    },
                     Toast.LENGTH_LONG,
                 ).show()
             }
@@ -219,6 +252,22 @@ class RoomsActivity : AppCompatActivity() {
             cheatsHelper.setTextColor(if (on) CHEATS_WARNING_COLOR else helperColor)
         }
 
+        // Minimum rank: anyone (Private) unless chosen, and never above my own rank.
+        val me = PlayerProgress.state(this)
+        var minRank = Rank.PRIVATE
+        val minRow = view.findViewById<View>(R.id.roomMinRank)
+        fun showMinRank() {
+            RankViews.setBadge(view.findViewById(R.id.roomMinRankBadge), minRank)
+            view.findViewById<TextView>(R.id.roomMinRankName).text = RankViews.bothNames(this, minRank)
+            view.findViewById<TextView>(R.id.roomMinRankLevel).text =
+                if (minRank == Rank.PRIVATE) getString(R.string.room_min_rank_everyone)
+                else getString(R.string.room_min_rank_level, minRank.level)
+        }
+        showMinRank()
+        view.findViewById<TextView>(R.id.roomMinRankHelper).text =
+            getString(R.string.room_min_rank_helper, RankViews.bothNames(this, me.rank))
+        minRow.setOnClickListener { pickMinRank(me, minRank) { minRank = it; showMinRank() } }
+
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.room_create_title)
             .setView(view)
@@ -226,8 +275,50 @@ class RoomsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.room_create) { _, _ ->
                 val name = nameInput.text.toString().trim().ifEmpty { getString(R.string.room_untitled) }
                 create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size), duration,
-                    cheatsSwitch.isChecked)
+                    cheatsSwitch.isChecked, minRank.xpRequired.toLong())
             }
+            .show()
+    }
+
+    /**
+     * Lists every rank to pick a room's minimum from; only mine and those below it can be chosen
+     * (see Progression.minimumRanksFor), the ones above are shown locked.
+     */
+    private fun pickMinRank(me: ProgressState, current: Rank, onPick: (Rank) -> Unit) {
+        val allowed = Progression.minimumRanksFor(me.totalXp).toSet()
+        val ranks = Rank.entries
+        val rankAdapter = object : BaseAdapter() {
+            override fun getCount() = ranks.size
+            override fun getItem(position: Int) = ranks[position]
+            override fun getItemId(position: Int) = position.toLong()
+            override fun areAllItemsEnabled() = false
+            override fun isEnabled(position: Int) = ranks[position] in allowed
+
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = convertView
+                    ?: LayoutInflater.from(parent.context).inflate(R.layout.item_rank_choice, parent, false)
+                val r = ranks[position]
+                val open = r in allowed
+                RankViews.setBadge(row.findViewById(R.id.rankChoiceBadge), r)
+                row.findViewById<TextView>(R.id.rankChoiceName).text = RankViews.bothNames(this@RoomsActivity, r)
+                val level = getString(R.string.room_min_rank_level, r.level)
+                row.findViewById<TextView>(R.id.rankChoiceLevel).text =
+                    if (open) level else getString(R.string.room_map_and_players, level, getString(R.string.room_rank_locked))
+                row.findViewById<ImageView>(R.id.rankChoiceMark).apply {
+                    when {
+                        r == current -> setImageResource(R.drawable.ic_rank_check)
+                        !open -> setImageResource(R.drawable.ic_lock)
+                        else -> setImageDrawable(null)
+                    }
+                }
+                row.alpha = if (open) 1f else LOCKED_RANK_ALPHA
+                return row
+            }
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.room_min_rank_pick)
+            .setAdapter(rankAdapter) { _, which -> ranks[which].takeIf { it in allowed }?.let(onPick) }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -255,12 +346,17 @@ class RoomsActivity : AppCompatActivity() {
     private fun isOver(room: RoomInfo) = room.endsAt > 0 && (directory?.serverNow() ?: 0L) >= room.endsAt
 
     /** Creates a room; [map] is its map value (see CityMaps.roomValue). */
-    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean) {
+    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long) {
         val dir = directory ?: return
         status.setText(R.string.room_creating)
-        dir.create(name, password, map, durationMs, cheats) { id ->
+        dir.create(name, password, map, durationMs, cheats, minXp) { id ->
             if (id != null) enter(id, name, map)
-            else Toast.makeText(this, R.string.room_create_failed, Toast.LENGTH_LONG).show()
+            else Toast.makeText(
+                this,
+                // The server checks a minimum rank against my online career, which may lag behind.
+                if (minXp > 0) R.string.room_rank_create_failed else R.string.room_create_failed,
+                Toast.LENGTH_LONG,
+            ).show()
         }
     }
 
@@ -274,6 +370,11 @@ class RoomsActivity : AppCompatActivity() {
         const val EXTRA_CREATE_ROOM = "create_room"
         /** The "scores won't count" warning under the cheats switch, and on cheat rooms in the list. */
         private const val CHEATS_WARNING_COLOR = 0xFFFFB300.toInt()
+        /** A room's minimum rank in the list: gold when I may join, red when my rank is too low. */
+        private const val MIN_RANK_COLOR = 0xFFB8860B.toInt()
+        private const val RANK_TOO_LOW_COLOR = 0xFFE53935.toInt()
+        /** Ranks above mine in the minimum-rank list. */
+        private const val LOCKED_RANK_ALPHA = 0.4f
     }
 
     private inner class RoomAdapter : BaseAdapter() {
@@ -300,6 +401,17 @@ class RoomsActivity : AppCompatActivity() {
             view.findViewById<TextView>(R.id.roomCheats).visibility = if (room.cheats) View.VISIBLE else View.GONE
             view.findViewById<ImageView>(R.id.roomLock).visibility =
                 if (room.hasPassword) View.VISIBLE else View.GONE
+            // The minimum rank, in red when mine is below it.
+            view.findViewById<View>(R.id.roomMinRank).visibility = if (room.minXp > 0) View.VISIBLE else View.GONE
+            if (room.minXp > 0) {
+                val needed = Rank.forXp(room.minXp)
+                RankViews.setBadge(view.findViewById(R.id.roomMinRankBadge), needed)
+                view.findViewById<TextView>(R.id.roomMinRankText).apply {
+                    text = getString(R.string.room_min_rank_badge, RankViews.localName(this@RoomsActivity, needed))
+                    val ok = Progression.meetsMinimum(PlayerProgress.state(this@RoomsActivity).totalXp, room.minXp)
+                    setTextColor(if (ok) MIN_RANK_COLOR else RANK_TOO_LOW_COLOR)
+                }
+            }
             return view
         }
     }
