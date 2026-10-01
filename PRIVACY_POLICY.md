@@ -25,7 +25,7 @@ can delete it.
 | **Photos you drop** in the city (optional, taken with the camera) | Shown where you dropped them, with your caption | Players in the same room |
 | **Teams you create** (optional): a team name, a flag picture you choose from your phone, and a colour | Offered as a team in the room, and shown on its players | Players in the same room |
 | **Messages** (speech bubbles and captions) | Shown above your character | Players in the same room |
-| **Game activity:** team, position in the game's map, shots, hits, kills, deaths, match and career scores | To run the multiplayer game, scoreboards and ranking | Other players |
+| **Game activity:** team, position in the game's map, shots, hits, kills, deaths, wins, XP (military rank), match and career scores | To run the multiplayer game, scoreboards and ranking | Other players |
 | **A random user ID** created by Firebase Anonymous Authentication | To tell players apart and protect your data so only you can change it | Not shown |
 | **Reports** you send about other players | So we can review abusive content | Only us |
 

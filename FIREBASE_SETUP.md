@@ -44,7 +44,7 @@ tag, and a blue dot on the minimap. "Say" bubbles and dropped photos appear on b
 | `rooms/{room}/stats/{uid}` | Scoreboard: kills, deaths, shots, hits, hits taken. Kept when the player leaves. | That player only |
 | `rooms/{room}/pickups/{slot}` | Ammo packs (10 bullets for the pistol or the AK-47) and scopes lying in the street, and when someone took one. Taking and putting one back are transactions, so only one player gets each. | Any member of the room |
 | `reports/{id}` | Reports of a player, message or photo, for the owner to review in the Firebase console. The app can only add reports, never read them. | The reporter |
-| `career/{uid}` | A player's totals over every game: shots, successful shots (their score), kills, deaths, hits taken. Used by the Ranking screen and army ranks (more than 100 successful shots makes a ★ Commander). | That player only |
+| `career/{uid}` | A player's totals over every game: shots, successful shots (their score), kills, deaths, hits taken, XP and wins. Used by the Ranking screen; XP decides their military rank (see `progression/`). | That player only |
 | `roomList/{room}/duration`, `startedAt` | Game length (30 s to 1 h) and when the game started. Each can only be set once. | Length: the room's creator. Start: the first player into the city |
 
 **After updating the app, publish [`firebase/database.rules.json`](firebase/database.rules.json)

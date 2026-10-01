@@ -1,4 +1,5 @@
-<resources>
+<!-- Arabic (values-ar) so far covers the ranks and career screens only; the rest shows in English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="app_name">Beirut Strike</string>
     <string name="app_title">Beirut Strike</string>
 
@@ -44,7 +45,6 @@
     <string name="osm_attribution">Map data © OpenStreetMap contributors</string>
 
     <!-- Rooms -->
-    <string name="rooms_greeting">Hi %1$s!</string>
     <string name="rooms_subtitle">Join a room or create your own. Players in the same room play together.</string>
     <string name="rooms_empty">No rooms yet. Create the first one!</string>
     <plurals name="rooms_count">
@@ -119,12 +119,10 @@
     </plurals>
     <string name="score_new_room">New room</string>
 
-    <!-- Army ranks and the ranking screen -->
-    <string name="rank_commander">★ Commander</string>
-    <string name="rank_soldier">Soldier</string>
+    <!-- The ranking screen -->
     <string name="face_photo">Face photo</string>
     <string name="ranking_title">Ranking</string>
-    <string name="ranking_rule">Score = shots that hit an enemy, over all games. More than %1$d makes you a ★ Commander.</string>
+    <string name="ranking_rule">Score = shots that hit an enemy, over all games. Military ranks come from XP.</string>
     <string name="ranking_empty">No one has played an online game yet</string>
     <plurals name="ranking_count">
         <item quantity="one">1 player</item>
@@ -272,4 +270,42 @@
         <item quantity="one">Online · 1 other player</item>
         <item quantity="other">Online · %d other players</item>
     </plurals>
+
+    <!-- Military ranks and career (see progression/Rank.kt; rank names themselves are there,
+         Arabic and English shown together). Arabic in values-ar. -->
+    <string name="career_title">RANKS / CAREER</string>
+    <string name="career_open">Ranks / career</string>
+    <!-- "LEVEL 10" -->
+    <string name="career_level">LEVEL %1$d</string>
+    <!-- Current and next level's total XP: "12,450 / 14,000 XP" -->
+    <string name="career_xp_progress">%1$s / %2$s XP</string>
+    <string name="career_xp_total">%1$s XP</string>
+    <string name="career_xp_to_next">%1$s XP to next rank</string>
+    <string name="career_next_rank">NEXT RANK</string>
+    <string name="career_max_rank">MAX RANK</string>
+    <string name="career_max_rank_detail">You hold the highest rank in Beirut Strike.</string>
+    <string name="career_all_ranks">ALL RANKS</string>
+    <string name="career_stats">CAREER STATS</string>
+    <string name="career_stat_wins">Wins</string>
+    <string name="career_stats_offline">Play online to build your career stats.</string>
+    <!-- How XP is earned, from the values in XpConfig. -->
+    <string name="career_xp_rules">Earn XP in online games: kill +%1$d · headshot +%2$d · win +%3$d</string>
+    <string name="career_replay_hint">Tap the badge to replay your promotion.</string>
+    <!-- Only in debug builds: long-pressing the badge adds XP, to test rank-ups. -->
+    <string name="career_debug_xp">Debug: +%1$d XP</string>
+    <!-- "نقيب | Captain" -->
+    <string name="rank_names">%1$s | %2$s</string>
+    <!-- On the scoreboard and ranking: "Lv 10 · Captain" -->
+    <string name="rank_short">Lv %1$d · %2$s</string>
+    <string name="rank_badge_description">%1$s rank badge</string>
+    <string name="rank_status_completed">COMPLETED</string>
+    <string name="rank_status_current">CURRENT RANK</string>
+    <!-- "14,000 XP REQUIRED" -->
+    <string name="rank_status_required">%1$s XP REQUIRED</string>
+    <string name="rank_up_title">RANK UP</string>
+    <string name="rank_up_subtitle">NEW RANK ACHIEVED</string>
+    <!-- Earned XP, e.g. after a kill: "+50 XP" -->
+    <string name="xp_gain">+%1$d XP</string>
+    <!-- A kill with its XP: "You killed Ali! · +75 XP" -->
+    <string name="kill_with_xp">%1$s · %2$s</string>
 </resources>

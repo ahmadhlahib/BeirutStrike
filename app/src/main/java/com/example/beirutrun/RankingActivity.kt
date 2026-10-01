@@ -18,7 +18,7 @@ import com.google.firebase.database.ValueEventListener
 
 /**
  * Every player who has played online, ranked by career score (successful shots over all games),
- * from `career/{uid}` (see OnlineWorld). Shows their face, army rank (see [Army]), shots, kills
+ * from `career/{uid}` (see OnlineWorld). Shows their face, military rank (from their XP), shots, kills
  * and accuracy, and keeps up to date while open.
  */
 class RankingActivity : AppCompatActivity() {
@@ -35,7 +35,7 @@ class RankingActivity : AppCompatActivity() {
         SystemBars.keepClear(this)
         StartBackground.applyTo(this)
         status = findViewById(R.id.rankingStatus)
-        findViewById<TextView>(R.id.rankingRule).text = getString(R.string.ranking_rule, Army.COMMANDER_HITS)
+        findViewById<TextView>(R.id.rankingRule).setText(R.string.ranking_rule)
         val list = findViewById<ListView>(R.id.rankingList)
         list.adapter = adapter
         list.emptyView = findViewById(R.id.rankingEmpty)
@@ -93,10 +93,10 @@ class RankingActivity : AppCompatActivity() {
                 text = (position + 1).toString()
                 setTextColor(if (position < PODIUM) PODIUM_COLOR else WHITE)
             }
-            FaceBadge.bind(view.findViewById(R.id.rankingFace), p.uid, myUid, p.score) { notifyDataSetChanged() }
+            FaceBadge.bind(view.findViewById(R.id.rankingFace), p.uid, myUid, p.xp) { notifyDataSetChanged() }
             view.findViewById<TextView>(R.id.rankingName).text =
                 if (mine) getString(R.string.score_you, p.name) else p.name
-            view.findViewById<TextView>(R.id.rankingArmyRank).text = Army.title(this@RankingActivity, p.score)
+            view.findViewById<TextView>(R.id.rankingArmyRank).text = RankViews.short(this@RankingActivity, p.xp)
             view.findViewById<TextView>(R.id.rankingScore).text = p.score.toString()
             view.findViewById<TextView>(R.id.rankingDetails).text = getString(
                 R.string.ranking_details, p.shots, p.kills, Scoreboard.percent(p.accuracy),

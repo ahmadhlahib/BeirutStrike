@@ -7,4 +7,15 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Ranks and career: gunmetal panels with gold and silver accents. -->
+    <color name="rank_gold">#FFE8B64A</color>
+    <color name="rank_gold_light">#FFFFE08A</color>
+    <color name="rank_gold_dark">#FF9C6B00</color>
+    <color name="rank_silver">#FFC9D1D9</color>
+    <color name="rank_panel">#FF141A20</color>
+    <color name="rank_panel_light">#FF222B33</color>
+    <color name="rank_edge">#FF36414B</color>
+    <color name="rank_text_dim">#99FFFFFF</color>
+    <color name="rank_background">#FF090C0F</color>
 </resources>

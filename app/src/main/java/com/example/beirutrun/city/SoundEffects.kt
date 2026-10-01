@@ -37,6 +37,8 @@ class SoundEffects(context: Context) {
     @Volatile private var shots = emptyMap<ShotSound, Pair<Int, Float>>()
     @Volatile private var ouch = intArrayOf()
     @Volatile private var death = 0
+    /** The rank-up fanfare: `assets/sounds/rank_up.wav` if it is there (0 = none, silent). */
+    @Volatile private var rankUp = 0
     /** Gun mechanics, each a sound and its playback rate (like [shots]). */
     @Volatile private var magOut = NONE
     @Volatile private var magIn = NONE
@@ -60,6 +62,7 @@ class SoundEffects(context: Context) {
             // A few pitches so repeated hits don't all sound identical.
             ouch = floatArrayOf(0.92f, 1f, 1.1f).mapIndexed { i, p -> load("ouch$i") { SoundSynth.ouch(p) } }.toIntArray()
             death = load("death") { SoundSynth.death() }
+            rankUp = loadAsset("rank_up", files) ?: 0
             fun mechanic(name: String, synth: () -> FloatArray): Pair<Int, Float> =
                 MECHANICS[name]?.let { (file, rate) -> loadAsset(file, files)?.let { it to rate } }
                     ?: (load(name) { synth() } to 1f)
@@ -151,6 +154,9 @@ class SoundEffects(context: Context) {
 
     /** The groan when a player is killed. */
     fun death(volume: Float = 1f) = play(death, volume, 1f)
+
+    /** Played when the player reaches a new rank. Silent until `assets/sounds/rank_up.wav` is added. */
+    fun rankUp(volume: Float = 1f) = play(rankUp, volume, 1f)
 
     /** A sound with its own playback rate (see [MECHANICS]), times [pitch]. */
     private fun play(sound: Pair<Int, Float>, volume: Float, pitch: Float = 1f) = play(sound.first, volume, sound.second * pitch)

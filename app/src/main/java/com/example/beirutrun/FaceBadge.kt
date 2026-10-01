@@ -5,18 +5,20 @@ import android.util.LruCache
 import android.view.View
 import android.widget.ImageView
 import com.example.beirutrun.online.FaceStore
+import com.example.beirutrun.progression.Rank
 import java.io.File
 
-/** Fills in a `view_face_badge` layout: the player's face (or a placeholder) and their Commander star. */
+/** Fills in a `view_face_badge` layout: the player's face (or a placeholder) and their rank badge. */
 object FaceBadge {
     /** Small decoded faces, keyed by file and its modification time (so a retaken face shows up). */
     private val cache = LruCache<String, Bitmap>(64)
 
     /**
-     * Shows [uid]'s face: [myUid]'s own local photo, or the downloaded one for anyone else.
-     * [onFaceArrived] runs if the face had to be downloaded first, to redraw.
+     * Shows [uid]'s face: [myUid]'s own local photo, or the downloaded one for anyone else, with
+     * the badge of the rank their [careerXp] earns. [onFaceArrived] runs if the face had to be
+     * downloaded first, to redraw.
      */
-    fun bind(badge: View, uid: String, myUid: String?, careerHits: Int, onFaceArrived: () -> Unit) {
+    fun bind(badge: View, uid: String, myUid: String?, careerXp: Long, onFaceArrived: () -> Unit) {
         val context = badge.context
         val file = if (uid == myUid) Session.faceFile(context) else FaceStore.file(context, uid)
         val image = badge.findViewById<ImageView>(R.id.faceImage)
@@ -27,8 +29,7 @@ object FaceBadge {
             image.setImageResource(R.drawable.ic_person)
             if (uid != myUid) FaceStore.fetchIfMissing(context.applicationContext, uid, onFaceArrived)
         }
-        badge.findViewById<View>(R.id.faceStar).visibility =
-            if (Army.isCommander(careerHits)) View.VISIBLE else View.GONE
+        RankViews.setBadge(badge.findViewById(R.id.faceRank), Rank.forXp(careerXp))
     }
 
     private fun load(file: File): Bitmap? {

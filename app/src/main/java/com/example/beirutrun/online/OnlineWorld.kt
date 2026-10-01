@@ -84,6 +84,10 @@ data class PlayerStats(
     val hits: Int,
     /** Bullets that hit this player. */
     val hitsTaken: Int,
+    /** Career only: total XP, which decides their military rank (see progression/Rank). */
+    val xp: Long = 0,
+    /** Career only: games won outright. */
+    val wins: Int = 0,
 ) {
     /** Share of shots that hit, 0..1. */
     val accuracy get() = if (shots > 0) hits.toFloat() / shots else 0f
@@ -104,6 +108,8 @@ data class PlayerStats(
                 shots = count("shots"),
                 hits = count("hits"),
                 hitsTaken = count("hitsTaken"),
+                xp = (s.child("xp").value as? Number)?.toLong() ?: 0L,
+                wins = count("wins"),
             )
         }
     }
@@ -126,7 +132,8 @@ data class PlayerStats(
  *   it back somewhere new are transactions, so only one player gets each and it comes back once.
  *
  * Outside the room, `career/{uid}` adds up the same counts over every game played, for the
- * ranking screen and army ranks (see Army). Rooms that allow cheats (`roomList/{room}/cheats`)
+ * ranking screen, plus the player's XP and wins, which decide their military rank (see
+ * progression/Rank). Rooms that allow cheats (`roomList/{room}/cheats`)
  * are just for fun: their games don't add to anyone's career.
  *
  * The game clock is in the room list: `roomList/{room}/duration` (set by the room's creator) and
@@ -160,13 +167,13 @@ class OnlineWorld(
         /** One of [fromName]'s bullets hit me, taking [damage] hearts. */
         fun onHitBy(fromUid: String, fromName: String, damage: Int) = Unit
         /** A player I shot has just died. */
-        fun onKilled(victimName: String) = Unit
+        fun onKilled(victimUid: String, victimName: String) = Unit
         /** The room's game length or start time is known or changed (both server ms; 0 = unknown). */
         fun onGameClock(startedAt: Long, durationMs: Long) = Unit
         /** Everyone's scores in this room, as they change. */
         fun onStats(stats: List<PlayerStats>) = Unit
-        /** Career scores (all games) of the players on this room's scoreboard, by uid. */
-        fun onCareerScores(scores: Map<String, Int>) = Unit
+        /** Career XP (all games) of the players on this room's scoreboard, by uid: their rank. */
+        fun onCareerXp(xp: Map<String, Long>) = Unit
         /** The ammo packs and scopes lying in the street right now. */
         fun onPickups(pickups: List<Pickup>) = Unit
         /** Whether this room allows cheat codes (then scores don't count toward the ranking). */
@@ -231,10 +238,18 @@ class OnlineWorld(
 
     /** Counts not yet added to my `stats/{uid}` (sent in batches: shooting can be many per second). */
     private val pendingStats = HashMap<String, Long>()
+    /** Like [pendingStats], but only for my career (XP and wins aren't on the room's scoreboard). */
+    private val pendingCareer = HashMap<String, Long>()
     private var statsDirty = true
     private var lastStatsWrite = 0L
-    /** Career scores of the players on the scoreboard, each followed once it shows up. */
-    private val careerScores = HashMap<String, Int>()
+    /** Career XP of the players on the scoreboard, each followed once it shows up. */
+    private val careerXp = HashMap<String, Long>()
+
+    /**
+     * Whether this game counts toward careers and XP: online, in a room that doesn't allow cheats
+     * (false until the server has said so).
+     */
+    val countsForCareer: Boolean get() = cheatsAllowed == false
 
     private val players = HashMap<String, RemotePlayer>()
     private var remoteDrops: List<PhotoDrop> = emptyList()
@@ -546,8 +561,19 @@ class OnlineWorld(
     /** I killed someone. */
     fun countKill() = addStat("kills")
 
+    /** I earned [amount] XP (added locally by PlayerProgress; this adds it to my career too). */
+    fun countXp(amount: Int) = addCareer("xp", amount.toLong())
+    /** I won the game outright. */
+    fun countWin() = addCareer("wins", 1)
+
     private fun addStat(key: String) {
         pendingStats[key] = (pendingStats[key] ?: 0L) + 1
+        statsDirty = true
+    }
+
+    private fun addCareer(key: String, amount: Long) {
+        if (amount <= 0) return
+        pendingCareer[key] = (pendingCareer[key] ?: 0L) + amount
         statsDirty = true
     }
 
@@ -573,10 +599,17 @@ class OnlineWorld(
             for ((key, count) in pendingStats) update["$path/$key"] = ServerValue.increment(count)
         }
         if (countsForCareer) update["career/$userId/updated"] = ServerValue.TIMESTAMP
+        // XP and wins go in a write of their own, so a database without their rules yet (see
+        // firebase/database.rules.json) still takes the scoreboard's counts.
+        val careerOnly = if (countsForCareer) pendingCareer.mapKeys { "career/$userId/${it.key}" }
+            .mapValues { ServerValue.increment(it.value) } else emptyMap()
         pendingStats.clear()
+        pendingCareer.clear()
         statsDirty = false
         database.reference.updateChildren(update)
             .addOnFailureListener { Log.w(TAG, "Stats update failed: ${it.message}") }
+        if (careerOnly.isNotEmpty()) database.reference.updateChildren(careerOnly)
+            .addOnFailureListener { Log.w(TAG, "XP update failed: ${it.message}") }
     }
 
     private fun onStatsSnapshot(snapshot: DataSnapshot) {
@@ -589,14 +622,14 @@ class OnlineWorld(
         listener?.onStats(stats)
     }
 
-    /** Keeps [careerScores] up to date for [userId] (their army rank depends on it). */
+    /** Keeps [careerXp] up to date for [userId] (their military rank depends on it). */
     private fun followCareer(userId: String) {
         val database = db ?: return
-        if (careerScores.containsKey(userId)) return
-        careerScores[userId] = 0
-        listenValue(database.getReference("career/$userId/hits")) { snap ->
-            careerScores[userId] = (snap.value as? Number)?.toInt() ?: 0
-            listener?.onCareerScores(HashMap(careerScores))
+        if (careerXp.containsKey(userId)) return
+        careerXp[userId] = 0L
+        listenValue(database.getReference("career/$userId/xp")) { snap ->
+            careerXp[userId] = (snap.value as? Number)?.toLong() ?: 0L
+            listener?.onCareerXp(HashMap(careerXp))
         }
     }
 
@@ -790,7 +823,7 @@ class OnlineWorld(
                 // Events only for changes seen live, not for the state found on joining.
                 if (before != null && id != uid) {
                     if (player.shotSeq != before.shotSeq) listener?.onRemoteShot(player)
-                    if (player.dead && !before.dead && player.killedBy == uid) listener?.onKilled(player.name)
+                    if (player.dead && !before.dead && player.killedBy == uid) listener?.onKilled(id, player.name)
                 }
                 publishPlayers()
             }

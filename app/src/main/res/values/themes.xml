@@ -63,4 +63,31 @@
         <item name="android:gravity">end</item>
         <item name="android:fontFeatureSettings">tnum</item>
     </style>
+
+    <!-- Ranks / career: section headings, and the "LEVEL 10" tag. -->
+    <style name="RankHeading">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">22dp</item>
+        <item name="android:layout_marginBottom">6dp</item>
+        <item name="android:letterSpacing">0.2</item>
+        <item name="android:textColor">@color/rank_gold</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="RankLevelChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/bg_level_chip</item>
+        <item name="android:letterSpacing">0.15</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:textColor">@color/rank_gold</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
 </resources>

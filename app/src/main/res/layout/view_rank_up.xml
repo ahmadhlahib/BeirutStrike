@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The rank-up celebration, laid over the whole screen (see RankUpOverlay). During a game it
+    lets touches through, so the player can keep fighting while it plays.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#D9000000"
+    android:clipChildren="false">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:clipChildren="false"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/rankUpTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.3"
+            android:shadowColor="#CCFFB300"
+            android:shadowRadius="12"
+            android:text="@string/rank_up_title"
+            android:textColor="@color/rank_gold"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <FrameLayout
+            android:layout_width="200dp"
+            android:layout_height="160dp"
+            android:clipChildren="false">
+
+            <ImageView
+                android:id="@+id/rankUpRays"
+                android:layout_width="260dp"
+                android:layout_height="260dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/bg_rank_rays" />
+
+            <View
+                android:id="@+id/rankUpGlow"
+                android:layout_width="190dp"
+                android:layout_height="190dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_rank_glow" />
+
+            <ImageView
+                android:id="@+id/rankUpBadge"
+                android:layout_width="116dp"
+                android:layout_height="116dp"
+                android:layout_gravity="center" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/rankUpArabic"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:shadowColor="#AA000000"
+            android:shadowDy="2"
+            android:shadowRadius="4"
+            android:textColor="@color/rank_gold_light"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/rankUpEnglish"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.2"
+            android:textAllCaps="true"
+            android:textColor="@color/rank_silver"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/rankUpLevel"
+            style="@style/RankLevelChip"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:id="@+id/rankUpSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:letterSpacing="0.25"
+            android:text="@string/rank_up_subtitle"
+            android:textColor="@color/rank_text_dim"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</FrameLayout>

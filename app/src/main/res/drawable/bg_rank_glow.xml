@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A soft gold glow behind a rank badge. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:type="radial"
+        android:gradientRadius="50%p"
+        android:startColor="#88FFC940"
+        android:centerColor="#33FFC940"
+        android:endColor="#00FFC940" />
+</shape>

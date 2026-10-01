@@ -165,6 +165,8 @@
         "shots": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "hits": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "hitsTaken": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "xp": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "updated": { ".validate": "newData.isNumber() && newData.val() <= now" },
         "$other": { ".validate": false }
       }

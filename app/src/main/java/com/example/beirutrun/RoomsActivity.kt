@@ -21,6 +21,7 @@ import com.example.beirutrun.city.CityMaps
 import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.RoomDirectory
 import com.example.beirutrun.online.RoomInfo
+import com.example.beirutrun.progression.PlayerProgress
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.card.MaterialCardView
@@ -42,8 +43,9 @@ class RoomsActivity : AppCompatActivity() {
         StartBackground.applyTo(this)
         status = findViewById(R.id.roomsStatus)
         createButton = findViewById(R.id.createRoomButton)
-        findViewById<TextView>(R.id.roomsGreeting).text =
-            getString(R.string.rooms_greeting, Session.name(this).orEmpty())
+        findViewById<View>(R.id.roomsRank).setOnClickListener {
+            startActivity(Intent(this, CareerActivity::class.java))
+        }
 
         val list = findViewById<ListView>(R.id.roomList)
         list.adapter = adapter
@@ -96,6 +98,8 @@ class RoomsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         ticker.post(refresh)
+        // The rank may have changed in a game since this screen was last shown.
+        RankViews.bindCard(findViewById(R.id.roomsRank), Session.name(this).orEmpty(), PlayerProgress.state(this))
     }
 
     override fun onPause() {

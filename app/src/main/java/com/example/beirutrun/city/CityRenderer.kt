@@ -58,8 +58,8 @@ class CityRenderer(
     private val onNearbyDrop: (PhotoDrop?) -> Unit,
     /** Called on the main thread when the player fires: start x, y, z and direction x, y, z. */
     private val onShot: (Float, Float, Float, Float, Float, Float) -> Unit,
-    /** Called on the main thread when one of the player's bullets hits another player: their uid, and the hearts it takes. */
-    private val onHitPlayer: (String, Int) -> Unit,
+    /** Called on the main thread when one of the player's bullets hits another player: their uid, the hearts it takes, and whether it hit the head. */
+    private val onHitPlayer: (String, Int, Boolean) -> Unit,
     /** The player's team id (see Teams); empty = no team. */
     private val playerTeam: String,
     /** A team's flag image and colour, for the label above each player. */
@@ -549,6 +549,9 @@ class CityRenderer(
         return hypot(r.x - x, r.z - z) < HIT_RADIUS
     }
 
+    /** Whether a bullet at height [y] that hit [r]'s body hit their head (standing only: lying down, the head is too low to tell). */
+    private fun hitsHead(r: RemoteAvatar, y: Float): Boolean = !r.player.prone && y > r.y + BODY_HEIGHT - HEAD_HEIGHT
+
     /** Turns [part] so its local z axis points along (dx, dy, dz). */
     private fun orientAlong(dx: Float, dy: Float, dz: Float) {
         val flat = hypot(dx, dz)
@@ -967,7 +970,8 @@ class CityRenderer(
                         target.flashUntil = now + 160
                         val uid = target.player.uid
                         val damage = b.damage
-                        mainHandler.post { onHitPlayer(uid, damage) }
+                        val headshot = hitsHead(target, b.y)
+                        mainHandler.post { onHitPlayer(uid, damage, headshot) }
                         spent = true
                     }
                 } else if (!down && hypot(playerX - b.x, playerZ - b.z) < HIT_RADIUS && b.y < playerY + BODY_HEIGHT) {
@@ -1712,6 +1716,8 @@ class CityRenderer(
         // Body shape for hits: standing is an upright cylinder, crawling a flat one along the ground.
         private const val BODY_HEIGHT = 1.85f
         private const val PRONE_BODY_HEIGHT = 0.45f
+        /** The top of a standing body that counts as the head, for headshots. */
+        private const val HEAD_HEIGHT = 0.3f
         private const val PRONE_BODY_LENGTH = 1.6f
         /** How high the lying body is lifted so it rests on the ground rather than in it. */
         private const val PRONE_LIFT = 0.16f

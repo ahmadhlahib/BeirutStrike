@@ -2,8 +2,6 @@ package com.example.beirutrun
 
 import com.example.beirutrun.online.PlayerStats
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScoreboardTest {
@@ -30,13 +28,6 @@ class ScoreboardTest {
             player("e", kills = 3, deaths = 9, hits = 10),
         ))
         assertEquals(listOf("b", "e", "d", "c", "a"), ranked.map { it.name })
-    }
-
-    @Test
-    fun commanderNeedsMoreThanAHundredSuccessfulShots() {
-        assertFalse(Army.isCommander(0))
-        assertFalse(Army.isCommander(100))
-        assertTrue(Army.isCommander(101))
     }
 
     @Test
