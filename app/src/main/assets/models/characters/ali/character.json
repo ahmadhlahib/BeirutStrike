@@ -1,0 +1,8 @@
+{
+  "name": "Ali El Lahib",
+  "ownFace": true,
+  "dances": [
+    {"file": "dance_twist_flip", "name": "Front twist flip"},
+    {"file": "dance_running_flip", "name": "Running forward flip"}
+  ]
+}
