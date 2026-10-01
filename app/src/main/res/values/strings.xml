@@ -261,6 +261,22 @@
     <string name="room_cheats_on_helper">Cheats allowed: scores in this room won\'t count in the Ranking</string>
     <string name="room_cheats_badge">Cheats on · not ranked</string>
 
+    <!-- Minimum rank to join a room (see progression/Rank) -->
+    <string name="room_min_rank_title">Minimum rank</string>
+    <string name="room_min_rank_change">Change</string>
+    <string name="room_min_rank_pick">Minimum rank to join</string>
+    <string name="room_min_rank_level">Level %1$d</string>
+    <string name="room_min_rank_everyone">Level 1 · everyone can join</string>
+    <string name="room_min_rank_helper">Only players of this rank or higher can join. You can choose up to your own rank, %1$s.</string>
+    <string name="room_rank_locked">Above your rank</string>
+    <!-- On a room in the list: "Captain or higher" -->
+    <string name="room_min_rank_badge">%1$s or higher</string>
+    <string name="room_rank_too_low_title">Rank too low</string>
+    <!-- "This room is for Captain (level 10) or higher. You're Sergeant: earn 9,600 more XP to join." -->
+    <string name="room_rank_too_low">This room is for %1$s (level %2$d) or higher. You\'re %3$s: earn %4$s more XP to join.</string>
+    <string name="room_rank_create_failed">Couldn\'t create the room: your online career doesn\'t have that rank yet. Try a lower minimum rank</string>
+    <string name="room_rank_join_failed">Couldn\'t join: your online career doesn\'t have this room\'s rank yet</string>
+
     <!-- Multiplayer -->
     <string name="status_offline">Offline · only this phone</string>
     <string name="status_connecting">Connecting…</string>

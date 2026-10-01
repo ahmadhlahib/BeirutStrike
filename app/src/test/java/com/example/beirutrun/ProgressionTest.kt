@@ -113,6 +113,25 @@ class ProgressionTest {
     }
 
     @Test
+    fun aRoomsMinimumRankIsNeverAboveTheCreators() {
+        assertEquals(listOf(Rank.PRIVATE), Progression.minimumRanksFor(0))
+        assertEquals(listOf(Rank.PRIVATE), Progression.minimumRanksFor(499))
+        val captain = Progression.minimumRanksFor(12_450)
+        assertEquals(10, captain.size)
+        assertEquals(Rank.CAPTAIN, captain.last())
+        assertFalse(Rank.MAJOR in captain)
+        assertEquals(Rank.entries, Progression.minimumRanksFor(1_000_000))
+    }
+
+    @Test
+    fun joiningARoomWithAMinimumRank() {
+        assertTrue(Progression.meetsMinimum(0, 0))
+        assertTrue(Progression.meetsMinimum(11_700, Rank.CAPTAIN.xpRequired.toLong()))
+        assertFalse(Progression.meetsMinimum(11_699, Rank.CAPTAIN.xpRequired.toLong()))
+        assertTrue(Progression.meetsMinimum(50_000, Rank.BEIRUT_LEGEND.xpRequired.toLong()))
+    }
+
+    @Test
     fun negativeAmountsAddNothing() {
         assertEquals(0L, Progression.gain(100, -50).xp)
         assertEquals(0L, Progression.stateFor(-5).totalXp)

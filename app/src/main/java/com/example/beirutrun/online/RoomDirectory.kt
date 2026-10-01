@@ -26,6 +26,11 @@ data class RoomInfo(
     val startedAt: Long = 0L,
     /** Cheat codes allowed: a room just for fun, whose scores don't count toward the ranking. */
     val cheats: Boolean = false,
+    /**
+     * Career XP needed to join: the XP of the lowest rank allowed in (see progression/Rank);
+     * 0 = anyone. Checked by the security rules too.
+     */
+    val minXp: Long = 0L,
 ) {
     /** Server time the game ends, or 0 if it has no end (yet). */
     val endsAt get() = if (durationMs > 0 && startedAt > 0) startedAt + durationMs else 0L
@@ -36,12 +41,14 @@ data class RoomInfo(
  *
  * - `roomList/{room}`: name, map, whether it has a password, who made it, when it was last
  *   active, how long its game lasts (`duration`, set once by its creator), whether cheat codes are
- *   allowed (`cheats`, set once by its creator), when the game started
+ *   allowed (`cheats`, set once by its creator), the career XP needed to join (`minXp`, the
+ *   lowest rank allowed in, set once by its creator and never above their own), when the game started
  *   (`startedAt`, set once by the first player into the city) and `online/{uid}` flags for the
  *   players in it.
  * - `roomKeys/{room}`: a hash of the password. Nobody can read it; the security rules compare it
  *   with what a joining player writes to `rooms/{room}/members/{uid}`, so a wrong password is
- *   refused by the server itself.
+ *   refused by the server itself. The rules also refuse a player whose `career/{uid}/xp` is
+ *   below the room's `minXp`.
  * - `rooms/{room}/...`: everything inside the room (players, shots, drops), readable and
  *   writable only by members.
  *
@@ -88,6 +95,7 @@ class RoomDirectory(private val userId: String) {
                         durationMs = (s.child("duration").value as? Number)?.toLong() ?: 0L,
                         startedAt = (s.child("startedAt").value as? Number)?.toLong() ?: 0L,
                         cheats = s.child("cheats").getValue(Boolean::class.java) == true,
+                        minXp = (s.child("minXp").value as? Number)?.toLong() ?: 0L,
                     )
                 }
                 val now = System.currentTimeMillis() + serverOffset
@@ -119,9 +127,13 @@ class RoomDirectory(private val userId: String) {
     /**
      * Creates a room on [map] (with an optional password) whose game lasts [durationMs], and joins
      * it. [cheats] allows cheat codes (just for fun: scores there don't count toward the ranking).
+     * [minXp] is the career XP needed to join (0 = anyone; the server refuses more than my own).
      * [onDone] gets the new room id.
      */
-    fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, onDone: (String?) -> Unit) {
+    fun create(
+        name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long,
+        onDone: (String?) -> Unit,
+    ) {
         val database = db ?: return onDone(null)
         val id = database.getReference("roomList").push().key ?: return onDone(null)
         val hasPassword = password.isNotEmpty()
@@ -139,6 +151,8 @@ class RoomDirectory(private val userId: String) {
         if (hasPassword) updates["roomKeys/$id"] = key
         // Only cheat rooms carry the flag, so normal rooms look the same to older versions.
         if (cheats) updates["roomList/$id/cheats"] = true
+        // Likewise only rooms with a minimum rank carry one.
+        if (minXp > 0) updates["roomList/$id/minXp"] = minXp
         database.reference.updateChildren(updates).addOnCompleteListener { task ->
             if (!task.isSuccessful) Log.w(TAG, "Create room failed", task.exception)
             onDone(if (task.isSuccessful) id else null)
@@ -155,6 +169,28 @@ class RoomDirectory(private val userId: String) {
                 if (task.isSuccessful) touch(database, room.id)
                 onDone(task.isSuccessful)
             }
+    }
+
+    /** My career XP, what rooms with a minimum rank check: 0 without a career yet, null if it can't be read. */
+    fun careerXp(onXp: (Long?) -> Unit) {
+        val database = db ?: return onXp(null)
+        database.getReference("career/$userId/xp").get()
+            .addOnSuccessListener { onXp((it.value as? Number)?.toLong() ?: 0L) }
+            .addOnFailureListener {
+                Log.w(TAG, "Career XP: ${it.message}")
+                onXp(null)
+            }
+    }
+
+    /** Adds [amount] XP to my career, starting it under [name] if I have none yet. */
+    fun addCareerXp(name: String, amount: Long) {
+        val database = db ?: return
+        if (amount <= 0) return
+        database.reference.updateChildren(mapOf(
+            "career/$userId/name" to name.take(40),
+            "career/$userId/xp" to ServerValue.increment(amount),
+            "career/$userId/updated" to ServerValue.TIMESTAMP,
+        )).addOnFailureListener { Log.w(TAG, "Career XP update failed: ${it.message}") }
     }
 
     companion object {

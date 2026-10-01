@@ -45,6 +45,19 @@ object PlayerProgress {
         return gain
     }
 
+    /**
+     * Brings this phone's XP and the online career's [careerXp] together; XP only goes up, so
+     * the higher one wins. Raises this phone's if the career has more (no rank-up shown), and
+     * returns how much the career is missing (to add to it, e.g. XP whose upload failed), 0 if
+     * none. Rooms with a minimum rank check the career's XP.
+     */
+    fun syncWithCareer(context: Context, careerXp: Long): Long = synchronized(this) {
+        val p = prefs(context)
+        val local = p.getLong(KEY_XP, 0L)
+        if (careerXp > local) p.edit().putLong(KEY_XP, careerXp).apply()
+        (local - careerXp).coerceAtLeast(0L)
+    }
+
     /** Adds the XP for [reward] (see XpConfig for the amounts). */
     fun award(context: Context, reward: XpReward): XpGain = addXp(context, reward.xp)
 
