@@ -44,7 +44,7 @@
             android:ellipsize="end"
             android:maxLines="1" />
 
-        <!-- Army rank: Commander or Soldier. -->
+        <!-- Military rank from career XP: "Lv 10 · Captain". -->
         <TextView
             android:id="@+id/scoreArmyRank"
             style="@style/ScoreCell"

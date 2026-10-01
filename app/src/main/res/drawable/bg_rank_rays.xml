@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Light rays behind the rank-up badge (it turns slowly). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    <path
+        android:fillColor="#33FFD54F"
+        android:pathData="M120,120 L239.7,111.6 L239.7,128.4 Z M120,120 L233.8,158.1 L227.4,173.6 Z M120,120 L210.6,198.7 L198.7,210.6 Z M120,120 L173.6,227.4 L158.1,233.8 Z M120,120 L128.4,239.7 L111.6,239.7 Z M120,120 L81.9,233.8 L66.4,227.4 Z M120,120 L41.3,210.6 L29.4,198.7 Z M120,120 L12.6,173.6 L6.2,158.1 Z M120,120 L0.3,128.4 L0.3,111.6 Z M120,120 L6.2,81.9 L12.6,66.4 Z M120,120 L29.4,41.3 L41.3,29.4 Z M120,120 L66.4,12.6 L81.9,6.2 Z M120,120 L111.6,0.3 L128.4,0.3 Z M120,120 L158.1,6.2 L173.6,12.6 Z M120,120 L198.7,29.4 L210.6,41.3 Z M120,120 L227.4,66.4 L233.8,81.9 Z" />
+</vector>

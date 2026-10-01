@@ -58,8 +58,9 @@ shots and scores sync live between phones.
 - **Live scoreboard** during the match and final results at the end: score, kills, deaths, K/D,
   shots, accuracy and hits taken, for players and teams.
 - **Career ranking** across all matches, with face photos.
-- **Army ranks:** players with more than 100 successful shots become a **★ Commander**; everyone
-  else is a Soldier.
+- **Military ranks:** 20 levels from جندي Private to أسطورة بيروت Beirut Legend, earned with XP
+  from kills, headshots and wins. A rank-up celebration plays in the game, and the **Ranks /
+  career** screen (tap your rank on the rooms screen) shows your progress and every rank.
 
 ### Social
 - **Characters:** after choosing a team, pick who to play as (the built-in soldier or Ahmad El
@@ -161,7 +162,26 @@ shows "Cheats are off in this room".
 - **Score** = shots that hit an enemy. It ranks the match scoreboard; kills and then fewer
   deaths break ties.
 - **Career score** adds up scores across all matches and ranks the Ranking screen.
-- **Rank:** ★ Commander above 100 career hits, otherwise Soldier.
+- **XP** (online games without cheats only): kill +50, headshot +25 more (the killing shot hit
+  the top of the body), win +500 (the top score, not shared).
+- **Rank** follows from total XP. Everyone starts at level 1, جندي Private; level 20, أسطورة
+  بيروت Beirut Legend, needs 45,500 XP.
+
+#### Ranks and XP: where to change things
+
+| What | Where |
+|---|---|
+| XP needed for each level | `LEVEL_XP` in `progression/XpConfig.kt` |
+| XP for each event | `XpReward` in `progression/XpConfig.kt` |
+| Rank names and badges | `Rank` in `progression/Rank.kt` |
+| Badge artwork | `res/drawable/rank_*.xml`: replace any of them under the same name. The placeholders come from `java tools/RankBadges.java app/src/main/res/drawable` |
+| Rank-up sound | Add `assets/sounds/rank_up.wav` (`SoundEffects.rankUp`) |
+
+Level and rank are never stored; they are worked out from total XP (`progression/Progression.kt`),
+which is kept on the phone (`PlayerProgress`) and added to `career/{uid}/xp` online. A mission
+system can give XP with `PlayerProgress.award(context, XpReward.MISSION)`, plus
+`OnlineWorld.countXp` for the career. In debug builds, long-press the badge on the Ranks /
+career screen for +500 XP to try a rank-up; tapping it replays your last promotion.
 
 ## Tech stack
 
@@ -209,9 +229,10 @@ in `app/`.
 ```
 app/src/main/
 ├── java/com/example/beirutrun/
-│   ├── *Activity.kt        Screens: login, face capture, rooms, team select, city, ranking
+│   ├── *Activity.kt        Screens: login, face capture, rooms, team select, city, ranking, career
 │   ├── Scoreboard.kt       Match scoreboard dialog
-│   ├── Army.kt             Army ranks
+│   ├── RankUpOverlay.kt    Rank-up celebration
+│   ├── progression/        Ranks, XP thresholds and rewards, progress (plain Kotlin, tested)
 │   ├── city/               3D renderer, map loading, soldiers and animation, weapons,
 │   │                       pickups, scope overlay, minimap, joystick, sound
 │   └── online/             Firebase sign-in, rooms, live player sync, stats, pickups, faces

@@ -37,6 +37,7 @@
         <activity android:name=".CharacterActivity" />
         <activity android:name=".LoadoutActivity" />
         <activity android:name=".RankingActivity" />
+        <activity android:name=".CareerActivity" />
 
         <activity
             android:name=".FaceCaptureActivity"

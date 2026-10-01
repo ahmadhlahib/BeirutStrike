@@ -50,6 +50,9 @@ import com.example.beirutrun.online.OnlineWorld
 import com.example.beirutrun.online.PlayerStats
 import com.example.beirutrun.online.RemotePlayer
 import com.example.beirutrun.online.RoomTeams
+import com.example.beirutrun.progression.PlayerProgress
+import com.example.beirutrun.progression.XpGain
+import com.example.beirutrun.progression.XpReward
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
@@ -110,6 +113,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private lateinit var shootButton: View
     private lateinit var scoreboard: Scoreboard
     private var stats: List<PlayerStats> = emptyList()
+    /** Whether my last bullet to hit each player (by uid) hit the head: a kill by it is a headshot. */
+    private val lastHitHeadshot = HashMap<String, Boolean>()
 
     private lateinit var weaponButton: MaterialButton
     private lateinit var reloadButton: MaterialButton
@@ -266,10 +271,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 online.sendShot(x, y, z, dx, dy, dz)
                 if (!gameOver) online.countShot()
             },
-            onHitPlayer = { uid, damage ->
+            onHitPlayer = { uid, damage, headshot ->
                 sounds.ouch()
                 online.sendHit(uid, damage)
                 if (!gameOver) online.countHit()
+                lastHitHeadshot[uid] = headshot
             },
             playerTeam = playerTeam.id,
             teamFlag = { id -> Teams.byId(id)?.let { TeamFlags.load(applicationContext, it) } },
@@ -545,11 +551,28 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         ticker.postDelayed(respawn, RESPAWN_MS)
     }
 
-    override fun onKilled(victimName: String) {
+    override fun onKilled(victimUid: String, victimName: String) {
         if (gameOver) return
         online.countKill()
         sounds.death(volume = 0.8f)
-        showBanner(getString(R.string.you_killed, victimName))
+        val headshot = lastHitHeadshot.remove(victimUid) == true
+        val gain = if (headshot) award(XpReward.ELIMINATION, XpReward.HEADSHOT) else award(XpReward.ELIMINATION)
+        val killed = getString(R.string.you_killed, victimName)
+        showBanner(if (gain != null) getString(R.string.kill_with_xp, killed, getString(R.string.xp_gain, gain.xp.toInt())) else killed)
+    }
+
+    /**
+     * Gives me the XP for [rewards] (see XpConfig), on this phone and in my online career, and
+     * celebrates a new rank. Only games that count toward careers give XP (not rooms that allow
+     * cheats): otherwise nothing happens and this returns null.
+     */
+    private fun award(vararg rewards: XpReward): XpGain? {
+        if (!online.countsForCareer) return null
+        val xp = rewards.sumOf { it.xp }
+        val gain = PlayerProgress.addXp(this, xp)
+        online.countXp(xp)
+        if (gain.rankedUp) RankUpOverlay.show(this, gain.after.rank, playSound = { sounds.rankUp() })
+        return gain
     }
 
     override fun onGameClock(startedAt: Long, durationMs: Long) {
@@ -563,7 +586,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         scoreboard.update(stats)
     }
 
-    override fun onCareerScores(scores: Map<String, Int>) = scoreboard.updateCareer(scores)
+    override fun onCareerXp(xp: Map<String, Long>) = scoreboard.updateCareer(xp)
 
     override fun onPickups(pickups: List<Pickup>) = showPickups(pickups)
 
@@ -736,23 +759,40 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         gameTimer.setTextColor(0xFFFFC107.toInt())
         sounds.death(volume = 0.5f)
         scoreboard.update(stats)
-        // The winner's character dances (if it has dances) before the results come up.
-        if (victoryDance()) ticker.postDelayed({ if (!isFinishing) scoreboard.show(over = true) }, VICTORY_DANCE_MS)
+        val won = iWon()
+        // A win counts, with its XP, once per game (coming back into a finished game doesn't
+        // count it again), and only where careers count.
+        var promoted = false
+        if (won && online.countsForCareer && PlayerProgress.recordWin(this, "${Session.roomId(this)}@$gameEndsAt")) {
+            online.countWin()
+            promoted = award(XpReward.VICTORY)?.rankedUp == true
+        }
+        // The winner's character dances (if it has dances) before the results come up; a
+        // promotion gets its moment too.
+        val wait = when {
+            won && victoryDance() -> VICTORY_DANCE_MS
+            promoted -> RANK_UP_MS
+            else -> 0L
+        }
+        if (wait > 0) ticker.postDelayed({ if (!isFinishing) scoreboard.show(over = true) }, wait)
         else scoreboard.show(over = true)
     }
 
-    /**
-     * If I won outright (the top score, not shared) and my character has dances: switch to the
-     * 3D-person view, where my soldier turns to face the camera, and dance one of them, picked at
-     * random; the other players see it too. Returns whether there's a dance.
-     */
-    private fun victoryDance(): Boolean {
+    /** Whether I won the game outright: the top score, above zero and not shared. */
+    private fun iWon(): Boolean {
         val ranked = Scoreboard.ranked(stats)
         val best = ranked.firstOrNull() ?: return false
         val second = ranked.getOrNull(1)
-        val won = best.uid == online.uid && best.score > 0 && (second == null || second.score < best.score)
-        val dance = myCharacter.dances.randomOrNull()
-        if (!won || dance == null) return false
+        return best.uid == online.uid && best.score > 0 && (second == null || second.score < best.score)
+    }
+
+    /**
+     * If my character has dances (I won): switch to the 3D-person view, where my soldier turns to
+     * face the camera, and dance one of them, picked at random; the other players see it too.
+     * Returns whether there's a dance.
+     */
+    private fun victoryDance(): Boolean {
+        val dance = myCharacter.dances.randomOrNull() ?: return false
         renderer.firstPerson = false
         findViewById<MaterialButton>(R.id.viewModeButton).setText(R.string.view_3d_person)
         renderer.playerDance = dance.clip
@@ -1220,6 +1260,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val SUPER_SPEED = 2f
         /** After winning, the victory dance plays this long before the results come up. */
         private const val VICTORY_DANCE_MS = 6_000L
+        /** How long the results wait for a rank-up at the end of a game (see RankUpOverlay). */
+        private const val RANK_UP_MS = 4_500L
         /** A file that never exists: no face photo on this character. */
         private val NO_FACE = File("")
     }

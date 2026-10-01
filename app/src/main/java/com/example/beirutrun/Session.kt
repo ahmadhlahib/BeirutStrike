@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
+import com.example.beirutrun.progression.PlayerProgress
 import java.io.File
 
 /** The logged-in player: their name, room, team, face photo and where they last stood. */
@@ -25,11 +26,12 @@ object Session {
 
     /**
      * Forgets everything about the player on this phone ("Delete my data"): name, room, team,
-     * view, saved positions, face photos (theirs and downloaded ones) and the online cache.
+     * view, saved positions, XP and rank, face photos (theirs and downloaded ones) and the online cache.
      */
     fun deleteAll(context: Context) {
         prefs(context).edit().clear().apply()
         context.getSharedPreferences("online", Context.MODE_PRIVATE).edit().clear().apply()
+        PlayerProgress.clear(context)
         File(context.filesDir, "faces").deleteRecursively()
         File(context.filesDir, "faces_remote").deleteRecursively()
         facesDirReady = false

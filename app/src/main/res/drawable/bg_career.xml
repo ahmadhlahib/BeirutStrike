@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Behind the ranks / career screen: near-black gunmetal, a little lighter at the top. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="270"
+        android:startColor="#FF1B232B"
+        android:centerColor="#FF0E1317"
+        android:endColor="@color/rank_background" />
+</shape>

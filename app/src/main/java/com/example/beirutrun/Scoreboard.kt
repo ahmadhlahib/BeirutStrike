@@ -12,7 +12,7 @@ import com.example.beirutrun.online.PlayerStats
 
 /**
  * The room's scoreboard, full screen over the city: team totals, then every player with their
- * face and army rank, ranked by score (see [ranked]). It stays up to date while it's open, so it
+ * face and military rank, ranked by score (see [ranked]). It stays up to date while it's open, so it
  * can be watched in the middle of a game as well as at the end.
  */
 class Scoreboard(
@@ -27,8 +27,8 @@ class Scoreboard(
     private var dialog: Dialog? = null
     private var view: View? = null
     private var stats: List<PlayerStats> = emptyList()
-    /** Career scores (successful shots over all games), by uid; they decide each player's army rank. */
-    private var careerScores: Map<String, Int> = emptyMap()
+    /** Career XP (all games), by uid: it decides each player's military rank (see progression/Rank). */
+    private var careerXp: Map<String, Long> = emptyMap()
     private var gameOver = false
     private var timeLeft: String? = null
 
@@ -64,8 +64,8 @@ class Scoreboard(
         render()
     }
 
-    fun updateCareer(scores: Map<String, Int>) {
-        careerScores = scores
+    fun updateCareer(xp: Map<String, Long>) {
+        careerXp = xp
         render()
     }
 
@@ -173,10 +173,10 @@ class Scoreboard(
         }
         val face = r.findViewById<View>(R.id.scoreFace)
         if (player) {
-            val career = careerScores[s.uid] ?: 0
+            val career = careerXp[s.uid] ?: 0L
             FaceBadge.bind(face, s.uid, myUid(), career, onFaceArrived = ::render)
             r.findViewById<TextView>(R.id.scoreArmyRank).apply {
-                text = Army.title(activity, career)
+                text = RankViews.short(activity, career)
                 visibility = View.VISIBLE
             }
         } else {

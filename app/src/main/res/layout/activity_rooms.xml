@@ -7,18 +7,15 @@
     android:orientation="vertical"
     android:padding="20dp">
 
-    <TextView
-        android:id="@+id/roomsGreeting"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="@android:color/white"
-        android:textSize="26sp"
-        android:textStyle="bold" />
+    <!-- The player, with their military rank and level; opens the ranks / career screen. -->
+    <include
+        android:id="@+id/roomsRank"
+        layout="@layout/view_rank_card" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="12dp"
         android:text="@string/rooms_subtitle"
         android:textColor="#DDFFFFFF"
         android:textSize="15sp" />

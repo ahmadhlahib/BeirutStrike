@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    One player in the ranking: position, face (★ for Commanders), then their name with their rank
+    One player in the ranking: position, face (with rank badge), then their name with their rank
     and stats underneath, and their score on the right. Stacked so the name fits on a phone held
     upright.
 -->
@@ -54,7 +54,7 @@
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
-            <!-- Army rank: Commander or Soldier. -->
+            <!-- Military rank from career XP: "Lv 10 · Captain". -->
             <TextView
                 android:id="@+id/rankingArmyRank"
                 android:layout_width="match_parent"
