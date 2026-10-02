@@ -74,6 +74,18 @@ class CityRenderer(
     private val onReloaded: (Weapon) -> Unit = {},
     /** The text floating over a pickup, e.g. "AK-47 ×10". */
     private val pickupLabel: (PickupKind) -> String = { it.id },
+    /** Called on the main thread when the player throws a grenade: its kind, and start x, y, z and velocity x, y, z. */
+    private val onGrenadeThrown: (GrenadeKind, FloatArray) -> Unit = { _, _ -> },
+    /** Called on the main thread when the player starts winding up a throw (the grenade now in hand), and with null if it's called off. */
+    private val onHoldGrenade: (GrenadeKind?) -> Unit = {},
+    /** Called on the main thread when the player tries to throw a grenade of a kind they have none of. */
+    private val onNoGrenade: (GrenadeKind) -> Unit = {},
+    /** Called on the main thread when any grenade goes off (for its sound): kind, x, y, z, and whether it was mine. */
+    private val onGrenadeBurst: (GrenadeKind, Float, Float, Float, Boolean) -> Unit = { _, _, _, _, _ -> },
+    /** Called on the main thread when a flashbang blinds the player: how badly, 0..1. */
+    private val onFlashed: (Float) -> Unit = {},
+    /** Called on the main thread when the player's own grenade hurts them: the hearts it takes. */
+    private val onSelfHit: (Int) -> Unit = {},
 ) : GLSurfaceView.Renderer {
 
     /** Someone my bullets can hurt: alive, and not on my team. */
@@ -141,10 +153,47 @@ class CityRenderer(
     /** A magazine picked up for [w]. */
     fun addMagazine(w: Weapon) { spare.addAndGet(w.ordinal, w.magazine) }
 
-    /** After respawning: every gun back to at least its starting rounds, magazine loaded. */
-    fun refillToStart() = Weapon.entries.forEach { w ->
-        loaded.set(w.ordinal, w.magazine)
-        spare.getAndUpdate(w.ordinal) { maxOf(it, w.startAmmo - w.magazine) }
+    /** After respawning: every gun back to at least its starting rounds, magazine loaded, and the grenades too. */
+    fun refillToStart() {
+        Weapon.entries.forEach { w ->
+            loaded.set(w.ordinal, w.magazine)
+            spare.getAndUpdate(w.ordinal) { maxOf(it, w.startAmmo - w.magazine) }
+        }
+        GrenadeKind.entries.forEach { k -> grenadesLeft.getAndUpdate(k.ordinal) { maxOf(it, k.carried) } }
+    }
+
+    // ---- Grenades -----------------------------------------------------------------------------
+
+    /** The kind of grenade the grenade button throws. */
+    @Volatile var grenadeKind = GrenadeKind.FRAG
+
+    /** Grenades of each kind left (by [GrenadeKind.ordinal]); the GL thread throws them. */
+    private val grenadesLeft = java.util.concurrent.atomic.AtomicIntegerArray(GrenadeKind.entries.size).also { a ->
+        GrenadeKind.entries.forEach { a.set(it.ordinal, it.carried) }
+    }
+
+    fun grenades(kind: GrenadeKind) = grenadesLeft.get(kind.ordinal)
+
+    /** Whether there's room for another [kind] (see [GrenadeKind.most]). */
+    fun canCarry(kind: GrenadeKind) = grenadesLeft.get(kind.ordinal) < kind.most
+
+    /** A grenade picked up in the street (if there's room for it). */
+    fun addGrenade(kind: GrenadeKind) { grenadesLeft.getAndUpdate(kind.ordinal) { minOf(it + 1, kind.most) } }
+
+    @Volatile private var throwRequested = false
+
+    /** Throws a grenade of [grenadeKind] where the camera looks (if there's one left). */
+    fun throwGrenade() { throwRequested = true }
+
+    private val remoteGrenades = java.util.concurrent.ConcurrentLinkedQueue<Pair<GrenadeKind, FloatArray>>()
+
+    /**
+     * Another player threw a grenade: it flies the same way here as on their phone. Their phone
+     * decides whom its blast or fire hurts; a flashbang's flash is judged here, by where I look.
+     */
+    fun addRemoteGrenade(uid: String, kind: GrenadeKind, x: Float, y: Float, z: Float, vx: Float, vy: Float, vz: Float) {
+        remoteAiming[uid] = SystemClock.uptimeMillis() + AIM_POSE_MS
+        remoteGrenades.add(kind to floatArrayOf(x, y, z, vx, vy, vz))
     }
 
     /** The gun being reloaded (null = none) and when it's done (uptime ms); set by the GL thread. */
@@ -354,6 +403,48 @@ class CityRenderer(
     }
     private var vy = 0f
     private val bullets = ArrayList<Bullet>()
+
+    /** A grenade in flight (or rolling), moved in fixed steps (see [GRENADE_STEP]). */
+    private class Grenade(
+        val kind: GrenadeKind,
+        var x: Float, var y: Float, var z: Float,
+        var vx: Float, var vy: Float, var vz: Float,
+        /** Thrown by me: my phone decides whom it hurts. */
+        val mine: Boolean,
+    ) {
+        var steps = 0
+    }
+    private val grenades = ArrayList<Grenade>()
+    /**
+     * A throw under way (uptime ms it started, 0 = none) and its grenade: the gun comes down,
+     * the hand winds back and the grenade leaves it [THROW_RELEASE_MS] in, then the gun comes back.
+     */
+    @Volatile private var throwStartedAt = 0L
+    private var throwing = GrenadeKind.FRAG
+    private var thrown = false
+    /** Time not yet simulated in whole grenade steps. */
+    private var grenadeClock = 0f
+    private var throwCooldown = 0f
+
+    /** What a grenade hit in one step. */
+    private enum class Contact { NONE, GROUND, WALL, ROOF }
+
+    /**
+     * A grenade that went off, while it still shows (and for smoke and fire, while it lasts):
+     * where, and when (uptime ms). [puffs] are its puffs' places around it, x, y, z and a size each.
+     */
+    private class Blast(
+        val kind: GrenadeKind, val x: Float, val y: Float, val z: Float, val mine: Boolean,
+        val start: Long, val until: Long, val puffs: FloatArray,
+    ) {
+        /** A fire burns whoever stands in it once a second. */
+        var nextBurn = start + BURN_FIRST_MS
+    }
+    private val blasts = ArrayList<Blast>()
+    /** How hard the camera shakes after a blast nearby, 0..1; dies away. */
+    private var shake = 0f
+    /** A soft round puff for smoke, fire and flashes (made with the GL context). */
+    private var puffTexture = 0
     private var fireCooldown = 0f
     /** Keeps the character facing where it shot for a moment. */
     private var aimTime = 0f
@@ -438,7 +529,23 @@ class CityRenderer(
             bitmap.recycle()
         }
         buildMurals()
+        puffTexture = uploadAndRecycle(puffBitmap())
         lastFrame = SystemClock.uptimeMillis()
+    }
+
+    /** White, solid in the middle and fading to nothing at the edge: tinted, it's a puff of smoke or flame. */
+    private fun puffBitmap(): Bitmap {
+        val size = 64
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            shader = android.graphics.RadialGradient(
+                size / 2f, size / 2f, size / 2f,
+                intArrayOf(0xFFFFFFFF.toInt(), 0xB0FFFFFF.toInt(), 0x00FFFFFF),
+                floatArrayOf(0f, 0.45f, 1f), android.graphics.Shader.TileMode.CLAMP,
+            )
+        }
+        android.graphics.Canvas(bitmap).drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        return bitmap
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -484,21 +591,29 @@ class CityRenderer(
         val isDown = down
         val fp = eyeView
         if (fp) muzzleKnown = false
-        else playerSoldier?.let { drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown, weapon) }
+        else playerSoldier?.let {
+            val holding = if (throwStartedAt != 0L && !thrown) throwing else null
+            drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown, weapon, holding)
+        }
         for (r in remotes.values) {
             val soldier = r.soldier ?: continue
             if (!isWorthAnimating(r.x, r.z)) continue
             flashing = now < r.flashUntil
-            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.y, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon))
+            val holding = if (r.player.dead) null else GrenadeKind.byId(r.player.grenadeHold)
+            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.y, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon), holding)
             flashing = false
         }
         drawBullets()
+        drawGrenades()
         drawMuzzleFlashes(now)
+        drawBlasts(now)
 
         // Transparent labels last so they blend over everything behind them.
         for (visual in dropVisuals.values) drawDropLabels(visual)
         drawPickupLabels()
         for (r in remotes.values) {
+            // Smoke hides who's behind it, name tag and all.
+            if (smokeBetween(eyeX, eyeY, eyeZ, r.x, r.y + 1.2f, r.z, now)) continue
             val saying = if (now < r.sayUntil && !r.player.dead) r.saying else null
             drawLabels(r.x, r.z, r.player.name, saying, r.player.health, r.player.team, labelLift(r.y, r.player.prone))
         }
@@ -527,6 +642,10 @@ class CityRenderer(
             if (y <= 0f || city.isInsideBuilding(x, y, z, 0f)) break
             if (remotes.values.any { isEnemy(it) && hitsBody(it, x, y, z) }) { onTarget = true; break }
             t += BULLET_STEP
+        }
+        // An enemy in or behind smoke can't be seen, so the crosshair doesn't give them away.
+        if (onTarget && smokeBetween(ox, oy, oz, ox + camFx * t, oy + camFy * t, oz + camFz * t, SystemClock.uptimeMillis())) {
+            onTarget = false
         }
         aimOnTarget = onTarget
         aimX = ox + camFx * t
@@ -600,6 +719,12 @@ class CityRenderer(
             Matrix.rotateM(base, 0, 4f + dip * 20f, 0f, 1f, 0f)
             Matrix.rotateM(base, 0, 1.5f + kick * kickUp - dip * 25f, 1f, 0f, 0f)
         }
+        // Throwing a grenade: the gun drops down out of the way and comes back after.
+        val lower = gunLowered(now)
+        if (lower > 0f) {
+            Matrix.translateM(base, 0, -lower * 0.04f, -lower * 0.22f, lower * 0.06f)
+            Matrix.rotateM(base, 0, -lower * 40f, 1f, 0f, 0f)
+        }
         // The detailed model when there is one (in the same gun space), else the gun built from boxes.
         if (mesh != null) drawGunMesh(gun, mesh, base)
         else for (part in model.parts) tiltedBox(part.x, part.y, part.z, part.sx, part.sy, part.sz, part.pitch, part.color)
@@ -630,10 +755,73 @@ class CityRenderer(
             }
             muzzleFlash(0f, mesh?.muzzleY ?: model.muzzleY, (mesh?.muzzleZ ?: model.muzzleZ) - size * 0.3f, size)
         }
+        drawThrowingHand(now, sleeve, bobX, bobY)
         // Back to the world's projection.
         Matrix.multiplyMM(viewProj, 0, projection, 0, view, 0)
     }
     private val heldProjection = FloatArray(16)
+
+    /** How far the gun is lowered for a throw, 0..1: down quickly, held, back up once the grenade is gone. */
+    private fun gunLowered(now: Long): Float {
+        val start = throwStartedAt
+        if (start == 0L) return 0f
+        val p = ((now - start) / THROW_ANIM_MS.toFloat()).coerceIn(0f, 1f)
+        val k = when {
+            p < 0.18f -> p / 0.18f
+            p < 0.7f -> 1f
+            else -> 1f - (p - 0.7f) / 0.3f
+        }
+        return k * k * (3f - 2f * k)
+    }
+
+    /**
+     * First person, during a throw: the right hand comes up holding the grenade, draws back
+     * beside the head, swings forward and lets go (the grenade leaves at [THROW_RELEASE_MS]),
+     * then drops out of sight. In camera space, like the gun.
+     */
+    private fun drawThrowingHand(now: Long, sleeve: Int, bobX: Float, bobY: Float) {
+        val start = throwStartedAt
+        if (start == 0L) return
+        val p = ((now - start) / THROW_ANIM_MS.toFloat()).coerceIn(0f, 1f)
+        val release = THROW_RELEASE_MS / THROW_ANIM_MS.toFloat()
+        // Key poses (when 0..1, x, y, z, wrist tilt back in degrees): below the screen, up and
+        // cocked, drawn back to the edge of the view, forward at the release, and down out of
+        // view after the follow-through. With the held gun's narrow view, a point shows while
+        // |y| < 0.36 |z| and |x| < 0.65 |z|.
+        val keys = arrayOf(
+            floatArrayOf(0f, 0.2f, -0.28f, -0.35f, 0f),
+            floatArrayOf(0.2f, 0.17f, 0.02f, -0.32f, 35f),
+            floatArrayOf(release - 0.1f, 0.19f, 0.06f, -0.25f, 55f),
+            floatArrayOf(release, 0.06f, 0.02f, -0.42f, -15f),
+            floatArrayOf(0.75f, 0.04f, -0.3f, -0.4f, -40f),
+            floatArrayOf(1f, 0.04f, -0.32f, -0.4f, -40f),
+        )
+        val i = (1 until keys.size).first { p <= keys[it][0] || it == keys.lastIndex }
+        val a = keys[i - 1]; val b = keys[i]
+        val span = (b[0] - a[0]).coerceAtLeast(1e-4f)
+        val k0 = ((p - a[0]) / span).coerceIn(0f, 1f)
+        val k = k0 * k0 * (3f - 2f * k0)
+        fun mix(j: Int) = a[j] + (b[j] - a[j]) * k
+        Matrix.translateM(base, 0, cameraToWorld, 0, mix(1) + bobX, mix(2) + bobY, mix(3))
+        Matrix.rotateM(base, 0, -8f, 0f, 1f, 0f)
+        Matrix.rotateM(base, 0, mix(4), 1f, 0f, 0f)
+        // The grenade sits in the palm until it's thrown.
+        if (p < release) {
+            System.arraycopy(base, 0, gripMatrix, 0, 16)
+            Matrix.translateM(base, 0, 0f, 0.035f, -0.01f)
+            grenadeShape(throwing)
+            System.arraycopy(gripMatrix, 0, base, 0, 16)
+        }
+        // The arm reaching in from the right, as round a pistol's grip; boxes until the arms are read.
+        val arm = library()?.arms?.get(GunMeshes.Arm.PISTOL_RIGHT)
+        if (arm != null) drawArm(arm, GunMeshes.Arm.PISTOL_RIGHT, 0f, 0f, sleeve)
+        else {
+            tiltedBox(0f, 0f, 0f, 0.07f, 0.075f, 0.08f, -16f, SKIN)
+            tiltedBox(0.04f, -0.045f, 0.13f, 0.09f, 0.09f, 0.21f, -25f, sleeve, yawDeg = 15f)
+        }
+    }
+    private val gripMatrix = FloatArray(16)
+    private val soldierMatrix = FloatArray(16)
 
     /** Right hand on the pistol grip, left forward on the handguard, forearms in the team's uniform. */
     private fun drawRifleHands(gy: Float, gz: Float, sz: Float, sy: Float, sleeve: Int) {
@@ -763,6 +951,21 @@ class CityRenderer(
                     partBox(0f, 0.052f, 0f, 0.37f, 0.01f, 0.15f, 0xFF4E342E.toInt())  // lid
                     // A row of brass cartridges standing on top.
                     for (i in 0 until 5) partBox(-0.12f + i * 0.06f, 0.11f, 0f, 0.022f, 0.1f, 0.022f, 0xFFD4A537.toInt())
+                }
+                PickupKind.FRAG_GRENADE, PickupKind.FLASH_GRENADE, PickupKind.SMOKE_GRENADE, PickupKind.MOLOTOV -> {
+                    val kind = p.kind.grenade ?: continue
+                    // A small wooden crate with a band in the grenade's colour, two of them on top.
+                    partBox(0f, 0f, 0f, 0.34f, 0.14f, 0.24f, 0xFF6D4C2F.toInt())
+                    partBox(0f, 0f, 0.122f, 0.34f, 0.04f, 0.005f, kind.color)
+                    partBox(0f, 0.072f, 0f, 0.35f, 0.012f, 0.25f, 0xFF5A3E26.toInt())
+                    val crate = base.copyOf()
+                    for (side in listOf(-1f, 1f)) {
+                        // The grenade models are life-size; bigger here so they read from afar.
+                        Matrix.translateM(base, 0, crate, 0, side * 0.08f, 0.17f, 0f)
+                        Matrix.scaleM(base, 0, 1.6f, 1.6f, 1.6f)
+                        grenadeShape(kind)
+                    }
+                    System.arraycopy(crate, 0, base, 0, 16)
                 }
             }
         }
@@ -993,6 +1196,414 @@ class CityRenderer(
         }
     }
 
+    // ---- Grenades: throwing, flight and what they do ------------------------------------------
+
+    /**
+     * Throws one if asked (not while down, nor straight after the last throw), takes in other
+     * players' throws, flies every grenade in fixed steps, and runs the smoke and fire left behind.
+     */
+    private fun updateGrenades(dt: Float, isDown: Boolean) {
+        throwCooldown = (throwCooldown - dt).coerceAtLeast(0f)
+        if (throwRequested) {
+            throwRequested = false
+            val kind = grenadeKind
+            when {
+                isDown || throwCooldown > 0f || throwStartedAt != 0L -> Unit
+                unlimitedAmmo || grenadesLeft.get(kind.ordinal) > 0 -> {
+                    if (!unlimitedAmmo) grenadesLeft.decrementAndGet(kind.ordinal)
+                    throwCooldown = THROW_INTERVAL
+                    throwing = kind
+                    thrown = false
+                    throwStartedAt = SystemClock.uptimeMillis()
+                    // Turn to where the throw goes, in the aiming pose, for the whole wind-up.
+                    heading = yaw
+                    aimTime = THROW_RELEASE_MS / 1000f + 0.6f
+                    mainHandler.post { onHoldGrenade(kind) }
+                }
+                else -> mainHandler.post { onNoGrenade(kind) }
+            }
+        }
+        if (throwStartedAt != 0L) {
+            val since = SystemClock.uptimeMillis() - throwStartedAt
+            when {
+                // Killed while winding up: the grenade is dropped unthrown, and kept.
+                isDown && !thrown -> {
+                    if (!unlimitedAmmo) grenadesLeft.incrementAndGet(throwing.ordinal)
+                    throwStartedAt = 0L
+                    mainHandler.post { onHoldGrenade(null) }
+                }
+                !thrown && since >= THROW_RELEASE_MS -> {
+                    thrown = true
+                    throwOne(throwing)
+                }
+                since >= THROW_ANIM_MS -> throwStartedAt = 0L
+            }
+        }
+        while (true) {
+            val (kind, s) = remoteGrenades.poll() ?: break
+            grenades += Grenade(kind, s[0], s[1], s[2], s[3], s[4], s[5], mine = false)
+        }
+        // Every phone moves a grenade in the same steps from the same throw, so it bounces and
+        // lands in the same place everywhere, whatever each phone's frame rate.
+        grenadeClock += dt
+        while (grenadeClock >= GRENADE_STEP) {
+            grenadeClock -= GRENADE_STEP
+            stepGrenades()
+        }
+        updateBlasts(SystemClock.uptimeMillis())
+        shake = (shake - dt * SHAKE_FADE).coerceAtLeast(0f)
+    }
+
+    /**
+     * Out of the hand at head height, a little ahead, towards where the camera looks and lobbed
+     * up a little; a weaker throw lying down.
+     */
+    private fun throwOne(kind: GrenadeKind) {
+        val crawling = prone && !down
+        val speed = if (crawling) THROW_SPEED_PRONE else THROW_SPEED
+        var x = playerX + sin(yaw) * 0.45f + cos(yaw) * 0.2f
+        var z = playerZ - cos(yaw) * 0.45f + sin(yaw) * 0.2f
+        val y = playerY + if (crawling) 0.5f else 1.75f
+        if (grenadeBlocked(x, y, z)) { x = playerX; z = playerZ }
+        val vx = camFx * speed
+        val vy = camFy * speed + THROW_LIFT
+        val vz = camFz * speed
+        grenades += Grenade(kind, x, y, z, vx, vy, vz, mine = true)
+        heading = yaw
+        aimTime = 0.6f
+        idleTime = 0f
+        mainHandler.post { onGrenadeThrown(kind, floatArrayOf(x, y, z, vx, vy, vz)) }
+    }
+
+    private fun stepGrenades() {
+        val iterator = grenades.iterator()
+        while (iterator.hasNext()) {
+            val g = iterator.next()
+            g.steps++
+            val contact = moveGrenade(g)
+            if (g.steps * GRENADE_STEP >= g.kind.fuseSeconds || (g.kind.impact && contact != Contact.NONE)) {
+                iterator.remove()
+                burst(g, contact)
+            }
+        }
+    }
+
+    /** One step of flight: gravity, then each axis on its own so it bounces off walls, roofs and the ground. */
+    private fun moveGrenade(g: Grenade): Contact {
+        val h = GRENADE_STEP
+        var contact = Contact.NONE
+        g.vy -= GRAVITY * h
+        val nx = g.x + g.vx * h
+        if (grenadeBlocked(nx, g.y, g.z)) { g.vx = -g.vx * BOUNCE; contact = Contact.WALL } else g.x = nx
+        val nz = g.z + g.vz * h
+        if (grenadeBlocked(g.x, g.y, nz)) { g.vz = -g.vz * BOUNCE; contact = Contact.WALL } else g.z = nz
+        val ny = g.y + g.vy * h
+        val floor = ny <= GRENADE_RADIUS
+        if (floor || grenadeBlocked(g.x, ny, g.z)) {
+            if (floor) g.y = GRENADE_RADIUS
+            val falling = g.vy < 0f
+            if (falling) contact = if (floor) Contact.GROUND else Contact.ROOF
+            else if (contact == Contact.NONE) contact = Contact.WALL
+            // A real bounce loses most of its speed; rolling slows it bit by bit.
+            if (abs(g.vy) > 1f) { g.vx *= BOUNCE_FRICTION; g.vz *= BOUNCE_FRICTION }
+            else { g.vx *= ROLL_FRICTION; g.vz *= ROLL_FRICTION }
+            g.vy = -g.vy * BOUNCE
+        } else g.y = ny
+        return contact
+    }
+
+    /** A grenade can't go into a building or past the edge of the play area. */
+    private fun grenadeBlocked(x: Float, y: Float, z: Float): Boolean =
+        x < city.playMinX || x > city.playMaxX || z < city.playMinZ || z > city.playMaxZ ||
+            city.isInsideBuilding(x, y, z, GRENADE_RADIUS)
+
+    /** [g] goes off: a blast, a flash, a cloud of smoke or a pool of fire. */
+    private fun burst(g: Grenade, contact: Contact) {
+        val now = SystemClock.uptimeMillis()
+        val kind = g.kind
+        // Smoke and fire settle on the ground, or on the roof the grenade landed on.
+        val onRoof = contact == Contact.ROOF || (g.y > 0.5f && city.isInsideBuilding(g.x, g.y - 0.3f, g.z, 0f))
+        val y = when (kind) {
+            GrenadeKind.SMOKE, GrenadeKind.MOLOTOV -> if (onRoof) g.y - GRENADE_RADIUS else 0f
+            else -> g.y
+        }
+        val lasts = when (kind) {
+            GrenadeKind.FRAG -> FRAG_SHOW_MS
+            GrenadeKind.FLASH -> FLASH_SHOW_MS
+            else -> (kind.seconds * 1000).toLong()
+        }
+        blasts += Blast(kind, g.x, y, g.z, g.mine, now, now + lasts, puffsFor(kind))
+        when (kind) {
+            GrenadeKind.FRAG -> fragBlast(g, now)
+            GrenadeKind.FLASH -> flashBlind(g)
+            else -> Unit
+        }
+        mainHandler.post { onGrenadeBurst(kind, g.x, g.y, g.z, g.mine) }
+    }
+
+    /** Where a blast's puffs go: x, y, z (around its centre) and a size, each. */
+    private fun puffsFor(kind: GrenadeKind): FloatArray {
+        val rnd = kotlin.random.Random
+        val count = when (kind) {
+            GrenadeKind.FRAG -> 14
+            GrenadeKind.FLASH -> 3
+            GrenadeKind.SMOKE -> 30
+            GrenadeKind.MOLOTOV -> 22
+        }
+        return FloatArray(count * 4).also { p ->
+            for (i in 0 until count) {
+                val a = rnd.nextFloat() * 2f * PI.toFloat()
+                val r = sqrt(rnd.nextFloat()) * when (kind) {
+                    GrenadeKind.SMOKE -> kind.radius * 0.75f
+                    GrenadeKind.MOLOTOV -> kind.radius * 0.85f
+                    else -> 0.8f
+                }
+                p[i * 4] = cos(a) * r
+                p[i * 4 + 1] = when (kind) {
+                    GrenadeKind.SMOKE -> rnd.nextFloat() * 2.6f + 0.4f
+                    GrenadeKind.MOLOTOV -> 0.2f
+                    else -> rnd.nextFloat() * 0.8f
+                }
+                p[i * 4 + 2] = sin(a) * r
+                p[i * 4 + 3] = 0.7f + rnd.nextFloat() * 0.6f
+            }
+        }
+    }
+
+    /**
+     * A frag's blast: the closer, the more hearts it takes, but a wall in between stops it. My
+     * phone decides for my grenades (the hurt players' phones are told, as with my bullets), and
+     * my own grenade can hurt me too. Anyone near feels the ground shake.
+     */
+    private fun fragBlast(g: Grenade, now: Long) {
+        val r = g.kind.radius
+        if (g.mine) {
+            for (t in remotes.values) {
+                if (!isEnemy(t)) continue
+                val ty = t.y + if (t.player.prone) 0.3f else 1f
+                val d = dist(g.x, g.y, g.z, t.x, ty, t.z)
+                if (d > r || !clearPath(g.x, g.y, g.z, t.x, ty, t.z)) continue
+                t.flashUntil = now + 160
+                val uid = t.player.uid
+                val damage = blastDamage(d, r)
+                mainHandler.post { onHitPlayer(uid, damage, false) }
+            }
+            val my = playerY + if (prone) 0.3f else 1f
+            val d = dist(g.x, g.y, g.z, playerX, my, playerZ)
+            if (!down && d <= r && clearPath(g.x, g.y, g.z, playerX, my, playerZ)) {
+                val damage = blastDamage(d, r)
+                mainHandler.post { onSelfHit(damage) }
+            }
+        }
+        val d = dist(g.x, g.y, g.z, playerX, playerY + 1f, playerZ)
+        if (d < SHAKE_DISTANCE) shake = maxOf(shake, 1f - d / SHAKE_DISTANCE)
+    }
+
+    /** Hearts a frag takes at [d] metres from it: all of them right on it, one at the edge of [r]. */
+    private fun blastDamage(d: Float, r: Float) =
+        kotlin.math.ceil(MAX_HEALTH * (1f - d / r)).toInt().coerceIn(1, MAX_HEALTH)
+
+    /**
+     * A flashbang, whoever threw it, judged on this phone: it blinds me if I can see it from
+     * where my head is, worst up close and looking right at it, much less looking away.
+     */
+    private fun flashBlind(g: Grenade) {
+        if (down) return
+        val hy = playerY + if (prone) PRONE_EYE_HEIGHT else EYE_HEIGHT
+        val d = dist(g.x, g.y, g.z, playerX, hy, playerZ)
+        val r = g.kind.radius
+        if (d > r || !clearPath(g.x, g.y, g.z, playerX, hy, playerZ)) return
+        val facing = if (d < 0.01f) 1f else (camFx * (g.x - playerX) + camFy * (g.y - hy) + camFz * (g.z - playerZ)) / d
+        val look = if (facing > 0f) 0.45f + 0.55f * facing else 0.15f + 0.3f * (1f + facing)
+        val strength = (((1f - d / r) * 1.4f).coerceAtMost(1f) * look).coerceIn(0f, 1f)
+        if (strength > 0.05f) mainHandler.post { onFlashed(strength) }
+    }
+
+    /** Fires burn: once a second, a heart from each enemy standing in mine (and me, in mine). */
+    private fun updateBlasts(now: Long) {
+        blasts.removeAll { now >= it.until }
+        for (b in blasts) {
+            if (b.kind != GrenadeKind.MOLOTOV || now < b.nextBurn) continue
+            b.nextBurn = now + BURN_INTERVAL_MS
+            if (!b.mine) continue
+            val r = b.kind.radius
+            for (t in remotes.values) {
+                if (!isEnemy(t) || hypot(t.x - b.x, t.z - b.z) > r || abs(t.y - b.y) > 1.5f) continue
+                t.flashUntil = now + 160
+                val uid = t.player.uid
+                mainHandler.post { onHitPlayer(uid, 1, false) }
+            }
+            if (!down && hypot(playerX - b.x, playerZ - b.z) <= r && abs(playerY - b.y) < 1.5f) {
+                mainHandler.post { onSelfHit(1) }
+            }
+        }
+    }
+
+    /** Whether the line from a to b passes through a smoke cloud thick enough to hide what's beyond. */
+    private fun smokeBetween(ax: Float, ay: Float, az: Float, bx: Float, by: Float, bz: Float, now: Long): Boolean {
+        for (b in blasts) {
+            if (b.kind != GrenadeKind.SMOKE) continue
+            val thick = smokeThickness(b, now)
+            if (thick < 0.5f) continue
+            val r = b.kind.radius * 0.85f * thick
+            val cy = b.y + 1.5f
+            // Distance from the cloud's middle to the segment.
+            val sx = bx - ax; val sy = by - ay; val sz = bz - az
+            val len2 = sx * sx + sy * sy + sz * sz
+            val k = if (len2 < 1e-6f) 0f else (((b.x - ax) * sx + (cy - ay) * sy + (b.z - az) * sz) / len2).coerceIn(0f, 1f)
+            if (dist(ax + sx * k, ay + sy * k, az + sz * k, b.x, cy, b.z) < r) return true
+        }
+        return false
+    }
+
+    /** A smoke cloud spreads over its first seconds and thins out over its last: 0..1. */
+    private fun smokeThickness(b: Blast, now: Long): Float {
+        val grow = ((now - b.start) / SMOKE_GROW_MS.toFloat()).coerceIn(0f, 1f)
+        val fade = ((b.until - now) / SMOKE_FADE_MS.toFloat()).coerceIn(0f, 1f)
+        return min(grow, fade)
+    }
+
+    /** Whether no building stands between a and b (a blast or a flash reaches). */
+    private fun clearPath(ax: Float, ay: Float, az: Float, bx: Float, by: Float, bz: Float): Boolean {
+        val d = dist(ax, ay, az, bx, by, bz)
+        val steps = (d / BULLET_STEP).toInt()
+        for (i in 1 until steps) {
+            val k = i / steps.toFloat()
+            if (city.isInsideBuilding(ax + (bx - ax) * k, ay + (by - ay) * k, az + (bz - az) * k, 0f)) return false
+        }
+        return true
+    }
+
+    private fun dist(ax: Float, ay: Float, az: Float, bx: Float, by: Float, bz: Float): Float {
+        val dx = bx - ax; val dy = by - ay; val dz = bz - az
+        return sqrt(dx * dx + dy * dy + dz * dz)
+    }
+
+    /** Grenades in flight, tumbling: each kind its own shape and colour. */
+    private fun drawGrenades() {
+        for (g in grenades) {
+            Matrix.setIdentityM(base, 0)
+            Matrix.translateM(base, 0, g.x, g.y, g.z)
+            // Tumbles while flying, lies still once it has stopped.
+            val moving = abs(g.vx) + abs(g.vz) > 0.3f || g.y > GRENADE_RADIUS + 0.02f
+            if (moving) Matrix.rotateM(base, 0, g.steps * 9f, 1f, 0.3f, 0f)
+            else Matrix.rotateM(base, 0, 90f, 1f, 0f, 0f)
+            grenadeShape(g.kind, lit = true)
+        }
+    }
+
+    /**
+     * A grenade of [kind] in [base] space, standing up along +y: each kind its own shape and
+     * colour. A molotov's rag burns only once [lit] (thrown), not lying in a crate.
+     */
+    private fun grenadeShape(kind: GrenadeKind, lit: Boolean = false) {
+        when (kind) {
+            GrenadeKind.FRAG -> {
+                partBox(0f, 0f, 0f, 0.085f, 0.1f, 0.085f, kind.color)
+                partBox(0f, 0.06f, 0f, 0.035f, 0.03f, 0.035f, 0xFF6D6D6D.toInt())        // fuse
+                partBox(0.03f, 0.03f, 0f, 0.015f, 0.08f, 0.02f, 0xFF8D8D8D.toInt())      // lever
+            }
+            GrenadeKind.FLASH, GrenadeKind.SMOKE -> {
+                partBox(0f, 0f, 0f, 0.065f, 0.14f, 0.065f, kind.color)
+                partBox(0f, 0.035f, 0f, 0.068f, 0.02f, 0.068f, if (kind == GrenadeKind.FLASH) 0xFF37474F.toInt() else 0xFFEEEEEE.toInt())
+                partBox(0f, 0.08f, 0f, 0.035f, 0.025f, 0.035f, 0xFF6D6D6D.toInt())
+            }
+            GrenadeKind.MOLOTOV -> {
+                partBox(0f, -0.02f, 0f, 0.075f, 0.15f, 0.075f, 0xFF4E7A3A.toInt())       // bottle
+                partBox(0f, 0.08f, 0f, 0.03f, 0.07f, 0.03f, 0xFF4E7A3A.toInt())          // neck
+                partBox(0f, 0.13f, 0f, 0.04f, 0.04f, 0.04f, 0xFFF5DEB3.toInt())          // rag
+                if (lit) {
+                    Matrix.translateM(part, 0, base, 0, 0f, 0.17f, 0f)
+                    val flicker = 0.06f + kotlin.random.Random.nextFloat() * 0.03f
+                    Matrix.scaleM(part, 0, flicker, flicker * 1.4f, flicker)
+                    draw(cube, part, 0xEEFFA726.toInt(), lit = false)
+                }
+            }
+        }
+    }
+
+    /**
+     * What grenades leave behind, as soft see-through puffs: a frag's fireball and dark smoke, a
+     * flashbang's white flash, a smoke grenade's grey cloud, a molotov's flickering flames.
+     */
+    private fun drawBlasts(now: Long) {
+        if (blasts.isEmpty() || puffTexture == 0) return
+        Matrix.invertM(cameraToWorld, 0, view, 0)
+        GLES20.glDepthMask(false)
+        for (b in blasts) {
+            val age = (now - b.start).toFloat()
+            val p = b.puffs
+            val n = p.size / 4
+            when (b.kind) {
+                GrenadeKind.FRAG -> {
+                    val fire = (age / 450f).coerceIn(0f, 1f)
+                    for (i in 0 until n) {
+                        val s = p[i * 4 + 3]
+                        val px = b.x + p[i * 4] * (0.5f + fire * 2f)
+                        val pz = b.z + p[i * 4 + 2] * (0.5f + fire * 2f)
+                        if (i % 2 == 0 && fire < 1f) {
+                            // Fireball: bright yellow to orange, swelling then gone.
+                            val color = if (fire < 0.4f) 0xFFFFF176.toInt() else 0xFFFF8A00.toInt()
+                            puff(px, b.y + p[i * 4 + 1] * fire, pz, s * (0.8f + fire * 3f), color, 1f - fire)
+                        } else {
+                            // Smoke rising after it, darkening the air for a moment.
+                            val k = ((age - 150f) / (FRAG_SHOW_MS - 150f)).coerceIn(0f, 1f)
+                            if (age < 150f) continue
+                            puff(px, b.y + p[i * 4 + 1] + k * 2.5f, pz, s * (1.6f + k * 2.5f), 0xFF424242.toInt(), 0.75f * (1f - k))
+                        }
+                    }
+                }
+                GrenadeKind.FLASH -> {
+                    val k = (age / FLASH_SHOW_MS).coerceIn(0f, 1f)
+                    for (i in 0 until n) {
+                        puff(b.x + p[i * 4] * 0.3f, b.y, b.z + p[i * 4 + 2] * 0.3f, (3f + k * 4f) * p[i * 4 + 3], WHITE, 1f - k)
+                    }
+                }
+                GrenadeKind.SMOKE -> {
+                    val thick = smokeThickness(b, now)
+                    val t = age / 1000f
+                    for (i in 0 until n) {
+                        val s = p[i * 4 + 3]
+                        // Each puff drifts a little, so the cloud seems to roll.
+                        val wobble = sin(t * 0.4f + i) * 0.3f
+                        val grey = if (i % 3 == 0) 0xFFB0B0B0.toInt() else 0xFF9E9E9E.toInt()
+                        puff(b.x + p[i * 4] * thick + wobble, b.y + p[i * 4 + 1] * thick, b.z + p[i * 4 + 2] * thick - wobble,
+                            s * (1.2f + 2.6f * thick), grey, 0.9f * thick)
+                    }
+                }
+                GrenadeKind.MOLOTOV -> {
+                    val fade = ((b.until - now) / 1000f).coerceIn(0f, 1f)
+                    val spread = (age / 400f).coerceIn(0.3f, 1f)
+                    val t = age / 1000f
+                    for (i in 0 until n) {
+                        val s = p[i * 4 + 3]
+                        val flicker = 0.75f + 0.25f * sin(t * 13f + i * 2.1f)
+                        val px = b.x + p[i * 4] * spread
+                        val pz = b.z + p[i * 4 + 2] * spread
+                        val color = if (i % 3 == 0) 0xFFFFD54F.toInt() else 0xFFFF6D00.toInt()
+                        puff(px, b.y + 0.35f * flicker, pz, s * 1.1f * flicker, color, 0.9f * fade)
+                        // A little dark smoke over some of the flames.
+                        if (i % 4 == 0) {
+                            val rise = (t * 0.8f + i) % 2.5f
+                            puff(px, b.y + 1f + rise, pz, s * (1f + rise * 0.6f), 0xFF3E3E3E.toInt(), 0.35f * fade * (1f - rise / 2.5f))
+                        }
+                    }
+                }
+            }
+        }
+        GLES20.glDepthMask(true)
+    }
+
+    /** One soft puff [size] across at (x, y, z), turned to face the camera, [alpha] see-through. */
+    private fun puff(x: Float, y: Float, z: Float, size: Float, color: Int, alpha: Float) {
+        if (alpha <= 0.02f) return
+        System.arraycopy(cameraToWorld, 0, part, 0, 16)
+        part[12] = x; part[13] = y; part[14] = z
+        Matrix.scaleM(part, 0, size, size, size)
+        val a = (alpha.coerceIn(0f, 1f) * 255).toInt()
+        draw(quad, part, (a shl 24) or (color and 0xFFFFFF), puffTexture, lit = false)
+    }
+
     /** My soldier's dance (a clip name, see Dance.clip; null = none), e.g. after winning; loops. */
     @Volatile var playerDance: String? = null
 
@@ -1054,7 +1665,7 @@ class CityRenderer(
             r.speed += (hypot(rvx, rvz) - r.speed) * min(1f, dt * 8f)
             soldier.update(
                 dt, r.speed, SoldierAnimator.relativeAngle(rvx, rvz, r.heading),
-                aiming = now < (remoteAiming[r.player.uid] ?: 0L), dead = r.player.dead, skin = isWorthAnimating(r.x, r.z),
+                aiming = now < (remoteAiming[r.player.uid] ?: 0L) || r.player.grenadeHold.isNotEmpty(), dead = r.player.dead, skin = isWorthAnimating(r.x, r.z),
                 prone = r.player.prone, airborne = r.y > 0.05f,
             )
         }
@@ -1089,6 +1700,7 @@ class CityRenderer(
         isWalking = walking
         updateRemotes(dt)
         updateBullets(dt)
+        updateGrenades(dt, isDown)
 
         fireCooldown = (fireCooldown - dt).coerceAtLeast(0f)
         aimTime -= dt
@@ -1099,7 +1711,8 @@ class CityRenderer(
         triggerPulled = false
         updateReload(gun)
         val wantsToFire = if (gun.automatic || rapidFire) triggerHeld || pulled else pulled
-        if (wantsToFire && !isDown && fireCooldown <= 0f && reloading == null) {
+        // The gun is lowered while a grenade is thrown.
+        if (wantsToFire && !isDown && fireCooldown <= 0f && reloading == null && throwStartedAt == 0L) {
             when {
                 unlimitedAmmo || loaded.get(gun.ordinal) > 0 -> {
                     if (!unlimitedAmmo) loaded.decrementAndGet(gun.ordinal)
@@ -1185,6 +1798,13 @@ class CityRenderer(
             camFx = sin(yaw) * cos(lookPitch)
             camFy = -sin(lookPitch)
             camFz = -cos(yaw) * cos(lookPitch)
+            if (shake > 0f) {
+                // A blast nearby: the view jolts about for a moment.
+                camFx += (kotlin.random.Random.nextFloat() - 0.5f) * shake * SHAKE_LOOK
+                camFy += (kotlin.random.Random.nextFloat() - 0.5f) * shake * SHAKE_LOOK
+                val l = sqrt(camFx * camFx + camFy * camFy + camFz * camFz)
+                camFx /= l; camFy /= l; camFz /= l
+            }
             Matrix.setLookAtM(view, 0, eyeX, eyeY, eyeZ, eyeX + camFx, eyeY + camFy, eyeZ + camFz, 0f, 1f, 0f)
             Matrix.multiplyMM(viewProj, 0, projection, 0, view, 0)
             return
@@ -1216,6 +1836,11 @@ class CityRenderer(
         eyeX = lookX - sin(yaw) * cos(pitch) * distance
         eyeY = (targetY + sin(pitch) * distance).coerceAtLeast(0.3f)
         eyeZ = lookZ + cos(yaw) * cos(pitch) * distance
+        if (shake > 0f) {
+            eyeX += (kotlin.random.Random.nextFloat() - 0.5f) * shake * SHAKE_MOVE
+            eyeY += (kotlin.random.Random.nextFloat() - 0.5f) * shake * SHAKE_MOVE
+            eyeZ += (kotlin.random.Random.nextFloat() - 0.5f) * shake * SHAKE_MOVE
+        }
         Matrix.setLookAtM(view, 0, eyeX, eyeY, eyeZ, lookX, targetY, lookZ, 0f, 1f, 0f)
         val fx = lookX - eyeX; val fy = targetY - eyeY; val fz = lookZ - eyeZ
         val fl = sqrt(fx * fx + fy * fy + fz * fz).takeIf { it > 1e-4f } ?: 1f
@@ -1445,6 +2070,8 @@ class CityRenderer(
     private fun drawSoldier(
         anim: SoldierAnimator, look: SoldierLook, faceTex: Int, x: Float, z: Float, facing: Float,
         y: Float = 0f, prone: Boolean = false, gun: Weapon = Weapon.AK47,
+        /** A grenade about to be thrown: in the hand instead of the gun. */
+        holding: GrenadeKind? = null,
     ) {
         if (!anim.ready) return
         val meshes = soldierMeshes.getOrPut(anim) {
@@ -1506,6 +2133,18 @@ class CityRenderer(
         // Standing, the rifle points along model +z with +y up; lying flat (the model tipped
         // forwards) it points along +y with -z up, so it lies ahead of the soldier, not in the ground.
         val flat = prone && anim.lieDownForCrawl
+        if (holding != null) {
+            // The grenade in the hand (life-size, in metres, so times the model's units per
+            // metre), gripped a little above the wrist; the gun is put away meanwhile.
+            System.arraycopy(base, 0, soldierMatrix, 0, 16)
+            Matrix.translateM(gunInHand, 0, base, 0, wx, wy, wz)
+            if (flat) Matrix.rotateM(gunInHand, 0, -90f, 1f, 0f, 0f)
+            Matrix.scaleM(gunInHand, 0, u, u, u)
+            Matrix.translateM(base, 0, gunInHand, 0, 0f, -0.02f, 0.06f)
+            grenadeShape(holding)
+            System.arraycopy(soldierMatrix, 0, base, 0, 16)
+            return
+        }
         fun gunBox(up: Float, fwd: Float, width: Float, height: Float, length: Float, color: Int) =
             if (flat) partBox(wx, wy + fwd * u, wz - up * u, width * u, length * u, height * u, color)
             else partBox(wx, wy + up * u, wz + fwd * u, width * u, height * u, length * u, color)
@@ -1771,6 +2410,36 @@ class CityRenderer(
         private const val FLAG_WIDTH = 0.42f
         private const val HEALTH_BAR_WIDTH = 0.8f
         private const val HEALTH_BAR_HEIGHT = 0.09f
+        // Grenades: thrown at this speed (m/s) along the view, plus a lift, at most once per interval (s).
+        private const val THROW_SPEED = 14f
+        private const val THROW_SPEED_PRONE = 8f
+        private const val THROW_LIFT = 3.5f
+        private const val THROW_INTERVAL = 0.9f
+        /** A throw's whole movement (gun down, wind up, throw, gun back) and when in it the grenade leaves the hand, ms. */
+        private const val THROW_ANIM_MS = 850L
+        private const val THROW_RELEASE_MS = 380L
+        /** Grenades fly in steps of this many seconds (the same on every phone). */
+        private const val GRENADE_STEP = 1f / 120f
+        private const val GRENADE_RADIUS = 0.07f
+        /** Share of its speed a grenade keeps bouncing back, and along the ground on a bounce or while rolling (per step). */
+        private const val BOUNCE = 0.35f
+        private const val BOUNCE_FRICTION = 0.6f
+        private const val ROLL_FRICTION = 0.97f
+        /** How long a frag's fireball and smoke, and a flashbang's flash, show (ms). */
+        private const val FRAG_SHOW_MS = 2_200L
+        private const val FLASH_SHOW_MS = 400L
+        /** A molotov's fire first burns this long after it breaks, then every interval (ms). */
+        private const val BURN_FIRST_MS = 300L
+        private const val BURN_INTERVAL_MS = 1_000L
+        /** A smoke cloud spreads over this long, and thins out over the last of its time (ms). */
+        private const val SMOKE_GROW_MS = 2_500L
+        private const val SMOKE_FADE_MS = 3_000L
+        /** A frag shakes the camera within this many metres; the shake dies away at this rate per second. */
+        private const val SHAKE_DISTANCE = 22f
+        private const val SHAKE_FADE = 1.6f
+        /** At full shake: how far the view direction (first person) or the camera (behind) jolts. */
+        private const val SHAKE_LOOK = 0.08f
+        private const val SHAKE_MOVE = 0.35f
         private const val MAX_MURALS = 16
         private const val MAX_LABELS = 64
         private const val BUBBLE_UNITS_PER_PX = 1f / 190f

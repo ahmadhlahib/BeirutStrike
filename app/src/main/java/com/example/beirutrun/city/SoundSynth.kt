@@ -131,6 +131,111 @@ object SoundSynth {
     /** A new belt laid in the feed tray: a rattle of links. */
     fun beltRattle() = sequence(0.035f, *Array(7) { clack(3000f + it * 150f, 0.04f, 0.05f, 30 + it) })
 
+    // ---- Grenades ---------------------------------------------------------------------------
+
+    /** The pin pulled (a bright ping) and the spoon flying off as the grenade leaves the hand. */
+    fun grenadePin() = sequence(0.12f, clack(3600f, 0.08f, 0f, 40), clack(2200f, 0.1f, 0.1f, 41))
+
+    /**
+     * A frag going off: a sharp crack and a deep rolling boom, its rumble dying away slowly, with
+     * the echo coming back off the buildings.
+     */
+    fun explosion(seed: Int = 50): FloatArray {
+        val n = (2.2f * SAMPLE_RATE).toInt()
+        val out = FloatArray(n)
+        val rnd = Random(seed)
+        var lp1 = 0f
+        var lp2 = 0f
+        var phase = 0.0
+        for (i in 0 until n) {
+            val t = i / SAMPLE_RATE.toFloat()
+            val noise = rnd.nextFloat() * 2f - 1f
+            // Two low-passes: a dull rumble that lasts, and the brighter crack at the start.
+            lp1 += (noise - lp1) * 0.035f
+            lp2 += (noise - lp2) * 0.3f
+            val rumble = lp1 * 9f * exp(-t / 0.55f)
+            val crack = lp2 * exp(-t / 0.04f)
+            phase += 2 * PI * (32.0 + 70.0 * exp(-t / 0.08)) / SAMPLE_RATE
+            val thump = sin(phase).toFloat() * exp(-t / 0.3f)
+            out[i] = rumble + crack * 1.2f + thump * 1.1f
+        }
+        for ((delay, gain) in listOf(0.22f to 0.3f, 0.5f to 0.15f)) {
+            val d = (delay * SAMPLE_RATE).toInt()
+            for (i in n - 1 downTo d) out[i] += out[i - d] * gain
+        }
+        return normalize(out, 0.95f)
+    }
+
+    /** A flashbang: one very sharp, bright bang, much shorter than a frag. */
+    fun flashbang(seed: Int = 60): FloatArray {
+        val n = (0.9f * SAMPLE_RATE).toInt()
+        val out = FloatArray(n)
+        val rnd = Random(seed)
+        var lp = 0f
+        var phase = 0.0
+        for (i in 0 until n) {
+            val t = i / SAMPLE_RATE.toFloat()
+            val noise = rnd.nextFloat() * 2f - 1f
+            lp += (noise - lp) * 0.12f
+            phase += 2 * PI * (55.0 + 120.0 * exp(-t / 0.03)) / SAMPLE_RATE
+            out[i] = noise * exp(-t / 0.05f) + lp * 2.5f * exp(-t / 0.25f) + sin(phase).toFloat() * exp(-t / 0.12f) * 0.8f
+        }
+        return normalize(out, 0.95f)
+    }
+
+    /** The ears ringing after a flashbang: a high whine, fading over a few seconds. */
+    fun earRinging(): FloatArray {
+        val seconds = 4f
+        val n = (seconds * SAMPLE_RATE).toInt()
+        val out = FloatArray(n)
+        for (i in 0 until n) {
+            val t = i / SAMPLE_RATE.toFloat()
+            val wobble = 1f + 0.004f * sin(2 * PI * 3.0 * t).toFloat()
+            val tone = sin(2 * PI * 3400.0 * wobble * t).toFloat() + 0.3f * sin(2 * PI * 6800.0 * t).toFloat()
+            out[i] = tone * min(1f, t / 0.05f) * exp(-t / 1.4f)
+        }
+        return normalize(out, 0.5f)
+    }
+
+    /** A smoke grenade popping and hissing out its cloud. */
+    fun smokeHiss(seed: Int = 70): FloatArray {
+        val seconds = 3f
+        val n = (seconds * SAMPLE_RATE).toInt()
+        val out = FloatArray(n)
+        val rnd = Random(seed)
+        var lp = 0f
+        for (i in 0 until n) {
+            val t = i / SAMPLE_RATE.toFloat()
+            val noise = rnd.nextFloat() * 2f - 1f
+            lp += (noise - lp) * 0.5f
+            // A pop, then a hiss (the noise minus its low end) that swells and fades.
+            val pop = if (t < 0.03f) noise * (1f - t / 0.03f) * 2f else 0f
+            val hiss = (noise - lp) * min(1f, t / 0.15f) * min(1f, (seconds - t) / 1.2f)
+            out[i] = pop + hiss * 0.6f
+        }
+        return normalize(out, 0.7f)
+    }
+
+    /** A molotov: the bottle smashing, then the fire catching with a whoosh. */
+    fun molotov(seed: Int = 80): FloatArray {
+        val glass = sequence(0.025f, *Array(6) { clack(3800f + it * 420f, 0.09f, 0.05f, seed + it) })
+        val seconds = 1.6f
+        val n = (seconds * SAMPLE_RATE).toInt()
+        val out = FloatArray(n)
+        val rnd = Random(seed + 10)
+        var lp = 0f
+        for (i in 0 until n) {
+            val t = i / SAMPLE_RATE.toFloat()
+            val noise = rnd.nextFloat() * 2f - 1f
+            // The whoosh brightens as the flames rise, then settles to a crackle.
+            lp += (noise - lp) * (0.04f + 0.2f * min(1f, t / 0.4f))
+            val crackle = if (rnd.nextFloat() < 0.002f) 1.5f else 0f
+            out[i] = lp * 3f * min(1f, t / 0.25f) * min(1f, (seconds - t) / 0.8f) + crackle * exp(-t / 1f)
+            if (i < glass.size) out[i] += glass[i] * 0.8f
+        }
+        return normalize(out, 0.85f)
+    }
+
     /** "Ay!": a quick cry gliding from an "ah" to an "ee" sound, pitch falling. */
     fun ouch(pitch: Float = 1f): FloatArray = voice(
         seconds = 0.34f,

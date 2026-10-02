@@ -48,6 +48,10 @@ class SoundEffects(context: Context) {
     @Volatile private var roundIn = NONE
     @Volatile private var cover = NONE
     @Volatile private var belt = NONE
+    /** Grenades: the throw, and what each kind sounds like going off. */
+    @Volatile private var pin = 0
+    @Volatile private var bursts = emptyMap<GrenadeKind, Int>()
+    @Volatile private var ringing = 0
 
     init {
         // Generating takes a moment, so do it off the main thread.
@@ -74,6 +78,14 @@ class SoundEffects(context: Context) {
             roundIn = mechanic("round_in") { SoundSynth.roundIn() }
             cover = mechanic("feed_cover") { SoundSynth.feedCover() }
             belt = mechanic("belt") { SoundSynth.beltRattle() }
+            pin = load("grenade_pin") { SoundSynth.grenadePin() }
+            bursts = mapOf(
+                GrenadeKind.FRAG to load("grenade_frag") { SoundSynth.explosion() },
+                GrenadeKind.FLASH to load("grenade_flash") { SoundSynth.flashbang() },
+                GrenadeKind.SMOKE to load("grenade_smoke") { SoundSynth.smokeHiss() },
+                GrenadeKind.MOLOTOV to load("grenade_molotov") { SoundSynth.molotov() },
+            )
+            ringing = load("ear_ringing") { SoundSynth.earRinging() }
         }
         worker.shutdown()
     }
@@ -145,6 +157,18 @@ class SoundEffects(context: Context) {
 
     /** Stops the reload sounds still to come (the reload was cut short). */
     fun cancelReload() = main.removeCallbacksAndMessages(reloadToken)
+
+    /** A grenade's pin pulled and thrown. */
+    fun grenadeThrow(volume: Float = 1f) = play(pin, volume, 1f)
+
+    /** A grenade of [kind] going off; [volume] 0..1, quieter the further away it is. */
+    fun grenadeBurst(kind: GrenadeKind, volume: Float = 1f) {
+        val id = bursts[kind] ?: return
+        play(id, volume, 0.95f + Random.nextFloat() * 0.1f)
+    }
+
+    /** The ears ringing after being blinded by a flashbang; louder the worse it was. */
+    fun earRinging(volume: Float) = play(ringing, volume, 1f)
 
     /** "Ay!" when a bullet hits someone. */
     fun ouch(volume: Float = 1f) {

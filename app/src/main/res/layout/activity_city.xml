@@ -38,6 +38,16 @@
         android:layout_height="match_parent"
         android:visibility="gone" />
 
+    <!-- Blinded by a flashbang: white, fading back. Over the scope, under the buttons. -->
+    <View
+        android:id="@+id/flashOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="#FFFFFFFF"
+        android:clickable="false"
+        android:focusable="false" />
+
     <!-- "Killed by …" / "You killed …!" messages. -->
     <TextView
         android:id="@+id/banner"
@@ -188,9 +198,9 @@
     <!--
         Right-hand controls, kept low so nothing reaches the minimap (top right):
 
-                        [⇄ AK-47 · 30]
-         (say)  (jump)  (  SHOOT  )
-        (scope) (crawl)
+                                [⇄ AK-47 · 30]
+         (zoom+) (nade) (say)  (jump)  (  SHOOT  )
+         (zoom-) (kind) (scope) (crawl)
     -->
 
     <!-- AK-47: hold to keep firing. Pistol: one shot per tap. -->
@@ -235,14 +245,41 @@
             app:icon="@drawable/ic_swap" />
     </LinearLayout>
 
-    <!-- Through a scope with more than one magnification: zoom in and out, left of Say and Scope. -->
+    <!-- Throw a grenade (left of Say), and below it the kind to throw with how many are left (tap to change). -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/grenadeButton"
+        style="@style/HudRoundButton"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="244dp"
+        android:layout_marginBottom="72dp"
+        android:contentDescription="@string/grenade_throw"
+        app:icon="@drawable/ic_grenade" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/grenadeKindButton"
+        style="@style/HudRoundButton"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="244dp"
+        android:layout_marginBottom="12dp"
+        android:contentDescription="@string/grenade_kind"
+        android:fontFeatureSettings="tnum"
+        android:gravity="center"
+        android:lineSpacingMultiplier="0.9"
+        android:maxLines="2"
+        android:textSize="10sp" />
+
+    <!-- Through a scope with more than one magnification: zoom in and out, left of the grenades. -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/zoomInButton"
         style="@style/HudRoundButton"
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="244dp"
+        android:layout_marginEnd="308dp"
         android:layout_marginBottom="72dp"
         android:contentDescription="@string/zoom_in"
         android:visibility="gone"
@@ -254,7 +291,7 @@
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="244dp"
+        android:layout_marginEnd="308dp"
         android:layout_marginBottom="12dp"
         android:contentDescription="@string/zoom_out"
         android:visibility="gone"

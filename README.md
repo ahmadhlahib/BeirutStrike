@@ -55,6 +55,7 @@ shots and scores sync live between phones.
 - **Pickups:** ammo packs and scopes are scattered through the streets and shared by the room.
   The first player to reach one gets it.
 - **Scope:** 4× zoom for the AK-47, with longer view, aim and bullet range.
+- **Grenades:** frag, flashbang, smoke and molotov, thrown and bouncing in 3D.
 - **Movement:** walk, run, jump and crawl. Crawling is slow, but makes you low and hard to hit.
 
 ### Progression
@@ -89,6 +90,8 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Gun button (above Shoot) | Switch between your pistol, primary and sniper rifle (shows rounds in the magazine / spare) |
 | Reload (round, left of the gun button) | Change the magazine |
 | Scope (round, left of Crawl) | Look through the scope (sniper rifles, the M4, or a primary with a found scope); lit while scoped |
+| Grenade (round, left of Say) | Throw a grenade of the kind shown below it |
+| Grenade kind (round, left of Scope) | Change grenade: frag, flashbang, smoke, molotov (shows how many are left) |
 | Zoom in / out (round, far left of the controls) | Change the scope's magnification, while scoped |
 | Jump / Crawl (round, left of Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
 | **Gun view / 3D person** | Switch between seeing through your soldier's eyes (gun in front) and seeing your soldier from behind |
@@ -129,7 +132,22 @@ real speed, so they can be seen. Damage is in hearts; every player has 5.
   magnifications. Sniper rifles and the M4 always have one; the other primaries can pick one up.
 
 Killed players respawn after 4 seconds at a random street, with every gun loaded and at least
-its starting rounds.
+its starting rounds and grenades.
+
+### Grenades
+
+Every player also carries grenades, thrown with the grenade button towards where you look (a
+weaker throw lying down; in gun view you see your hand pull back and throw it while the gun is
+lowered). They bounce off walls, roofs and the ground, and every phone in the room
+sees the same throw. Tap the button below it to change kind. More lie in the street (see
+[Pickups](#pickups)), up to twice what you start with.
+
+| Grenade | Carried | Goes off | Effect |
+| --- | --- | --- | --- |
+| Frag | 2 | after 3 s | Blast up to 7 m: 5 hearts right on it, fewer further away; walls stop it. It can hurt you too, and shakes the camera nearby |
+| Flashbang | 2 | after 1.6 s | Blinds anyone who can see it within 24 m (worst up close and looking at it) and leaves their ears ringing; no damage |
+| Smoke | 1 | after 1.8 s | A grey cloud 5.5 m across for 20 s: hides players and their name tags, and the crosshair can't pick out enemies through it |
+| Molotov | 1 | on impact | Fire 3.2 m across for 8 s, taking a heart a second from anyone standing in it (you too) |
 
 ### Pickups
 
@@ -139,6 +157,10 @@ its starting rounds.
 | Pistol magazine | 4 | +1 magazine for the pistol carried | 20 s |
 | Sniper rounds | 2 | +1 magazine for the sniper rifle carried | 40 s |
 | Scope | 2 | A 4× scope for a primary without one, until death | 60 s |
+| Frag grenade | 2 | +1 frag (up to 4 carried) | 40 s |
+| Flashbang | 2 | +1 flashbang (up to 4 carried) | 40 s |
+| Smoke grenade | 1 | +1 smoke grenade (up to 2 carried) | 45 s |
+| Molotov | 1 | +1 molotov (up to 2 carried) | 45 s |
 
 ### Cheat codes
 

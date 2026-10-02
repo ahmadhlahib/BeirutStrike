@@ -41,6 +41,7 @@ import com.example.beirutrun.city.Pickup
 import com.example.beirutrun.city.PickupKind
 import com.example.beirutrun.city.Characters
 import com.example.beirutrun.city.GunMeshes
+import com.example.beirutrun.city.GrenadeKind
 import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.city.SoundEffects
@@ -122,6 +123,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private lateinit var zoomInButton: MaterialButton
     private lateinit var zoomOutButton: MaterialButton
     private lateinit var scopeOverlay: View
+    private lateinit var grenadeButton: MaterialButton
+    private lateinit var grenadeKindButton: MaterialButton
+    /** White over everything while a flashbang has me blinded. */
+    private lateinit var flashOverlay: View
     /** The pistol, primary and sniper rifle the player carries (see LoadoutActivity). */
     private lateinit var guns: Map<GunSlot, Weapon>
     /** The character I play as (see Characters): its dances are for winning. */
@@ -144,6 +149,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             updateCrosshair()
             updateGameTimer()
             updateWeaponButtons()
+            updateGrenadeButtons()
             checkPickups()
             // Now and then, re-check who is still around (hides players whose phone went quiet).
             if (++ticks % 25 == 0) online.publishPlayers()
@@ -289,6 +295,22 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             },
             onReloaded = { updateWeaponButtons() },
             pickupLabel = ::pickupLabel,
+            onGrenadeThrown = { kind, v ->
+                sounds.grenadeThrow()
+                online.sendGrenade(kind.id, v[0], v[1], v[2], v[3], v[4], v[5])
+                // A grenade counts as a shot, so it shows in accuracy like any other.
+                if (!gameOver) online.countShot()
+                updateGrenadeButtons()
+            },
+            onHoldGrenade = { kind -> online.setGrenadeHold(kind?.id.orEmpty()) },
+            onNoGrenade = { kind -> showBanner(getString(R.string.no_grenades, kind.displayName)) },
+            onGrenadeBurst = { kind, x, _, z, _ ->
+                val hearing = GRENADE_HEARING_RANGE * if (kind == GrenadeKind.SMOKE) 0.3f else 1f
+                val distance = hypot(x - renderer.playerX, z - renderer.playerZ)
+                sounds.grenadeBurst(kind, 1f - distance / hearing)
+            },
+            onFlashed = ::flashed,
+            onSelfHit = { damage -> takeHit("", getString(R.string.killed_by_own_grenade), damage, ownGrenade = true) },
         )
         renderer.setDrops(drops)
 
@@ -344,6 +366,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         zoomOutButton = findViewById(R.id.zoomOutButton)
         zoomOutButton.setOnClickListener { changeZoom(-1) }
         scopeOverlay = findViewById(R.id.scopeOverlay)
+        flashOverlay = findViewById(R.id.flashOverlay)
+        grenadeButton = findViewById(R.id.grenadeButton)
+        grenadeButton.setOnClickListener { throwGrenade() }
+        grenadeKindButton = findViewById(R.id.grenadeKindButton)
+        grenadeKindButton.setOnClickListener { switchGrenade() }
         // The three guns chosen on the loadout screen; the primary in hand to start with.
         guns = GunSlot.entries.associateWith { Session.gun(this, it) }
         renderer.weapon = guns.getValue(GunSlot.PRIMARY)
@@ -522,9 +549,27 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         sounds.shoot(volume = 0.8f * (1f - distance / hearing), weapon = gun)
     }
 
-    override fun onHitBy(fromUid: String, fromName: String, damage: Int) {
+    override fun onRemoteGrenade(player: RemotePlayer) {
+        // A kind from a newer version of the app is left out.
+        val kind = GrenadeKind.byId(player.grenade) ?: return
+        renderer.addRemoteGrenade(
+            player.uid, kind, player.grenadeX, player.grenadeY, player.grenadeZ,
+            player.grenadeVX, player.grenadeVY, player.grenadeVZ,
+        )
+        val distance = hypot(player.grenadeX - renderer.playerX, player.grenadeZ - renderer.playerZ)
+        sounds.grenadeThrow(0.7f * (1f - distance / HEARING_RANGE))
+    }
+
+    override fun onHitBy(fromUid: String, fromName: String, damage: Int) =
+        takeHit(fromUid, getString(R.string.killed_by, fromName.ifBlank { getString(R.string.someone) }), damage)
+
+    /**
+     * A bullet or grenade took [damage] hearts: from [fromUid] (credited with the kill), or from my
+     * own grenade ([ownGrenade], counted as a death but nobody's kill). [killedText] says who did it.
+     */
+    private fun takeHit(fromUid: String, killedText: String, damage: Int, ownGrenade: Boolean = false) {
         if (dead || gameOver) return
-        online.countHitTaken()
+        if (!ownGrenade) online.countHitTaken()
         if (!unlimitedHealth) health = (health - damage).coerceAtLeast(0)
         renderer.health = health
         updateHearts()
@@ -547,8 +592,57 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         cheatScope = false
         setScoped(false)
         online.setHealth(0, true, fromUid)
-        showBanner(getString(R.string.killed_by, fromName.ifBlank { getString(R.string.someone) }))
+        showBanner(killedText)
         ticker.postDelayed(respawn, RESPAWN_MS)
+    }
+
+    /**
+     * A flashbang went off where I could see it: the screen goes white, stays white longer the
+     * worse it was ([strength] 0..1), then clears; bad ones leave the ears ringing.
+     */
+    private fun flashed(strength: Float) {
+        if (dead || gameOver) return
+        flashOverlay.animate().cancel()
+        flashOverlay.alpha = maxOf(flashOverlay.alpha, strength.coerceIn(0.35f, 1f))
+        flashOverlay.animate()
+            .setStartDelay((strength * FLASH_HOLD_MS).toLong())
+            .setDuration(FLASH_FADE_MS)
+            .alpha(0f)
+            .start()
+        if (strength > 0.3f) sounds.earRinging(strength * 0.6f)
+    }
+
+    // ---- Grenades -----------------------------------------------------------------------------
+
+    private fun throwGrenade() {
+        if (dead || gameOver) return
+        // The scope comes down to throw.
+        setScoped(false)
+        renderer.throwGrenade()
+    }
+
+    /** The next kind of grenade: frag → flashbang → smoke → molotov → frag. */
+    private fun switchGrenade() {
+        val kinds = GrenadeKind.entries
+        val next = kinds[(renderer.grenadeKind.ordinal + 1) % kinds.size]
+        renderer.grenadeKind = next
+        updateGrenadeButtons()
+        showBanner(
+            if (renderer.unlimitedAmmo) getString(R.string.grenade_selected_unlimited, next.displayName)
+            else getString(R.string.grenade_selected, next.displayName, renderer.grenades(next))
+        )
+    }
+
+    /** The grenade button in the colour of the kind chosen (dim when there's none left), the kind and its count below. */
+    private fun updateGrenadeButtons() {
+        val kind = renderer.grenadeKind
+        val left = renderer.grenades(kind)
+        val unlimited = renderer.unlimitedAmmo
+        val text = if (unlimited) getString(R.string.grenade_count_unlimited, kind.displayName)
+            else getString(R.string.grenade_count, kind.displayName, left)
+        if (grenadeKindButton.text.toString() != text) grenadeKindButton.text = text
+        grenadeButton.iconTint = ColorStateList.valueOf(kind.color)
+        grenadeButton.alpha = if (unlimited || (left > 0 && !dead && !gameOver)) 1f else 0.4f
     }
 
     override fun onKilled(victimUid: String, victimName: String) {
@@ -602,7 +696,14 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         PickupKind.PISTOL_AMMO -> R.string.pickup_pistol_mag
         PickupKind.AK_AMMO -> R.string.pickup_primary_mag
         PickupKind.SNIPER_AMMO -> R.string.pickup_sniper_mag
+        PickupKind.FRAG_GRENADE -> R.string.pickup_frag
+        PickupKind.FLASH_GRENADE -> R.string.pickup_flashbang
+        PickupKind.SMOKE_GRENADE -> R.string.pickup_smoke
+        PickupKind.MOLOTOV -> R.string.pickup_molotov
     })
+
+    /** A grenade is only picked up with room for it (see GrenadeKind.most): otherwise it stays for someone else. */
+    private fun canTake(p: Pickup) = p.kind.grenade?.let { renderer.unlimitedAmmo || renderer.canCarry(it) } ?: true
 
     /** The next of the three guns carried: pistol → primary → sniper rifle → pistol. */
     private fun switchWeapon() {
@@ -687,7 +788,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         if (dead || gameOver) return
         val px = renderer.playerX
         val pz = renderer.playerZ
-        val p = pickups.firstOrNull { it.slot !in taking && hypot(it.x - px, it.z - pz) < PICKUP_RADIUS } ?: return
+        val p = pickups.firstOrNull { it.slot !in taking && canTake(it) && hypot(it.x - px, it.z - pz) < PICKUP_RADIUS } ?: return
         if (!online.configured) {
             collect(p)
             showPickups(pickups - p)
@@ -701,10 +802,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
     }
 
-    /** A magazine goes to the gun carried in its slot; a scope fits the primary (until death). */
+    /** A magazine goes to the gun carried in its slot; a scope fits the primary (until death); a grenade joins the others. */
     private fun collect(p: Pickup) {
         val slot = p.kind.slot
-        if (slot != null) {
+        val grenade = p.kind.grenade
+        if (grenade != null) {
+            renderer.addGrenade(grenade)
+            sounds.grenadeThrow(0.5f)
+            showBanner(getString(R.string.picked_grenade, grenade.displayName, renderer.grenades(grenade)))
+            updateGrenadeButtons()
+        } else if (slot != null) {
             val gun = guns.getValue(slot)
             renderer.addMagazine(gun)
             showBanner(getString(R.string.picked_magazine, gun.displayName, gun.magazine))
@@ -1252,6 +1359,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val RESPAWN_MS = 4_000L
         private const val BANNER_MS = 2_500L
         private const val HEARING_RANGE = 60f
+        /** A frag or flashbang can be heard this far away (smoke much less), metres. */
+        private const val GRENADE_HEARING_RANGE = 150f
+        /** Blinded by a flashbang: the screen stays white up to this long (worst case), then clears over the fade. */
+        private const val FLASH_HOLD_MS = 2_500f
+        private const val FLASH_FADE_MS = 1_500L
         private const val FLAG_ICON_DP = 22f
         /** Scope and crawl buttons: amber while on, the usual translucent black while off. */
         private const val TOGGLE_ON_COLOR = 0xDDFFB300.toInt()
