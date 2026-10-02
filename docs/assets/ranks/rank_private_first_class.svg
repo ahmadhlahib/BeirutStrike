@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96">
+  <defs>
+    <linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="24" y1="5" x2="24" y2="45.5">
+      <stop offset="0" stop-color="#E6EBF0"/>
+      <stop offset="1" stop-color="#6E7883"/>
+    </linearGradient>
+    <linearGradient id="g2" gradientUnits="userSpaceOnUse" x1="24" y1="7.5" x2="24" y2="42.8">
+      <stop offset="0" stop-color="#3E4955"/>
+      <stop offset="1" stop-color="#151B21"/>
+    </linearGradient>
+    <linearGradient id="g3" gradientUnits="userSpaceOnUse" x1="24" y1="8" x2="24" y2="40">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#9AA6B2"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#g1)" d="M9,5 L39,5 Q42,5 42,8 L42,25 C42,35.5 34,41.5 24,45.5 C14,41.5 6,35.5 6,25 L6,8 Q6,5 9,5 Z"/>
+  <path fill="url(#g2)" d="M10.5,7.5 L37.5,7.5 Q39.5,7.5 39.5,9.5 L39.5,25 C39.5,34 32.5,39.3 24,42.8 C15.5,39.3 8.5,34 8.5,25 L8.5,9.5 Q8.5,7.5 10.5,7.5 Z"/>
+  <path fill="#FFFFFF" fill-opacity="0.078" d="M10.5,7.5 L37.5,7.5 Q39.5,7.5 39.5,9.5 L39.5,18 C30,15 18,15 8.5,18 L8.5,9.5 Q8.5,7.5 10.5,7.5 Z"/>
+  <g transform="translate(0.5 0.8)">
+    <path fill="#000000" fill-opacity="0.502" d="M13,19 L24,12 L35,19 L35,23 L24,16 L13,23 Z M13,28 C17,33 31,33 35,28 L35,31.5 C31,36.5 17,36.5 13,31.5 Z"/>
+  </g>
+  <path fill="url(#g3)" d="M13,19 L24,12 L35,19 L35,23 L24,16 L13,23 Z M13,28 C17,33 31,33 35,28 L35,31.5 C31,36.5 17,36.5 13,31.5 Z"/>
+</svg>
