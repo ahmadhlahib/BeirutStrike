@@ -73,7 +73,26 @@ Map data © OpenStreetMap contributors.
 | Phone screenshots | 2–8, 16:9 or 9:16, 1080 px+ on the short side | Suggested: the city in third person, first person with a gun, the scope, the ranks / career screen, the scoreboard, the room list |
 
 Use only the game's own art in screenshots and graphics: fictional factions, no real party
-flags or symbols.
+flags or symbols. Keep other players' names and face photos (e.g. the Ranking screen) and cheat
+rooms (the "∞" ammo, cheat banners) out of them.
+
+**Screenshots:** `store/screenshots/` holds 8 at 1920 × 1080, each with a caption in the game's
+gunmetal-and-gold style. They're made from raw phone screenshots in `store/raw/` (git-ignored):
+```bash
+java store/MakeScreenshots.java store/raw store/screenshots
+```
+Edit `SHOTS` in that file to pick other raw shots or captions.
+
+**Trailer (Play's video field):** cut from a phone screen recording with ffmpeg, in the same
+style, then uploaded to YouTube (Public or Unlisted, ads off, not age-restricted, embedding on):
+```bash
+java store/MakeTrailer.java <ffmpeg.exe> store/raw/<recording>.mp4 <work folder> store/raw/beirut_strike_trailer.mp4
+```
+Edit `SCENES` in that file to re-cut it. Record gameplay with the phone held landscape *before*
+starting the recorder, so it fills the frame.
+
+**AI declaration:** the app icon and the feature graphic were made with AI and are labelled as
+such in Play Console; the screenshots and trailer are real game captures.
 
 ## Content rating questionnaire
 

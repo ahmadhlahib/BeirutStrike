@@ -29,3 +29,6 @@ keystore.properties
 
 # Signed release bundles exported from Android Studio
 /app/release/
+
+# Raw phone screenshots and screen recordings for the store graphics (large; kept local)
+/store/raw/
