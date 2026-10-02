@@ -106,10 +106,15 @@ Expect roughly **PEGI 16 / ESRB Teen–Mature 17+ / USK 16**.
 | Personal info → **User IDs** (Firebase anonymous ID) | Yes | No | No | App functionality, fraud prevention/security |
 | Photos and videos → **Photos** (face photo, dropped photos, team flags) | Yes | No | Yes | App functionality |
 | Messages → **Other in-app messages** (speech bubbles, captions) | Yes | No | Yes | App functionality |
-| App activity → **Other user-generated content / in-app actions** (game stats, scores, XP and rank) | Yes | No | No | App functionality |
+| App activity → **Other actions** (gameplay: game stats, scores, XP and rank) | Yes | No | No | App functionality |
+| App info and performance → **Diagnostics** (sent by Google ML Kit face detection: device model, OS version, performance, error codes) | Yes | No | Yes (only with the face photo) | Analytics |
+| Device or other IDs → **Device or other IDs** (ML Kit's per-install ID for those diagnostics) | Yes | No | Yes (only with the face photo) | Analytics |
+
+ML Kit's part comes from [its data disclosure](https://developers.google.com/ml-kit/android-data-disclosure).
+None of these is processed ephemerally.
 
 \* In Play's terms, showing content to other users of the same app is **not** "sharing", and
 Firebase acts as a service provider, which is not sharing either.
 
-Not collected: location, contacts, financial info, health, email, phone number, device or other
-IDs, web browsing, audio, files, calendar, app diagnostics or crash logs.
+Not collected: location, contacts, financial info, health, email, phone number, web browsing,
+audio, files, calendar, crash logs or other app performance data.

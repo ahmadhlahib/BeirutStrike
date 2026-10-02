@@ -13,7 +13,8 @@ can delete it.
 - There is no account, email or password. You choose a player name when you start.
 - What you share in the game (name, optional face photo, photos you drop, teams you create,
   messages, scores) is shown to other players.
-- There are no ads, no analytics and no selling of data.
+- There are no ads and no selling of data. The game doesn't track how you play for analytics; the
+  only diagnostics are the technical ones Google's face detection sends (see below).
 - You can delete all your data at any time from the in-game menu: **Delete my data**.
 
 ## Information the game collects
@@ -28,9 +29,13 @@ can delete it.
 | **Game activity:** team, position in the game's map, shots, hits, kills, deaths, wins, XP (military rank), match and career scores | To run the multiplayer game, scoreboards and ranking | Other players |
 | **A random user ID** created by Firebase Anonymous Authentication | To tell players apart and protect your data so only you can change it | Not shown |
 | **Reports** you send about other players | So we can review abusive content | Only us |
+| **Face detection diagnostics** (only when you take a face photo): device model and Android version, how well face detection ran (speed, settings, error codes) and a per-install ID | Sent by Google ML Kit to Google, to keep face detection working well | Google only |
 
 The face photo is found and cropped **on your phone** using Google ML Kit face detection. The game
-does not use face recognition or identify you from your photo.
+does not use face recognition or identify you from your photo. Your photo is never sent to Google
+for this: ML Kit only sends the technical diagnostics above, encrypted, and Google doesn't pass
+them on to anyone else (see
+[ML Kit's data disclosure](https://developers.google.com/ml-kit/android-data-disclosure)).
 
 The game **does not** collect your real-world location, contacts, phone number, email address or
 advertising ID. Positions are inside the game's map only.
@@ -43,7 +48,8 @@ Both are optional.
 The game uses **Google Firebase** (Realtime Database and Authentication) to store and share game
 data between players. Firebase processes data on our behalf under
 [Google's terms and privacy policy](https://firebase.google.com/support/privacy). All data is sent
-over encrypted connections (HTTPS/TLS).
+over encrypted connections (HTTPS/TLS). Google ML Kit sends its face detection diagnostics to
+Google as described above.
 
 We do not sell, rent or share your information with anyone else, except where the law requires it.
 
