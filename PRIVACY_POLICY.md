@@ -1,6 +1,6 @@
 # Beirut Strike Privacy Policy
 
-**Last updated:** 30 September 2026
+**Last updated:** 2 October 2026
 
 Beirut Strike ("the game", "we") is a multiplayer game for Android published by **Ahmad EL Lahib**.
 This policy explains what information the game collects, how it is used and shared, and how you
@@ -52,13 +52,13 @@ We do not sell, rent or share your information with anyone else, except where th
 - **Room data** (positions, messages, dropped photos, teams created in the room, match scores) is
   deleted once a room is left
   empty (the game removes empty rooms automatically, usually within minutes).
-- **Your face photo and career score** are kept until you delete them.
+- **Your face photo and career** (career score, XP and military rank) are kept until you delete them.
 - **Reports** are kept while we review them, and deleted afterwards.
 
 ## Deleting your data
 
 - **In the game:** open the menu (your name, top left, in the city) and choose **Delete my data**.
-  This deletes your face photo, career score, match scores, dropped photos and your anonymous
+  This deletes your face photo, career (score, XP and rank), match scores, dropped photos and your anonymous
   account from our servers, and everything the game stored on your phone.
 - **By email:** write to [Ahmad.h.lahib@gmail.com](mailto:Ahmad.h.lahib@gmail.com) with your player name if you can't use the game (for
   example, if you uninstalled it). We will delete your data within 30 days.
