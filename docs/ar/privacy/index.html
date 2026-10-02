@@ -1,0 +1,225 @@
+<!doctype html>
+<!--
+  Arabic copy of ../../privacy/index.html (right to left), at
+  https://ahmadhlahib.github.io/BeirutStrike/ar/privacy/. Keep the two in step; the English one is authoritative.
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>سياسة الخصوصية لبيروت سترايك</title>
+<meta name="description" content="المعلومات التي تجمعها بيروت سترايك، وكيف تُستخدم وتُشارك، وكيف يمكنك حذفها.">
+<link rel="icon" href="../../privacy/icon.png">
+<link rel="alternate" hreflang="en" href="https://ahmadhlahib.github.io/BeirutStrike/privacy/">
+<link rel="alternate" hreflang="ar" href="https://ahmadhlahib.github.io/BeirutStrike/ar/privacy/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f4ee;
+    --surface: #ffffff;
+    --surface-2: #f0ece1;
+    --text: #1d2126;
+    --muted: #5b636c;
+    --line: #e2dccd;
+    --gold: #9c6b00;
+    --gold-soft: #f6e7bf;
+    --chip-text: #6b4a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0f13;
+      --surface: #141a20;
+      --surface-2: #1b232b;
+      --text: #eef1f4;
+      --muted: #9aa6b2;
+      --line: #2a343e;
+      --gold: #e8b64a;
+      --gold-soft: #2b2412;
+      --chip-text: #ffe08a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  a { color: var(--gold); overflow-wrap: anywhere; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 0 16px; }
+
+  header {
+    background: linear-gradient(180deg, #1b232b 0%, #0b0f13 100%);
+    color: #eef1f4;
+    border-bottom: 2px solid #e8b64a;
+  }
+  .brand { display: flex; align-items: center; gap: 16px; padding: 32px 0 26px; }
+  .brand img { width: 72px; height: 72px; border-radius: 16px; flex: none; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+  .brand small { display: block; color: #e8b64a; font-weight: 700; letter-spacing: .18em; font-size: 12px; text-transform: uppercase; }
+  .brand h1 { margin: 2px 0 4px; font-size: clamp(24px, 5vw, 32px); line-height: 1.2; }
+  .brand p { margin: 0; color: #9aa6b2; font-size: 14px; }
+
+  main.wrap { padding-top: 28px; padding-bottom: 8px; }
+  section { margin: 0 0 32px; }
+  h2 {
+    font-size: 13px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 12px;
+  }
+  p { margin: 0 0 12px; }
+  .lead { font-size: 17px; }
+
+  .contact {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--gold-soft); color: var(--chip-text);
+    border: 1px solid var(--gold); border-radius: 999px;
+    padding: 6px 14px; font-weight: 600; font-size: 15px; text-decoration: none;
+  }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 16px; border-top: 3px solid var(--gold);
+  }
+  .card strong { display: block; margin-bottom: 2px; }
+  .card span { color: var(--muted); font-size: 15px; }
+
+  .table { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+  .row { display: grid; grid-template-columns: 1.5fr 1.5fr 1fr; gap: 16px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row.head { background: var(--surface-2); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .row .who { color: var(--muted); }
+  .label { display: none; }
+  @media (max-width: 640px) {
+    .row { grid-template-columns: 1fr; gap: 4px; }
+    .row.head { display: none; }
+    .label { display: inline; font-weight: 700; color: var(--muted); font-size: 13px; }
+  }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  ul { margin: 0; padding-left: 20px; }
+  li { margin: 0 0 8px; }
+  li:last-child { margin-bottom: 0; }
+
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; padding: 20px 0 36px; }
+
+  /* Language switch in the header (all four legal pages). */
+  .langswitch {
+    margin-inline-start: auto; align-self: flex-start;
+    border: 1px solid #9c6b00; border-radius: 999px; padding: 4px 12px;
+    color: #ffe08a; text-decoration: none; font-weight: 600; font-size: 14px;
+  }
+
+  /* Arabic copies (docs/ar/...): right to left, an Arabic font, no letter-spacing (it breaks
+     how Arabic letters join). */
+  [dir="rtl"] body { font-family: "IBM Plex Sans Arabic", system-ui, "Segoe UI", Tahoma, sans-serif; }
+  [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3 { font-family: Cairo, "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif; }
+  [dir="rtl"] h2, [dir="rtl"] .brand small, [dir="rtl"] .row.head { letter-spacing: 0; }
+  [dir="rtl"] ul, [dir="rtl"] ol { padding-left: 0; padding-right: 20px; }
+  [dir="rtl"] [lang="en"] { font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; }
+  [dir="rtl"] .note { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap brand">
+    <img src="../../privacy/icon.png" alt="أيقونة بيروت سترايك" width="72" height="72">
+    <div>
+      <small>بيروت سترايك</small>
+      <h1>سياسة الخصوصية</h1>
+      <p>آخر تحديث: 2 تشرين الأول 2026</p>
+    </div>
+    <a class="langswitch" href="../../privacy/" hreflang="en" lang="en">English</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <p class="lead">بيروت سترايك ("اللعبة"، "نحن") لعبة جماعية لأندرويد ينشرها <strong>أحمد اللهيب</strong>. تشرح هذه السياسة المعلومات التي تجمعها اللعبة، وكيف تُستخدم وتُشارك، وكيف يمكنك حذفها.</p>
+    <a class="contact" href="mailto:Ahmad.h.lahib@gmail.com" dir="ltr">✉ Ahmad.h.lahib@gmail.com</a>
+  </section>
+
+  <section>
+    <h2>ملخّص</h2>
+    <div class="cards">
+      <div class="card"><strong>بلا حساب</strong><span>لا بريد إلكتروني ولا كلمة سر. تختار اسم لاعب عندما تبدأ.</span></div>
+      <div class="card"><strong>ما يراه اللاعبون</strong><span>اسمك، وصورة وجهك الاختيارية، والصور التي تتركها، والفرق التي تنشئها، والرسائل والنتائج تظهر للاعبين الآخرين.</span></div>
+      <div class="card"><strong>بلا إعلانات ولا تتبّع</strong><span>لا إعلانات ولا بيع للبيانات. لا تتتبّع اللعبة طريقة لعبك؛ والبيانات التشخيصية الوحيدة هي البيانات التقنية من خدمة كشف الوجه من Google.</span></div>
+      <div class="card"><strong>احذف متى شئت</strong><span>احذف كل بياناتك من قائمة اللعبة: <em lang="en">Delete my data</em>.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>المعلومات التي تجمعها اللعبة</h2>
+    <div class="table">
+      <div class="row head"><div>المعلومة</div><div>لماذا</div><div>من يراها</div></div>
+      <div class="row"><div><strong>اسم اللاعب</strong> الذي تكتبه</div><div><span class="label">لماذا: </span>لإظهار هويتك في الغرف وعلى لوحة النتائج وفي الترتيب</div><div class="who"><span class="label">يراها: </span>اللاعبون الآخرون</div></div>
+      <div class="row"><div><strong>صورة الوجه</strong> (اختيارية، تُلتقط بالكاميرا الأمامية)</div><div><span class="label">لماذا: </span>تظهر على رأس شخصيتك، وعلى لوحات النتائج وفي الترتيب</div><div class="who"><span class="label">يراها: </span>اللاعبون الآخرون</div></div>
+      <div class="row"><div><strong>الصور التي تتركها</strong> في المدينة (اختيارية، تُلتقط بالكاميرا)</div><div><span class="label">لماذا: </span>تظهر حيث تركتها، مع التعليق الذي كتبته</div><div class="who"><span class="label">يراها: </span>اللاعبون في الغرفة نفسها</div></div>
+      <div class="row"><div><strong>الفرق التي تنشئها</strong> (اختيارية): اسم الفريق، وصورة علم تختارها من هاتفك، ولون</div><div><span class="label">لماذا: </span>يُعرض كفريق في الغرفة، ويظهر على لاعبيه</div><div class="who"><span class="label">يراها: </span>اللاعبون في الغرفة نفسها</div></div>
+      <div class="row"><div><strong>الرسائل</strong> (فقاعات الكلام والتعليقات)</div><div><span class="label">لماذا: </span>تظهر فوق شخصيتك</div><div class="who"><span class="label">يراها: </span>اللاعبون في الغرفة نفسها</div></div>
+      <div class="row"><div><strong>نشاط اللعب:</strong> الفريق، والموقع داخل خريطة اللعبة، والطلقات، والإصابات، وعمليات القتل، والوفيات، والانتصارات، ونقاط الخبرة (الرتبة العسكرية)، ونتائج المباريات والمسيرة</div><div><span class="label">لماذا: </span>لتشغيل اللعب الجماعي ولوحات النتائج والترتيب</div><div class="who"><span class="label">يراها: </span>اللاعبون الآخرون</div></div>
+      <div class="row"><div><strong>معرّف مستخدم عشوائي</strong> تُنشئه خدمة Firebase Anonymous Authentication</div><div><span class="label">لماذا: </span>للتمييز بين اللاعبين وحماية بياناتك بحيث لا يستطيع تغييرها أحد غيرك</div><div class="who"><span class="label">يراها: </span>لا تُعرض</div></div>
+      <div class="row"><div><strong>البلاغات</strong> التي ترسلها عن لاعبين آخرين</div><div><span class="label">لماذا: </span>لنتمكّن من مراجعة المحتوى المسيء</div><div class="who"><span class="label">يراها: </span>نحن فقط</div></div>
+      <div class="row"><div><strong>بيانات تشخيص كشف الوجه</strong> (فقط عندما تلتقط صورة وجهك): طراز الجهاز وإصدار أندرويد، ومدى جودة عمل كشف الوجه (السرعة والإعدادات ورموز الأخطاء)، ومعرّف خاص بكل تثبيت</div><div><span class="label">لماذا: </span>ترسلها Google ML Kit إلى Google لضمان عمل كشف الوجه جيدًا</div><div class="who"><span class="label">يراها: </span>Google فقط</div></div>
+    </div>
+    <p style="margin-top:16px">يُكتشف الوجه في الصورة ويُقصّ <strong>على هاتفك</strong> باستخدام خدمة كشف الوجه Google ML Kit. لا تستخدم اللعبة التعرّف على الوجه ولا تحدّد هويتك من صورتك. ولا تُرسل صورتك أبدًا إلى Google لهذا الغرض: ترسل ML Kit بيانات التشخيص التقنية المذكورة أعلاه فقط، مشفّرة، ولا تنقلها Google إلى أي جهة أخرى (راجع <a href="https://developers.google.com/ml-kit/android-data-disclosure">إفصاح ML Kit عن البيانات</a>).</p>
+    <p><strong>لا</strong> تجمع اللعبة موقعك الحقيقي، ولا جهات اتصالك، ولا رقم هاتفك، ولا بريدك الإلكتروني، ولا المعرّف الإعلاني. المواقع هي داخل خريطة اللعبة فقط.</p>
+    <p><strong>الكاميرا:</strong> تطلب اللعبة إذن الكاميرا فقط لالتقاط صورة وجهك والصور التي تتركها. وكلاهما اختياري.</p>
+  </section>
+
+  <section>
+    <h2>كيف تُخزَّن المعلومات وتُشارَك</h2>
+    <p>تستخدم اللعبة خدمة <strong>Google Firebase</strong> (Realtime Database وAuthentication) لتخزين بيانات اللعب ومشاركتها بين اللاعبين. تعالج Firebase البيانات نيابةً عنا وفقًا <a href="https://firebase.google.com/support/privacy">لشروط Google وسياسة الخصوصية لديها</a>. تُرسل جميع البيانات عبر اتصالات مشفّرة (HTTPS/TLS). وترسل Google ML Kit بيانات تشخيص كشف الوجه إلى Google كما هو موضّح أعلاه.</p>
+    <p>لا نبيع معلوماتك ولا نؤجّرها ولا نشاركها مع أي جهة أخرى، إلا إذا فرض القانون ذلك.</p>
+  </section>
+
+  <section>
+    <h2>مدة الاحتفاظ بالمعلومات</h2>
+    <div class="panel">
+      <ul>
+        <li><strong>بيانات الغرفة</strong> (المواقع، والرسائل، والصور المتروكة، والفرق المنشأة في الغرفة، ونتائج المباريات) تُحذف عندما تفرغ الغرفة. تحذف اللعبة الغرف الفارغة تلقائيًا، عادةً خلال دقائق.</li>
+        <li><strong>صورة وجهك ومسيرتك</strong> (نتيجة المسيرة، ونقاط الخبرة، والرتبة العسكرية) تبقى إلى أن تحذفها.</li>
+        <li><strong>البلاغات</strong> تبقى أثناء مراجعتها، ثم تُحذف.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>حذف بياناتك</h2>
+    <div class="panel">
+      <ul>
+        <li><strong>من داخل اللعبة:</strong> افتح القائمة (اسمك، أعلى اليسار، في المدينة) واختر <strong lang="en">Delete my data</strong>. يحذف ذلك صورة وجهك، ومسيرتك (النتيجة ونقاط الخبرة والرتبة)، ونتائج المباريات، والصور التي تركتها، وحسابك المجهول الهوية من خوادمنا، إضافةً إلى كل ما خزّنته اللعبة على هاتفك.</li>
+        <li><strong>بالبريد الإلكتروني:</strong> راسلنا على <a href="mailto:Ahmad.h.lahib@gmail.com" dir="ltr">Ahmad.h.lahib@gmail.com</a> مع اسم اللاعب الذي استخدمته إذا لم تستطع استخدام اللعبة (مثلًا إذا ألغيت تثبيتها). سنحذف بياناتك خلال 30 يومًا.</li>
+      </ul>
+    </div>
+    <p style="margin-top:12px">إلغاء تثبيت اللعبة يحذف البيانات المخزّنة على هاتفك، لكنه لا يحذف البيانات على خوادمنا. استخدم أحد الخيارين أعلاه لذلك. التعليمات خطوة بخطوة: <a href="../delete-data/">حذف بياناتك</a>.</p>
+  </section>
+
+  <section>
+    <h2>الأمان</h2>
+    <p>يمكنك <strong>الإبلاغ</strong> عن رسائل لاعب آخر أو صوره، أو <strong>حظر</strong> لاعب، من شاشة عرض الصورة ومن <strong lang="en">Players</strong> في قائمة اللعبة. ويمكنك الإبلاغ عن فريق أنشأه لاعب (اسمه أو علمه) بالضغط المطوّل عليه في شاشة الفرق. تُخفى رسائل اللاعبين المحظورين وصورهم على هاتفك. نراجع البلاغات ونزيل المحتوى المخالف للقواعد.</p>
+  </section>
+
+  <section>
+    <h2>الأطفال</h2>
+    <p>اللعبة مخصّصة للأشخاص الذين تبلغ أعمارهم <strong>16 عامًا فما فوق</strong>، وليست موجّهة للأطفال. إذا كنت تعتقد أن طفلًا شارك معلومات شخصية في اللعبة، فتواصل معنا وسنحذفها.</p>
+  </section>
+
+  <section>
+    <h2>التغييرات</h2>
+    <p>إذا تغيّرت هذه السياسة، فستُنشر النسخة الجديدة على هذا العنوان مع تاريخ "آخر تحديث" جديد.</p>
+    <p class="note">هذه ترجمة عربية <a href="../../privacy/" hreflang="en">لسياسة الخصوصية الإنجليزية</a>. في حال وجود أي اختلاف بينهما، تُعتمد النسخة الإنجليزية.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">© 2026 أحمد اللهيب · بيروت سترايك</div>
+</footer>
+</body>
+</html>
