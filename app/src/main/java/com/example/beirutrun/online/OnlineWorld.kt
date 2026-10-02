@@ -69,6 +69,15 @@ data class RemotePlayer(
     val showFace: Boolean = true,
     /** The dance they're doing (a clip name, see Dance.clip; "" = none), e.g. after winning. */
     val dance: String = "",
+    /** Goes up by one per grenade thrown; its kind (a GrenadeKind id), start and velocity are below. */
+    val grenadeSeq: Long = 0L,
+    val grenade: String = "",
+    val grenadeX: Float = 0f,
+    val grenadeY: Float = 0f,
+    val grenadeZ: Float = 0f,
+    val grenadeVX: Float = 0f,
+    val grenadeVY: Float = 0f,
+    val grenadeVZ: Float = 0f,
 )
 
 /** One player's score in the room's game, kept after they leave so the scoreboard stays whole. */
@@ -89,8 +98,8 @@ data class PlayerStats(
     /** Career only: games won outright. */
     val wins: Int = 0,
 ) {
-    /** Share of shots that hit, 0..1. */
-    val accuracy get() = if (shots > 0) hits.toFloat() / shots else 0f
+    /** Share of shots that hit, 0..1 (a grenade counts as a shot, but can hit several players). */
+    val accuracy get() = if (shots > 0) (hits.toFloat() / shots).coerceAtMost(1f) else 0f
 
     /** A player's score is how many of their shots hit an enemy. */
     val score get() = hits
@@ -119,7 +128,7 @@ data class PlayerStats(
  * Shares one room's city between phones through Firebase Realtime Database. Inside
  * `rooms/{room}/` (members only, see [RoomDirectory]):
  *
- * - `players/{uid}`: each player's live position, team, health, shots and speech bubble,
+ * - `players/{uid}`: each player's live position, team, health, shots, grenades and speech bubble,
  *   removed on disconnect.
  * - `drops/{id}`: dropped photo details; `dropPhotos/{id}`: the photo itself (base64 JPEG).
  * - `hits/{uid}/{id}`: bullets that hit that player. The shooter's phone decides a bullet hit and
@@ -164,6 +173,8 @@ class OnlineWorld(
         fun onFacesChanged()
         /** Another player fired a shot (draw it). */
         fun onRemoteShot(player: RemotePlayer) = Unit
+        /** Another player threw a grenade (fly it here too). */
+        fun onRemoteGrenade(player: RemotePlayer) = Unit
         /** One of [fromName]'s bullets hit me, taking [damage] hearts. */
         fun onHitBy(fromUid: String, fromName: String, damage: Int) = Unit
         /** A player I shot has just died. */
@@ -215,6 +226,7 @@ class OnlineWorld(
     private var dead = false
     private var killedBy = ""
     private var shotSeq = 0L
+    private var grenadeSeq = 0L
     private var prone = false
     private var jumpSeq = 0L
     private var weapon = ""
@@ -374,6 +386,7 @@ class OnlineWorld(
             "dead" to dead,
             "killedBy" to killedBy,
             "shotSeq" to shotSeq,
+            "nadeSeq" to grenadeSeq,
             "prone" to prone,
             "jumpSeq" to jumpSeq,
             "weapon" to weapon,
@@ -471,8 +484,27 @@ class OnlineWorld(
         ))
     }
 
-    /** One of my bullets hit [victimUid]; their phone takes it from here. */
-    /** One of my bullets hit [victimUid], taking [damage] hearts (see Weapon.damage). */
+    /**
+     * Tells everyone I threw a grenade of [kind] (a GrenadeKind id) from (x, y, z) at velocity
+     * (vx, vy, vz), so their phones fly the same one.
+     */
+    fun sendGrenade(kind: String, x: Float, y: Float, z: Float, vx: Float, vy: Float, vz: Float) {
+        val ref = me ?: return
+        if (!active) return
+        grenadeSeq++
+        ref.updateChildren(mapOf(
+            "nadeSeq" to grenadeSeq,
+            "nade" to kind,
+            "nadeX" to x.toDouble(),
+            "nadeY" to y.toDouble(),
+            "nadeZ" to z.toDouble(),
+            "nadeVX" to vx.toDouble(),
+            "nadeVY" to vy.toDouble(),
+            "nadeVZ" to vz.toDouble(),
+        ))
+    }
+
+    /** One of my bullets or grenades hit [victimUid], taking [damage] hearts (see Weapon.damage); their phone takes it from here. */
     fun sendHit(victimUid: String, damage: Int) {
         val database = db ?: return
         val from = uid ?: return
@@ -818,11 +850,20 @@ class OnlineWorld(
                     character = s.child("character").getValue(String::class.java).orEmpty(),
                     showFace = s.child("showFace").getValue(Boolean::class.java) ?: true,
                     dance = s.child("dance").getValue(String::class.java).orEmpty(),
+                    grenadeSeq = s.num("nadeSeq").toLong(),
+                    grenade = s.child("nade").getValue(String::class.java).orEmpty(),
+                    grenadeX = s.num("nadeX").toFloat(),
+                    grenadeY = s.num("nadeY").toFloat(),
+                    grenadeZ = s.num("nadeZ").toFloat(),
+                    grenadeVX = s.num("nadeVX").toFloat(),
+                    grenadeVY = s.num("nadeVY").toFloat(),
+                    grenadeVZ = s.num("nadeVZ").toFloat(),
                 )
                 players[id] = player
                 // Events only for changes seen live, not for the state found on joining.
                 if (before != null && id != uid) {
                     if (player.shotSeq != before.shotSeq) listener?.onRemoteShot(player)
+                    if (player.grenadeSeq != before.grenadeSeq) listener?.onRemoteGrenade(player)
                     if (player.dead && !before.dead && player.killedBy == uid) listener?.onKilled(id, player.name)
                 }
                 publishPlayers()

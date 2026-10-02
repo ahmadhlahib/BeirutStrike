@@ -212,6 +212,18 @@
     <string name="scope_off">Lower scope</string>
     <string name="weapon_ammo_unlimited">%1$s · ∞</string>
 
+    <!-- Grenades -->
+    <string name="grenade_throw">Throw grenade</string>
+    <string name="grenade_kind">Change grenade</string>
+    <!-- Grenade kind button: the kind on top, how many are left below. -->
+    <string name="grenade_count">%1$s\n×%2$d</string>
+    <string name="grenade_count_unlimited">%1$s\n∞</string>
+    <!-- Banner after changing grenade: "Flashbang · 2 left". -->
+    <string name="grenade_selected">%1$s · %2$d left</string>
+    <string name="grenade_selected_unlimited">%1$s · ∞</string>
+    <string name="no_grenades">No %1$s left. You get more when you respawn</string>
+    <string name="killed_by_own_grenade">Your own grenade got you</string>
+
     <!-- Loadout: choosing the three guns -->
     <string name="loadout_title">Choose your guns</string>
     <string name="loadout_hint">You carry one of each. Tap the gun button in the city to switch.</string>
