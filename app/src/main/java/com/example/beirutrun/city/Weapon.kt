@@ -134,14 +134,18 @@ enum class Weapon(
 
 /**
  * What lies in the street to be picked up: a magazine for one of the three guns (whichever the
- * player carries in that slot), or a scope for a primary that has none.
+ * player carries in that slot), a scope for a primary that has none, or a grenade.
  */
-enum class PickupKind(val id: String, val slot: GunSlot?) {
+enum class PickupKind(val id: String, val slot: GunSlot?, val grenade: GrenadeKind? = null) {
     PISTOL_AMMO("pistol_ammo", GunSlot.PISTOL),
     /** Called "ak_ammo" since the AK-47 was the only primary; it fills any primary. */
     AK_AMMO("ak_ammo", GunSlot.PRIMARY),
     SNIPER_AMMO("sniper_ammo", GunSlot.SNIPER),
-    SCOPE("scope", null);
+    SCOPE("scope", null),
+    FRAG_GRENADE("frag_grenade", null, GrenadeKind.FRAG),
+    FLASH_GRENADE("flash_grenade", null, GrenadeKind.FLASH),
+    SMOKE_GRENADE("smoke_grenade", null, GrenadeKind.SMOKE),
+    MOLOTOV("molotov", null, GrenadeKind.MOLOTOV);
 
     companion object {
         fun byId(id: String?) = entries.firstOrNull { it.id == id }
@@ -152,11 +156,13 @@ enum class PickupKind(val id: String, val slot: GunSlot?) {
          * app, which know fewer slots, still agree on the first ones.
          */
         val SLOTS: List<PickupKind> =
-            List(5) { AK_AMMO } + List(4) { PISTOL_AMMO } + List(2) { SCOPE } + List(2) { SNIPER_AMMO }
+            List(5) { AK_AMMO } + List(4) { PISTOL_AMMO } + List(2) { SCOPE } + List(2) { SNIPER_AMMO } +
+                List(2) { FRAG_GRENADE } + List(2) { FLASH_GRENADE } + SMOKE_GRENADE + MOLOTOV
 
         fun respawnMs(kind: PickupKind) = when (kind) {
             SCOPE -> 60_000L
-            SNIPER_AMMO -> 40_000L
+            SMOKE_GRENADE, MOLOTOV -> 45_000L
+            SNIPER_AMMO, FRAG_GRENADE, FLASH_GRENADE -> 40_000L
             else -> 20_000L
         }
     }

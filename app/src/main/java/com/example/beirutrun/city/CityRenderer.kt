@@ -172,6 +172,12 @@ class CityRenderer(
 
     fun grenades(kind: GrenadeKind) = grenadesLeft.get(kind.ordinal)
 
+    /** Whether there's room for another [kind] (see [GrenadeKind.most]). */
+    fun canCarry(kind: GrenadeKind) = grenadesLeft.get(kind.ordinal) < kind.most
+
+    /** A grenade picked up in the street (if there's room for it). */
+    fun addGrenade(kind: GrenadeKind) { grenadesLeft.getAndUpdate(kind.ordinal) { minOf(it + 1, kind.most) } }
+
     @Volatile private var throwRequested = false
 
     /** Throws a grenade of [grenadeKind] where the camera looks (if there's one left). */
@@ -864,6 +870,21 @@ class CityRenderer(
                     // A row of brass cartridges standing on top.
                     for (i in 0 until 5) partBox(-0.12f + i * 0.06f, 0.11f, 0f, 0.022f, 0.1f, 0.022f, 0xFFD4A537.toInt())
                 }
+                PickupKind.FRAG_GRENADE, PickupKind.FLASH_GRENADE, PickupKind.SMOKE_GRENADE, PickupKind.MOLOTOV -> {
+                    val kind = p.kind.grenade ?: continue
+                    // A small wooden crate with a band in the grenade's colour, two of them on top.
+                    partBox(0f, 0f, 0f, 0.34f, 0.14f, 0.24f, 0xFF6D4C2F.toInt())
+                    partBox(0f, 0f, 0.122f, 0.34f, 0.04f, 0.005f, kind.color)
+                    partBox(0f, 0.072f, 0f, 0.35f, 0.012f, 0.25f, 0xFF5A3E26.toInt())
+                    val crate = base.copyOf()
+                    for (side in listOf(-1f, 1f)) {
+                        // The grenade models are life-size; bigger here so they read from afar.
+                        Matrix.translateM(base, 0, crate, 0, side * 0.08f, 0.17f, 0f)
+                        Matrix.scaleM(base, 0, 1.6f, 1.6f, 1.6f)
+                        grenadeShape(kind)
+                    }
+                    System.arraycopy(crate, 0, base, 0, 16)
+                }
             }
         }
     }
@@ -1363,21 +1384,31 @@ class CityRenderer(
             val moving = abs(g.vx) + abs(g.vz) > 0.3f || g.y > GRENADE_RADIUS + 0.02f
             if (moving) Matrix.rotateM(base, 0, g.steps * 9f, 1f, 0.3f, 0f)
             else Matrix.rotateM(base, 0, 90f, 1f, 0f, 0f)
-            when (g.kind) {
-                GrenadeKind.FRAG -> {
-                    partBox(0f, 0f, 0f, 0.085f, 0.1f, 0.085f, g.kind.color)
-                    partBox(0f, 0.06f, 0f, 0.035f, 0.03f, 0.035f, 0xFF6D6D6D.toInt())        // fuse
-                    partBox(0.03f, 0.03f, 0f, 0.015f, 0.08f, 0.02f, 0xFF8D8D8D.toInt())      // lever
-                }
-                GrenadeKind.FLASH, GrenadeKind.SMOKE -> {
-                    partBox(0f, 0f, 0f, 0.065f, 0.14f, 0.065f, g.kind.color)
-                    partBox(0f, 0.035f, 0f, 0.068f, 0.02f, 0.068f, if (g.kind == GrenadeKind.FLASH) 0xFF37474F.toInt() else 0xFFEEEEEE.toInt())
-                    partBox(0f, 0.08f, 0f, 0.035f, 0.025f, 0.035f, 0xFF6D6D6D.toInt())
-                }
-                GrenadeKind.MOLOTOV -> {
-                    partBox(0f, -0.02f, 0f, 0.075f, 0.15f, 0.075f, 0xFF4E7A3A.toInt())       // bottle
-                    partBox(0f, 0.08f, 0f, 0.03f, 0.07f, 0.03f, 0xFF4E7A3A.toInt())          // neck
-                    partBox(0f, 0.13f, 0f, 0.04f, 0.04f, 0.04f, 0xFFF5DEB3.toInt())          // rag
+            grenadeShape(g.kind, lit = true)
+        }
+    }
+
+    /**
+     * A grenade of [kind] in [base] space, standing up along +y: each kind its own shape and
+     * colour. A molotov's rag burns only once [lit] (thrown), not lying in a crate.
+     */
+    private fun grenadeShape(kind: GrenadeKind, lit: Boolean = false) {
+        when (kind) {
+            GrenadeKind.FRAG -> {
+                partBox(0f, 0f, 0f, 0.085f, 0.1f, 0.085f, kind.color)
+                partBox(0f, 0.06f, 0f, 0.035f, 0.03f, 0.035f, 0xFF6D6D6D.toInt())        // fuse
+                partBox(0.03f, 0.03f, 0f, 0.015f, 0.08f, 0.02f, 0xFF8D8D8D.toInt())      // lever
+            }
+            GrenadeKind.FLASH, GrenadeKind.SMOKE -> {
+                partBox(0f, 0f, 0f, 0.065f, 0.14f, 0.065f, kind.color)
+                partBox(0f, 0.035f, 0f, 0.068f, 0.02f, 0.068f, if (kind == GrenadeKind.FLASH) 0xFF37474F.toInt() else 0xFFEEEEEE.toInt())
+                partBox(0f, 0.08f, 0f, 0.035f, 0.025f, 0.035f, 0xFF6D6D6D.toInt())
+            }
+            GrenadeKind.MOLOTOV -> {
+                partBox(0f, -0.02f, 0f, 0.075f, 0.15f, 0.075f, 0xFF4E7A3A.toInt())       // bottle
+                partBox(0f, 0.08f, 0f, 0.03f, 0.07f, 0.03f, 0xFF4E7A3A.toInt())          // neck
+                partBox(0f, 0.13f, 0f, 0.04f, 0.04f, 0.04f, 0xFFF5DEB3.toInt())          // rag
+                if (lit) {
                     Matrix.translateM(part, 0, base, 0, 0f, 0.17f, 0f)
                     val flicker = 0.06f + kotlin.random.Random.nextFloat() * 0.03f
                     Matrix.scaleM(part, 0, flicker, flicker * 1.4f, flicker)

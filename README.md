@@ -138,7 +138,8 @@ its starting rounds and grenades.
 
 Every player also carries grenades, thrown with the grenade button towards where you look (a
 weaker throw lying down). They bounce off walls, roofs and the ground, and every phone in the room
-sees the same throw. Tap the button below it to change kind.
+sees the same throw. Tap the button below it to change kind. More lie in the street (see
+[Pickups](#pickups)), up to twice what you start with.
 
 | Grenade | Carried | Goes off | Effect |
 | --- | --- | --- | --- |
@@ -155,6 +156,10 @@ sees the same throw. Tap the button below it to change kind.
 | Pistol magazine | 4 | +1 magazine for the pistol carried | 20 s |
 | Sniper rounds | 2 | +1 magazine for the sniper rifle carried | 40 s |
 | Scope | 2 | A 4× scope for a primary without one, until death | 60 s |
+| Frag grenade | 2 | +1 frag (up to 4 carried) | 40 s |
+| Flashbang | 2 | +1 flashbang (up to 4 carried) | 40 s |
+| Smoke grenade | 1 | +1 smoke grenade (up to 2 carried) | 45 s |
+| Molotov | 1 | +1 molotov (up to 2 carried) | 45 s |
 
 ### Cheat codes
 

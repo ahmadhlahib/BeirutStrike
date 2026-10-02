@@ -38,6 +38,9 @@ enum class GrenadeKind(
     MOLOTOV("molotov", "Molotov", carried = 1, fuseSeconds = 4f, impact = true, radius = 3.2f, seconds = 8f,
         color = 0xFFFF7043.toInt());
 
+    /** The most a player can carry, picking more up in the street: twice what they start with. */
+    val most get() = carried * 2
+
     companion object {
         /** A grenade by its id; null for one this version doesn't know (from a newer app). */
         fun byId(id: String?) = entries.firstOrNull { it.id == id }

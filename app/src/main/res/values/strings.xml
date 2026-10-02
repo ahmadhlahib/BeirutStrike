@@ -204,6 +204,12 @@
     <string name="pickup_primary_mag">Rifle magazine</string>
     <string name="pickup_sniper_mag">Sniper rounds</string>
     <string name="pickup_scope">Scope</string>
+    <string name="pickup_frag">Frag grenade</string>
+    <string name="pickup_flashbang">Flashbang</string>
+    <string name="pickup_smoke">Smoke grenade</string>
+    <string name="pickup_molotov">Molotov</string>
+    <!-- A grenade picked up: "+1 Frag (3 carried)". -->
+    <string name="picked_grenade">+1 %1$s (%2$d carried)</string>
     <!-- A magazine picked up: "+1 magazine for the AK-47 (30 rounds)". -->
     <string name="picked_magazine">+1 magazine for the %1$s (%2$d rounds)</string>
     <string name="picked_scope">Scope found! Tap the scope button to aim further</string>

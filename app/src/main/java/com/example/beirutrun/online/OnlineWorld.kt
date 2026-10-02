@@ -136,7 +136,7 @@ data class PlayerStats(
  * - `stats/{uid}`: that player's kills, deaths, shots, hits and hits taken for the scoreboard.
  *   Each phone only adds to its own, and they stay when the player leaves.
  *
- * - `pickups/{slot}`: an ammo pack or scope ([PickupKind.SLOTS] says which kind each slot holds),
+ * - `pickups/{slot}`: an ammo pack, scope or grenade ([PickupKind.SLOTS] says which kind each slot holds),
  *   where it lies, and when someone took it (`takenAt`, 0 = still there). Taking one and putting
  *   it back somewhere new are transactions, so only one player gets each and it comes back once.
  *

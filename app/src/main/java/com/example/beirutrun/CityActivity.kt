@@ -695,7 +695,14 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         PickupKind.PISTOL_AMMO -> R.string.pickup_pistol_mag
         PickupKind.AK_AMMO -> R.string.pickup_primary_mag
         PickupKind.SNIPER_AMMO -> R.string.pickup_sniper_mag
+        PickupKind.FRAG_GRENADE -> R.string.pickup_frag
+        PickupKind.FLASH_GRENADE -> R.string.pickup_flashbang
+        PickupKind.SMOKE_GRENADE -> R.string.pickup_smoke
+        PickupKind.MOLOTOV -> R.string.pickup_molotov
     })
+
+    /** A grenade is only picked up with room for it (see GrenadeKind.most): otherwise it stays for someone else. */
+    private fun canTake(p: Pickup) = p.kind.grenade?.let { renderer.unlimitedAmmo || renderer.canCarry(it) } ?: true
 
     /** The next of the three guns carried: pistol → primary → sniper rifle → pistol. */
     private fun switchWeapon() {
@@ -780,7 +787,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         if (dead || gameOver) return
         val px = renderer.playerX
         val pz = renderer.playerZ
-        val p = pickups.firstOrNull { it.slot !in taking && hypot(it.x - px, it.z - pz) < PICKUP_RADIUS } ?: return
+        val p = pickups.firstOrNull { it.slot !in taking && canTake(it) && hypot(it.x - px, it.z - pz) < PICKUP_RADIUS } ?: return
         if (!online.configured) {
             collect(p)
             showPickups(pickups - p)
@@ -794,10 +801,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
     }
 
-    /** A magazine goes to the gun carried in its slot; a scope fits the primary (until death). */
+    /** A magazine goes to the gun carried in its slot; a scope fits the primary (until death); a grenade joins the others. */
     private fun collect(p: Pickup) {
         val slot = p.kind.slot
-        if (slot != null) {
+        val grenade = p.kind.grenade
+        if (grenade != null) {
+            renderer.addGrenade(grenade)
+            sounds.grenadeThrow(0.5f)
+            showBanner(getString(R.string.picked_grenade, grenade.displayName, renderer.grenades(grenade)))
+            updateGrenadeButtons()
+        } else if (slot != null) {
             val gun = guns.getValue(slot)
             renderer.addMagazine(gun)
             showBanner(getString(R.string.picked_magazine, gun.displayName, gun.magazine))
