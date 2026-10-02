@@ -1,0 +1,356 @@
+<!doctype html>
+<!--
+  The Arabic version of Beirut Strike's website (right to left), at
+  https://ahmadhlahib.github.io/BeirutStrike/ar/. Same sections as ../index.html, sharing its
+  styles and script (../assets/site.css and site.js). Gun names, cheat codes and the game's
+  button labels stay in English, as they appear in the game.
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بيروت سترايك · لعبة تصويب جماعية في شوارع بيروت الحقيقية</title>
+<meta name="description" content="بيروت سترايك لعبة تصويب جماعية مجانية لأندرويد، تُلعب في نسخ ثلاثية الأبعاد من أحياء بيروت الحقيقية. 12 سلاحًا حقيقيًا، و20 رتبة عسكرية، وغرف عبر الإنترنت مع الأصدقاء.">
+<meta property="og:title" content="بيروت سترايك">
+<meta property="og:description" content="لعبة تصويب جماعية في شوارع بيروت الحقيقية. 12 سلاحًا حقيقيًا، و20 رتبة عسكرية، وغرف مع الأصدقاء.">
+<meta property="og:image" content="https://ahmadhlahib.github.io/BeirutStrike/assets/feature.jpg">
+<meta property="og:locale" content="ar_LB">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b0f13">
+<link rel="icon" href="../privacy/icon.png">
+<link rel="alternate" hreflang="en" href="https://ahmadhlahib.github.io/BeirutStrike/">
+<link rel="alternate" hreflang="ar" href="https://ahmadhlahib.github.io/BeirutStrike/ar/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Oswald:wght@500;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="../privacy/icon.png" alt="" width="36" height="36"><span>BEIRUT STRIKE</span></a>
+    <button class="menu-button" aria-expanded="false" aria-controls="menu">القائمة</button>
+    <nav id="menu">
+      <a href="#features">المزايا</a>
+      <a href="#maps">الخرائط</a>
+      <a href="#guns">الأسلحة</a>
+      <a href="#ranks">الرتب</a>
+      <a href="#how">طريقة اللعب</a>
+      <a href="#cheats">رموز الغش</a>
+      <a href="#faq">أسئلة شائعة</a>
+      <a class="lang" href="../" hreflang="en" lang="en">English</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-art" role="img" aria-label="جندي أمام أفق بيروت"></div>
+    <div class="wrap">
+      <p class="eyebrow">لعبة تصويب جماعية مجانية · أندرويد</p>
+      <h1>بيروت<br><em>سترايك</em></h1>
+      <p>معارك فرق في نسخ ثلاثية الأبعاد من شوارع بيروت الحقيقية. اختر أسلحتك، واختر فريقك، وارتقِ من جندي إلى أسطورة بيروت.</p>
+      <div class="buttons">
+        <a class="button primary" href="#download">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 2.5v19l10.5-9.5L4 2.5zm12.2 7.9L5.7 1.9 16.9 8.4l-.7 2zM5.7 22.1l10.5-8.5.7 2L5.7 22.1zM20.6 11l-2.9-1.7-1.6 2.7 1.6 2.7 2.9-1.7c.8-.5.8-1.5 0-2z"/></svg>
+          قريبًا على Google Play
+        </a>
+        <a class="button ghost" href="#trailer">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          شاهد العرض الدعائي
+        </a>
+      </div>
+      <p class="note">بلا إعلانات · بلا تسجيل · مجانية</p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div><strong>5</strong><span>خرائط حقيقية لبيروت</span></div>
+    <div><strong>12</strong><span>سلاحًا حقيقيًا</span></div>
+    <div><strong>20</strong><span>رتبة عسكرية</span></div>
+    <div><strong>3</strong><span>شخصيات</span></div>
+  </div>
+
+  <!-- Trailer -->
+  <section id="trailer">
+    <div class="wrap">
+      <p class="eyebrow">العرض الدعائي</p>
+      <h2>شاهدها أثناء اللعب</h2>
+      <p class="lead">اشتباكات على الكورنيش، وقنص عبر المدينة، وكل ما يمكنك فعله بين المباريات.</p>
+      <div class="video">
+        <video controls preload="metadata" poster="../assets/trailer_poster.jpg" playsinline>
+          <source src="../assets/trailer.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="wrap">
+      <p class="eyebrow">المزايا</p>
+      <h2>كل ما في اللعبة</h2>
+      <p class="lead">لعبة تصويب سريعة عبر الإنترنت على هاتفك، مبنية حول المدينة نفسها.</p>
+      <div class="grid three">
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l5-3v16M10 21V3l9 4v14"/></svg></div>
+          <h3>شوارع بيروت الحقيقية</h3>
+          <p>خمسة أحياء مبنية من بيانات خرائط حقيقية: أشكال المباني وارتفاعاتها، والطرق، والحدائق، والساحات، والأشجار، والبحر.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10h16l3 2v2H9l-2 5H4l1-5H2z"/></svg></div>
+          <h3>12 سلاحًا حقيقيًا</h3>
+          <p>مسدسات وبنادق ورشاشات وبنادق قنص، ولكلٍّ منها نموذج ثلاثي الأبعاد وصوت وارتداد ومخزن وإعادة تلقيم خاصة به.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.6 5.9 6.4.6-4.8 4.2 1.4 6.3L12 15.8 6.4 19l1.4-6.3L3 8.5l6.4-.6z"/></svg></div>
+          <h3>20 رتبة عسكرية</h3>
+          <p>اكسب نقاط الخبرة (XP) مع كل قتل وكل طلقة في الرأس وكل فوز. كل ترقية تمنحك شارة جديدة واحتفالًا بالرتبة.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 2.7-6 6-6s6 2.7 6 6M14 20c0-2.8 1.4-4.8 3-4.8s4 1.6 4 4.8"/></svg></div>
+          <h3>غرف مع الأصدقاء</h3>
+          <p>أنشئ غرفة: اختر الخريطة ومساحة اللعب ومدة المباراة، وأضف كلمة سر أو رتبة دنيا، وادعُ أصدقاءك.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4M4 4h13l-2 4 2 4H4"/></svg></div>
+          <h3>فرق وفصائل</h3>
+          <p>قاتل مع أحد الفصائل الثلاثة، أو أنشئ فريقك الخاص باسمه وعلمه ولونه. لا يستطيع أعضاء الفريق الواحد إيذاء بعضهم.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+          <h3>على طريقتك</h3>
+          <p>اختر شخصيتك، واحتفل بالفوز برقصة، وضع صورة وجهك على الجندي، وتحدّث بفقاعات الكلام، واترك صورًا في الشوارع.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Maps -->
+  <section id="maps">
+    <div class="wrap">
+      <p class="eyebrow">الخرائط</p>
+      <h2>خمسة أحياء حقيقية</h2>
+      <p class="lead">كل خريطة مبنية من بيانات OpenStreetMap. العب على الخريطة كاملة، أو في مربّع من 200 إلى 800 متر لقتال أقرب.</p>
+      <div class="maps">
+        <div class="map"><img src="../assets/maps/downtown.jpg" alt="خريطة وسط بيروت من الأعلى" loading="lazy"><div><h3>وسط بيروت</h3><p>مبانٍ من الحجر الرملي وجادّات واسعة حول وسط المدينة.</p></div></div>
+        <div class="map"><img src="../assets/maps/souks.jpg" alt="خريطة أسواق بيروت من الأعلى" loading="lazy"><div><h3>أسواق بيروت</h3><p>شوارع وممرّات حجرية قديمة في حيّ الأسواق.</p></div></div>
+        <div class="map"><img src="../assets/maps/hamra.jpg" alt="خريطة الحمرا من الأعلى" loading="lazy"><div><h3>الحمرا</h3><p>مبانٍ متوسطة الارتفاع ومتلاصقة، بشرفات وشوارع مزدحمة.</p></div></div>
+        <div class="map"><img src="../assets/maps/ain_el_mreisseh.jpg" alt="خريطة عين المريسة من الأعلى" loading="lazy"><div><h3>عين المريسة</h3><p>أبراج بيضاء على امتداد الكورنيش، مطلّة على البحر.</p></div></div>
+        <div class="map"><img src="../assets/maps/raouche.jpg" alt="خريطة الروشة من الأعلى" loading="lazy"><div><h3>الروشة</h3><p>أبراج على البحر قرب الصخرة الشهيرة.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Guns -->
+  <section id="guns">
+    <div class="wrap">
+      <p class="eyebrow">الترسانة</p>
+      <h2>12 سلاحًا حقيقيًا</h2>
+      <p class="lead">قبل كل مباراة، احمل مسدسًا وسلاحًا رئيسيًا وبندقية قنص، وبدّل بينها في المدينة. الذخيرة تنفد: ابحث عن علب الذخيرة والمناظير في الشوارع.</p>
+
+      <div class="gun-group">
+        <h3>المسدسات</h3>
+        <div class="guns">
+          <div class="gun"><h4>Beretta M9</h4><p class="cal">9 ملم · المسدس الكلاسيكي</p><dl><dt>المخزن</dt><dd>15 طلقة</dd><dt>الإطلاق</dt><dd>نصف آلي</dd><dt>المدى</dt><dd>40 م</dd><dt>الضرر</dt><dd class="pips" aria-label="1 من 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>Glock 17</h4><p class="cal">9 ملم · خفيف وزناده سريع</p><dl><dt>المخزن</dt><dd>17 طلقة</dd><dt>الإطلاق</dt><dd>نصف آلي</dd><dt>المدى</dt><dd>38 م</dd><dt>الضرر</dt><dd class="pips" aria-label="1 من 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>Desert Eagle</h4><p class="cal">.50 AE · ثقيل وارتداده كبير</p><dl><dt>المخزن</dt><dd>7 طلقات</dd><dt>الإطلاق</dt><dd>نصف آلي</dd><dt>المدى</dt><dd>45 م</dd><dt>الضرر</dt><dd class="pips" aria-label="2 من 5">♥♥<i>♥♥♥</i></dd></dl></div>
+        </div>
+      </div>
+
+      <div class="gun-group">
+        <h3>البنادق والرشاشات</h3>
+        <div class="guns">
+          <div class="gun"><h4>AK-47</h4><p class="cal">7.62 ملم · 600 طلقة في الدقيقة</p><dl><dt>المخزن</dt><dd>30 طلقة</dd><dt>الإطلاق</dt><dd>آلي بالكامل</dd><dt>المدى</dt><dd>80 م</dd><dt>الضرر</dt><dd class="pips" aria-label="1 من 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>M4A1</h4><p class="cal">5.56 ملم · ارتداد خفيف ومنظار 4×</p><dl><dt>المخزن</dt><dd>30 طلقة</dd><dt>الإطلاق</dt><dd>آلي بالكامل</dd><dt>المدى</dt><dd>90 م</dd><dt>المنظار</dt><dd>4×</dd></dl></div>
+          <div class="gun"><h4>MP5</h4><p class="cal">9 ملم · خفيف وثابت، مداه قصير</p><dl><dt>المخزن</dt><dd>30 طلقة</dd><dt>الإطلاق</dt><dd>آلي بالكامل</dd><dt>المدى</dt><dd>55 م</dd><dt>سرعة الحركة</dt><dd>الأسرع</dd></dl></div>
+          <div class="gun"><h4>RPK</h4><p class="cal">7.62 ملم · رشاش خفيف</p><dl><dt>المخزن</dt><dd>40 طلقة</dd><dt>الإطلاق</dt><dd>آلي بالكامل</dd><dt>المدى</dt><dd>100 م</dd><dt>الضرر</dt><dd class="pips" aria-label="1 من 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>M249 SAW</h4><p class="cal">5.56 ملم · يُغذّى بالحزام</p><dl><dt>الحزام</dt><dd>100 طلقة</dd><dt>الإطلاق</dt><dd>آلي بالكامل</dd><dt>المدى</dt><dd>100 م</dd><dt>إعادة التلقيم</dt><dd>بطيئة (6.5 ث)</dd></dl></div>
+        </div>
+      </div>
+
+      <div class="gun-group">
+        <h3>بنادق القنص</h3>
+        <div class="guns">
+          <div class="gun"><h4>SVD Dragunov</h4><p class="cal">7.62 ملم · نصف آلية</p><dl><dt>المخزن</dt><dd>10 طلقات</dd><dt>المنظار</dt><dd>2× · 4×</dd><dt>المدى</dt><dd>170 م</dd><dt>الضرر</dt><dd class="pips" aria-label="3 من 5">♥♥♥<i>♥♥</i></dd></dl></div>
+          <div class="gun"><h4>M24</h4><p class="cal">7.62 ملم · ترباسية</p><dl><dt>المخزن</dt><dd>5 طلقات</dd><dt>المنظار</dt><dd>4× · 10×</dd><dt>المدى</dt><dd>200 م</dd><dt>الضرر</dt><dd class="pips" aria-label="4 من 5">♥♥♥♥<i>♥</i></dd></dl></div>
+          <div class="gun"><h4>AWM</h4><p class="cal">.338 Lapua · ترباسية</p><dl><dt>المخزن</dt><dd>5 طلقات</dd><dt>المنظار</dt><dd>3× · 6× · 12×</dd><dt>المدى</dt><dd>215 م</dd><dt>الضرر</dt><dd class="pips" aria-label="5 من 5">♥♥♥♥♥</dd></dl></div>
+          <div class="gun"><h4>Barrett M82</h4><p class="cal">.50 BMG · نصف آلية</p><dl><dt>المخزن</dt><dd>10 طلقات</dd><dt>المنظار</dt><dd>5× · 10×</dd><dt>المدى</dt><dd>230 م</dd><dt>الضرر</dt><dd class="pips" aria-label="5 من 5">♥♥♥♥♥</dd></dl></div>
+        </div>
+      </div>
+      <p class="lead" style="margin:22px 0 0;font-size:15px">الضرر بالقلوب: لكل لاعب 5 قلوب. القتل بطلقة في الرأس يُحتسب طلقة في الرأس، ويمنحك نقاط خبرة إضافية.</p>
+    </div>
+  </section>
+
+  <!-- Ranks -->
+  <section id="ranks">
+    <div class="wrap">
+      <p class="eyebrow">المسيرة العسكرية</p>
+      <h2>ارتقِ عبر 20 رتبة عسكرية</h2>
+      <p class="lead">يبدأ الجميع برتبة جندي. اكسب نقاط الخبرة في المباريات عبر الإنترنت لتصل إلى أسطورة بيروت. تظهر شارتك على لوحة النتائج وفي الترتيب، ويمكن حصر الغرف برتبة دنيا.</p>
+      <div class="xp"><span>قتل +50 XP</span><span>طلقة في الرأس +25 XP</span><span>الفوز بمباراة +500 XP</span></div>
+      <div class="ranks" id="rank-list"></div>
+    </div>
+  </section>
+
+  <!-- Characters and teams -->
+  <section id="characters">
+    <div class="wrap split">
+      <div class="shot"><img src="../assets/shots/07_characters.jpg" alt="شاشة اختيار الشخصية مع علي اللهيب" loading="lazy"></div>
+      <div>
+        <p class="eyebrow">الشخصيات والفرق</p>
+        <h2>اختر مقاتلك</h2>
+        <p class="lead" style="margin-bottom:22px">يرى الجميع في الغرفة شخصيتك. والشخصيات التي لديها رقصات تحتفل عندما تفوز بالمباراة.</p>
+        <ul class="list">
+          <li><strong>الجندي</strong><span>الكلاسيكي، بزيّ فريقك. يمكنك وضع صورة وجهك عليه إن أردت.</span></li>
+          <li><strong>أحمد اللهيب</strong><span>الرقصات: <span lang="en">Wave hip-hop</span> و <span lang="en">Northern soul spin</span>.</span></li>
+          <li><strong>علي اللهيب</strong><span>الرقصات: <span lang="en">Front twist flip</span> و <span lang="en">Running forward flip</span>.</span></li>
+        </ul>
+        <p style="margin:22px 0 4px;font-weight:700">الفصائل</p>
+        <div class="teams">
+          <span style="background:#6a1b9a">عشيرة اللهيب</span>
+          <span style="background:#1565c0" lang="en">Corniche Sharks</span>
+          <span style="background:#b88a00" lang="en">Golden Lions</span>
+          <span style="background:#2a343e">+ أنشئ فريقك</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How to play -->
+  <section id="how">
+    <div class="wrap">
+      <p class="eyebrow">طريقة اللعب</p>
+      <h2>التحكّم</h2>
+      <p class="lead">أمسك هاتفك بالعرض. كل شيء على الشاشة.</p>
+      <table class="table">
+        <thead><tr><th>زر التحكّم</th><th>ماذا يفعل</th></tr></thead>
+        <tbody>
+          <tr><td>عصا التحكّم (أسفل اليسار)</td><td>المشي؛ ادفعها أكثر للركض</td></tr>
+          <tr><td>اسحب على المدينة</td><td>انظر حولك وصوّب</td></tr>
+          <tr><td>الزر الأحمر</td><td>أطلق النار. اضغط باستمرار للأسلحة الآلية</td></tr>
+          <tr><td>زر السلاح</td><td>بدّل بين المسدس والسلاح الرئيسي وبندقية القنص</td></tr>
+          <tr><td>إعادة التلقيم</td><td>غيّر المخزن</td></tr>
+          <tr><td>المنظار والتكبير</td><td>صوّب عبر المنظار وغيّر درجة التكبير</td></tr>
+          <tr><td>القفز / الزحف</td><td>اقفز، أو انبطح وازحف لتصعب إصابتك</td></tr>
+          <tr><td><span lang="en">Gun view / 3D person</span></td><td>انظر بعينَي جنديك، أو من خلفه</td></tr>
+          <tr><td><span lang="en">Say</span></td><td>فقاعة كلام فوق شخصيتك، أو رمز غش</td></tr>
+          <tr><td>الكاميرا</td><td>اترك صورة في الشارع ليجدها الآخرون</td></tr>
+          <tr><td>المؤقّت والخريطة المصغّرة</td><td>افتح لوحة النتائج، أو الخريطة كاملة</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Cheat codes -->
+  <section id="cheats">
+    <div class="wrap">
+      <p class="eyebrow">للمتعة فقط</p>
+      <h2>رموز الغش</h2>
+      <p class="lead">أنشئ غرفة مع تفعيل <strong lang="en">Allow cheats (just for fun)</strong>، ثم اكتب الرمز بالإنجليزية في خانة <strong lang="en">Say</strong>. لا يراه اللاعبون الآخرون، ويغيّر اللعبة على هاتفك فقط. لا تهمّ الأحرف الكبيرة، ولا المسافات الزائدة، ولا علامة "!" في النهاية.</p>
+      <table class="table">
+        <thead><tr><th>الرمز</th><th>ماذا يفعل</th></tr></thead>
+        <tbody>
+          <tr><td><code class="cheat" dir="ltr">unlimited ammo</code></td><td>ذخيرتك لا تنفد أبدًا</td></tr>
+          <tr><td><code class="cheat" dir="ltr">unlimited health</code></td><td>الإصابات لا تُفقدك أي قلب، وتعود صحتك كاملة</td></tr>
+          <tr><td><code class="cheat" dir="ltr">find a scope</code></td><td>يمنحك منظارًا؛ اضغط زر المنظار لتصوّب أبعد</td></tr>
+          <tr><td><code class="cheat" dir="ltr">full health</code></td><td>تعود صحتك كاملة، مرة واحدة</td></tr>
+          <tr><td><code class="cheat" dir="ltr">super speed</code></td><td>المشي والركض بسرعة مضاعفة</td></tr>
+          <tr><td><code class="cheat" dir="ltr">rapid fire</code></td><td>أسلحتك تطلق النار آليًا وبسرعة مضاعفة</td></tr>
+          <tr><td><code class="cheat" dir="ltr">cancel cheats</code></td><td>يوقف كل رموز الغش</td></tr>
+        </tbody>
+      </table>
+      <p class="callout">تظهر غرف الغش في قائمة الغرف مع عبارة <span lang="en" dir="ltr">"Cheats on · not ranked"</span>. للمباريات فيها لوحة نتائج، لكنها لا تُحتسب في الترتيب ولا في نقاط الخبرة ولا في الرتب العسكرية، لأي لاعب في الغرفة. أما في الغرف العادية، فيُظهر الرمز رسالة <span lang="en" dir="ltr">"Cheats are off in this room"</span> فقط.</p>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section id="screenshots">
+    <div class="wrap">
+      <p class="eyebrow">لقطات الشاشة</p>
+      <h2>من داخل اللعبة</h2>
+      <p class="lead">اضغط على أي صورة لرؤيتها بالحجم الكامل.</p>
+      <div class="gallery">
+        <button type="button"><img src="../assets/shots/01_beirut_streets.jpg" alt="منظور من الخلف على الكورنيش مع رشاش M249" loading="lazy"></button>
+        <button type="button"><img src="../assets/shots/02_real_guns.jpg" alt="منظور السلاح مع بندقية M4A1" loading="lazy"></button>
+        <button type="button"><img src="../assets/shots/03_scope.jpg" alt="التصويب عبر منظار القنص" loading="lazy"></button>
+        <button type="button"><img src="../assets/shots/04_team_battles.jpg" alt="مواجهة لاعب آخر من منظور ثلاثي الأبعاد" loading="lazy"></button>
+        <button type="button"><img src="../assets/shots/05_ranks.jpg" alt="الشاشة الرئيسية مع رتبة أسطورة بيروت" loading="lazy"></button>
+        <button type="button"><img src="../assets/shots/06_loadout.jpg" alt="اختيار الأسلحة قبل المباراة" loading="lazy"></button>
+        <button type="button"><img src="../assets/shots/08_rooms.jpg" alt="إنشاء غرفة" loading="lazy"></button>
+        <button type="button"><img src="../assets/shots/07_characters.jpg" alt="اختيار الشخصية" loading="lazy"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="wrap">
+      <p class="eyebrow">أسئلة شائعة</p>
+      <h2>الأسئلة</h2>
+      <p class="lead">لم تجد جوابك؟ راسلنا على <a href="mailto:Ahmad.h.lahib@gmail.com" dir="ltr">Ahmad.h.lahib@gmail.com</a>.</p>
+      <details><summary>هل بيروت سترايك مجانية؟</summary><p>نعم. مجانية، بلا إعلانات ولا شيء للشراء.</p></details>
+      <details><summary>هل أحتاج إلى حساب؟</summary><p>لا. اكتب اسم لاعب والعب. تمنح اللعبة هاتفك معرّفًا مجهول الهوية في الخلفية؛ لا بريد إلكتروني ولا كلمة سر.</p></details>
+      <details><summary>على أي هواتف تعمل؟</summary><p>أندرويد 8.0 أو أحدث، مع رسوميات OpenGL ES 2.0 (أي تقريبًا كل الهواتف من السنوات الأخيرة). تُلعب اللعبة والهاتف بالعرض.</p></details>
+      <details><summary>كيف ألعب مع أصدقائي؟</summary><p>أنشئ غرفة، واختر الخريطة ومدة المباراة، وأضف كلمة سر. شارك كلمة السر مع أصدقائك، فهم وحدهم يستطيعون الدخول. ويمكنك أيضًا تحديد رتبة دنيا ليدخل اللاعبون المتمرّسون فقط.</p></details>
+      <details><summary>كيف أرتقي في الرتب؟</summary><p>العب مباريات عبر الإنترنت في غرف بلا غش: كل قتل يمنحك 50 نقطة خبرة، والقتل بطلقة في الرأس 25 نقطة إضافية، والفوز بالمباراة 500. تتدرّج رتبتك من جندي (المستوى 1) إلى أسطورة بيروت (المستوى 20، عند 45,500 نقطة).</p></details>
+      <details><summary>هل يمكنني اللعب بدون إنترنت؟</summary><p>تحتاج إلى الإنترنت للعب مع الآخرين. ومن دونه، تبقى المدينة متاحة للعب الفردي.</p></details>
+      <details><summary>هل بياناتي آمنة؟</summary><p>لا تجمع اللعبة إلا ما تحتاجه لتعمل: اسم اللاعب، ومعرّفًا مجهول الهوية، وإحصاءات اللعب، والصور والرسائل التي تختار مشاركتها. اقرأ <a href="../privacy/">سياسة الخصوصية</a> (بالإنجليزية). يمكنك حذف كل شيء من القائمة عبر <strong lang="en">Delete my data</strong>، أو <a href="../delete-data/">بالبريد الإلكتروني</a>.</p></details>
+      <details><summary>ماذا لو أساء أحدهم التصرّف؟</summary><p>افتح <strong lang="en">Players</strong> في قائمة اللعبة، أو صورة تركها أحدهم، للإبلاغ عنه أو حظره. ويمكنك أيضًا الإبلاغ عن فريق بالضغط المطوّل عليه. تُراجَع البلاغات ويُزال المحتوى المسيء.</p></details>
+    </div>
+  </section>
+
+  <!-- Download -->
+  <section id="download" class="download">
+    <div class="wrap">
+      <img class="logo" src="../privacy/icon.png" alt="أيقونة بيروت سترايك" width="120" height="120">
+      <h2>قريبًا على Google Play</h2>
+      <p class="lead">بيروت سترايك في مرحلة الاختبار الآن. تريد أن تلعب مبكرًا وتساعد في اختبارها؟ راسلنا وسنضيفك إلى الاختبار.</p>
+      <div class="buttons">
+        <a class="button primary" href="mailto:Ahmad.h.lahib@gmail.com?subject=Beirut%20Strike%20tester&amp;body=I%27d%20like%20to%20test%20Beirut%20Strike.%20My%20Google%20Play%20email%3A%20">انضم إلى الاختبار</a>
+        <a class="button ghost" href="#trailer">شاهد العرض الدعائي</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <h4>بيروت سترايك</h4>
+        <p style="margin:0 0 10px">لعبة تصويب جماعية لأندرويد من تطوير أحمد اللهيب.</p>
+        <a href="mailto:Ahmad.h.lahib@gmail.com" dir="ltr">Ahmad.h.lahib@gmail.com</a>
+      </div>
+      <div>
+        <h4>روابط</h4>
+        <ul>
+          <li><a href="../privacy/">سياسة الخصوصية</a></li>
+          <li><a href="../delete-data/">حذف بياناتك</a></li>
+          <li><a href="#cheats">رموز الغش</a></li>
+          <li><a href="#faq">أسئلة شائعة</a></li>
+          <li><a href="../" hreflang="en" lang="en">English</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>حقوق ومساهمات</h4>
+        <ul>
+          <li>بيانات الخرائط © <a href="https://www.openstreetmap.org/copyright">مساهمو OpenStreetMap</a></li>
+          <li>الأسلحة ثلاثية الأبعاد والأذرع من <a href="https://sketchfab.com">Sketchfab</a> بموجب ترخيص CC BY 4.0، من TastyTony وFriendly وquick_loop وBURNER</li>
+          <li>أصوات الأسلحة من Wikimedia Commons: Beeld en Geluid (CC BY-SA 3.0) وMike Koenig (CC BY-SA 4.0)</li>
+          <li>حركات الشخصيات من Mixamo</li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">© 2026 أحمد اللهيب. الفصائل في اللعبة خيالية ولا تمثّل أي جهة حقيقية. Google Play علامة تجارية لشركة Google LLC.</p>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-label="لقطة شاشة"><img alt=""></div>
+
+<script src="../assets/site.js"></script>
+</body>
+</html>
