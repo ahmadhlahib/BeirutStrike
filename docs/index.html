@@ -1,0 +1,599 @@
+<!doctype html>
+<!--
+  Beirut Strike's website, served by GitHub Pages at https://ahmadhlahib.github.io/BeirutStrike/.
+  Images and the trailer are in assets/ (made from store/ and the app's assets; rank badges are
+  SVG copies of res/drawable/rank_*.xml). The privacy policy and the data deletion page sit
+  beside it in privacy/ and delete-data/.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beirut Strike · Multiplayer shooter in real Beirut streets</title>
+<meta name="description" content="Beirut Strike is a free multiplayer shooter for Android, played in 3D recreations of real Beirut neighbourhoods. 12 real guns, 20 military ranks, online rooms with friends.">
+<meta property="og:title" content="Beirut Strike">
+<meta property="og:description" content="Multiplayer shooter in real Beirut streets. 12 real guns, 20 military ranks, online rooms with friends.">
+<meta property="og:image" content="https://ahmadhlahib.github.io/BeirutStrike/assets/feature.jpg">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b0f13">
+<link rel="icon" href="privacy/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0f13;
+    --bg-2: #10161c;
+    --panel: #141a20;
+    --panel-2: #1b232b;
+    --line: #2a343e;
+    --text: #eef1f4;
+    --muted: #9aa6b2;
+    --gold: #e8b64a;
+    --gold-light: #ffe08a;
+    --gold-dark: #9c6b00;
+    --red: #e53935;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  img, video { max-width: 100%; display: block; }
+  a { color: var(--gold); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+  h1, h2, h3, .display { font-family: Oswald, "Bahnschrift", "Arial Narrow", Impact, sans-serif; letter-spacing: .02em; }
+  h2 { font-size: clamp(30px, 5vw, 44px); line-height: 1.1; margin: 0 0 12px; text-transform: uppercase; }
+  h3 { font-size: 22px; margin: 0 0 6px; }
+  .eyebrow { color: var(--gold); font-weight: 700; font-size: 13px; letter-spacing: .2em; text-transform: uppercase; margin: 0 0 10px; }
+  .lead { color: var(--muted); font-size: 18px; max-width: 720px; margin: 0 0 36px; }
+  section { padding: 88px 0; border-top: 1px solid #161d24; }
+  section:nth-of-type(even) { background: var(--bg-2); }
+
+  /* Navigation */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(11, 15, 19, .88); backdrop-filter: blur(10px);
+    border-bottom: 1px solid #1c242c;
+  }
+  .nav .wrap { display: flex; align-items: center; gap: 20px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .brand img { width: 36px; height: 36px; border-radius: 9px; }
+  .brand span { font-family: Oswald, "Bahnschrift", sans-serif; font-size: 20px; letter-spacing: .06em; }
+  .nav nav { margin-left: auto; display: flex; gap: 22px; }
+  .nav nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; }
+  .nav nav a:hover { color: var(--gold-light); }
+  .menu-button { display: none; margin-left: auto; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 8px 12px; font: inherit; }
+  @media (max-width: 900px) {
+    .menu-button { display: block; }
+    .nav nav { display: none; position: absolute; top: 64px; left: 0; right: 0; flex-direction: column; gap: 0; background: #0e1318; border-bottom: 1px solid var(--line); }
+    .nav nav.open { display: flex; }
+    .nav nav a { padding: 14px 20px; border-top: 1px solid #1c242c; }
+  }
+
+  /* Buttons */
+  .buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+  .button {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 22px; border-radius: 12px; font-weight: 700; text-decoration: none;
+    border: 1px solid transparent; font-size: 16px;
+  }
+  .button.primary { background: linear-gradient(180deg, var(--gold-light), var(--gold)); color: #1d2126; }
+  .button.ghost { border-color: var(--gold); color: var(--gold-light); background: rgba(232, 182, 74, .06); }
+  .button svg { width: 20px; height: 20px; }
+
+  /* Hero */
+  .hero { position: relative; overflow: hidden; border-bottom: 2px solid var(--gold); }
+  .hero-art {
+    position: absolute; inset: 0;
+    background: url(assets/feature.jpg) right center / cover no-repeat;
+  }
+  .hero-art::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, #0b0f13 0%, rgba(11, 15, 19, .92) 38%, rgba(11, 15, 19, .35) 70%, rgba(11, 15, 19, .15) 100%);
+  }
+  .hero .wrap { position: relative; padding-top: 110px; padding-bottom: 110px; }
+  .hero h1 { font-size: clamp(54px, 10vw, 104px); line-height: .95; margin: 0 0 18px; text-transform: uppercase; }
+  .hero h1 em { font-style: normal; color: var(--gold); }
+  .hero p { font-size: clamp(18px, 2.4vw, 22px); color: #d3d9df; max-width: 560px; margin: 0 0 30px; }
+  .hero .note { font-size: 14px; color: var(--muted); margin-top: 14px; }
+  .hero .eyebrow { font-size: 13px; color: var(--gold); margin: 0 0 10px; }
+  @media (max-width: 700px) {
+    .hero-art { background-position: 70% center; opacity: .45; }
+    .hero-art::after { background: linear-gradient(180deg, rgba(11,15,19,.6), #0b0f13); }
+    .hero .wrap { padding-top: 70px; padding-bottom: 70px; }
+  }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+  .stats div { background: #0e1318; padding: 22px 12px; text-align: center; }
+  .stats strong { display: block; font-family: Oswald, "Bahnschrift", sans-serif; font-size: 34px; color: var(--gold-light); line-height: 1.1; }
+  .stats span { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .12em; }
+  @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+  /* Cards */
+  .grid { display: grid; gap: 18px; }
+  .grid.three { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px; border-top: 3px solid var(--gold);
+  }
+  .card p { color: var(--muted); margin: 0; }
+  .icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba(232,182,74,.12); color: var(--gold-light); margin-bottom: 14px; }
+  .icon svg { width: 24px; height: 24px; }
+
+  .video { border: 2px solid var(--gold); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); background: #000; }
+
+  /* Maps */
+  .maps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 16px; }
+  .map { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .map img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+  .map div { padding: 14px 16px 18px; }
+  .map h3 { font-size: 19px; }
+  .map p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  /* Guns */
+  .gun-group { margin-top: 34px; }
+  .gun-group h3 { color: var(--gold); text-transform: uppercase; letter-spacing: .1em; font-size: 16px; margin-bottom: 12px; }
+  .guns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 14px; }
+  .gun { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .gun h4 { margin: 0 0 2px; font-family: Oswald, "Bahnschrift", sans-serif; font-size: 22px; letter-spacing: .03em; }
+  .gun .cal { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+  .gun dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+  .gun dt { color: var(--muted); }
+  .gun dd { margin: 0; font-weight: 600; }
+  .pips { letter-spacing: 2px; color: var(--red); }
+  .pips i { color: #3a434c; font-style: normal; }
+
+  /* Ranks */
+  .xp { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 30px; }
+  .xp span { background: rgba(232,182,74,.1); border: 1px solid var(--gold-dark); color: var(--gold-light); border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: 14px; }
+  .ranks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 12px; }
+  @media (min-width: 900px) { .ranks { grid-template-columns: repeat(5, 1fr); } }
+  .rank { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px 16px; text-align: center; }
+  .rank img { width: 72px; height: 72px; margin: 0 auto 8px; }
+  .rank .lv { color: var(--muted); font-size: 11px; letter-spacing: .14em; font-weight: 700; }
+  .rank .ar { font-size: 19px; font-weight: 700; color: var(--gold-light); line-height: 1.3; }
+  .rank .en { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #c9d1d9; }
+  .rank .need { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .rank.top { border-color: var(--gold); background: linear-gradient(180deg, #2b2412, var(--panel)); }
+
+  /* Characters */
+  .split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+  .shot { border: 2px solid var(--gold); border-radius: var(--radius); overflow: hidden; box-shadow: 0 16px 50px rgba(0,0,0,.45); }
+  .list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .list li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .list strong { display: block; }
+  .list span { color: var(--muted); font-size: 14px; }
+  .teams { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .teams span { border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; color: #fff; }
+
+  /* Tables */
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .table th, .table td { text-align: left; padding: 13px 16px; border-top: 1px solid var(--line); vertical-align: top; }
+  .table thead th { border-top: 0; background: var(--panel-2); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+  .table td:first-child { white-space: nowrap; font-weight: 600; }
+  code.cheat { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; background: #0b0f13; border: 1px solid var(--gold-dark); color: var(--gold-light); padding: 3px 9px; border-radius: 8px; font-size: 14px; white-space: nowrap; }
+  @media (max-width: 640px) {
+    .table thead { display: none; }
+    .table tr { display: block; border-top: 1px solid var(--line); padding: 10px 0; }
+    .table tr:first-child { border-top: 0; }
+    .table td { display: block; border: 0; padding: 4px 16px; }
+  }
+  .callout { margin-top: 18px; background: rgba(229, 57, 53, .08); border: 1px solid rgba(229, 57, 53, .4); border-radius: 12px; padding: 14px 18px; color: #f1c9c8; font-size: 15px; }
+
+  /* Gallery */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 14px; }
+  .gallery button { padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: none; cursor: zoom-in; }
+  .gallery img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; transition: transform .25s; }
+  .gallery button:hover img { transform: scale(1.03); }
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; place-items: center; z-index: 100; padding: 20px; cursor: zoom-out; }
+  .lightbox.open { display: grid; }
+  .lightbox img { max-height: 92vh; border: 2px solid var(--gold); border-radius: 12px; }
+
+  /* FAQ */
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 0 18px; margin-bottom: 10px; }
+  summary { cursor: pointer; padding: 16px 0; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--gold); font-size: 22px; line-height: 1; }
+  details[open] summary::after { content: "\2212"; }
+  details p { margin: 0 0 16px; color: var(--muted); }
+
+  /* Download */
+  .download { text-align: center; background: radial-gradient(ellipse at center, rgba(232,182,74,.16), transparent 65%), var(--bg); }
+  .download img.logo { width: 120px; height: 120px; border-radius: 26px; margin: 0 auto 20px; border: 2px solid var(--gold); }
+  .download .buttons { justify-content: center; }
+  .download .lead { margin-left: auto; margin-right: auto; }
+
+  footer { border-top: 2px solid var(--gold); background: #080b0e; padding: 44px 0 30px; color: var(--muted); font-size: 14px; }
+  footer .cols { display: grid; grid-template-columns: 1.3fr 1fr 1.6fr; gap: 30px; }
+  @media (max-width: 760px) { footer .cols { grid-template-columns: 1fr; } }
+  footer h4 { color: var(--text); margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .12em; }
+  footer a { color: #c9d1d9; text-decoration: none; }
+  footer a:hover { color: var(--gold-light); }
+  footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+  footer .legal { margin-top: 30px; padding-top: 18px; border-top: 1px solid #1c242c; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="privacy/icon.png" alt="" width="36" height="36"><span>BEIRUT STRIKE</span></a>
+    <button class="menu-button" aria-expanded="false" aria-controls="menu">Menu</button>
+    <nav id="menu">
+      <a href="#features">Features</a>
+      <a href="#maps">Maps</a>
+      <a href="#guns">Guns</a>
+      <a href="#ranks">Ranks</a>
+      <a href="#how">How to play</a>
+      <a href="#cheats">Cheat codes</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-art" role="img" aria-label="A soldier in front of the Beirut skyline"></div>
+    <div class="wrap">
+      <p class="eyebrow">Free multiplayer shooter · Android</p>
+      <h1>Beirut<br><em>Strike</em></h1>
+      <p>Team battles in 3D recreations of real Beirut streets. Pick your guns, pick your side, and rise from Private to Beirut Legend.</p>
+      <div class="buttons">
+        <a class="button primary" href="#download">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 2.5v19l10.5-9.5L4 2.5zm12.2 7.9L5.7 1.9 16.9 8.4l-.7 2zM5.7 22.1l10.5-8.5.7 2L5.7 22.1zM20.6 11l-2.9-1.7-1.6 2.7 1.6 2.7 2.9-1.7c.8-.5.8-1.5 0-2z"/></svg>
+          Coming soon to Google Play
+        </a>
+        <a class="button ghost" href="#trailer">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          Watch the trailer
+        </a>
+      </div>
+      <p class="note">No ads · No sign-up · Free</p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div><strong>5</strong><span>Real Beirut maps</span></div>
+    <div><strong>12</strong><span>Real guns</span></div>
+    <div><strong>20</strong><span>Military ranks</span></div>
+    <div><strong>3</strong><span>Characters</span></div>
+  </div>
+
+  <!-- Trailer -->
+  <section id="trailer">
+    <div class="wrap">
+      <p class="eyebrow">Trailer</p>
+      <h2>See it in action</h2>
+      <p class="lead">Firefights on the Corniche, sniping across the city, and everything you can do between matches.</p>
+      <div class="video">
+        <video controls preload="metadata" poster="assets/trailer_poster.jpg" playsinline>
+          <source src="assets/trailer.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="wrap">
+      <p class="eyebrow">Features</p>
+      <h2>Everything in the game</h2>
+      <p class="lead">A fast online shooter for your phone, built around the city itself.</p>
+      <div class="grid three">
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l5-3v16M10 21V3l9 4v14"/></svg></div>
+          <h3>Real Beirut streets</h3>
+          <p>Five neighbourhoods built from real map data: building shapes and heights, roads, parks, squares, trees and the sea.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10h16l3 2v2H9l-2 5H4l1-5H2z"/></svg></div>
+          <h3>12 real guns</h3>
+          <p>Pistols, rifles, machine guns and sniper rifles, each with its own 3D model, sound, recoil, magazine and reload.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.6 5.9 6.4.6-4.8 4.2 1.4 6.3L12 15.8 6.4 19l1.4-6.3L3 8.5l6.4-.6z"/></svg></div>
+          <h3>20 military ranks</h3>
+          <p>Earn XP with every kill, headshot and win. Each promotion brings a new badge and a rank-up celebration.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3.3 2.7-6 6-6s6 2.7 6 6M14 20c0-2.8 1.4-4.8 3-4.8s4 1.6 4 4.8"/></svg></div>
+          <h3>Rooms with friends</h3>
+          <p>Create a room: pick the map, the play area and the match length, add a password or a minimum rank, and invite your friends.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4M4 4h13l-2 4 2 4H4"/></svg></div>
+          <h3>Teams and factions</h3>
+          <p>Fight for one of three factions, or create your own team with its own name, flag and colour. Teammates can't hurt each other.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+          <h3>Make it yours</h3>
+          <p>Choose your character, celebrate wins with a victory dance, put your face on the soldier, talk with speech bubbles and leave photos in the streets.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Maps -->
+  <section id="maps">
+    <div class="wrap">
+      <p class="eyebrow">Maps</p>
+      <h2>Five real neighbourhoods</h2>
+      <p class="lead">Every map is built from OpenStreetMap data. Play the whole map, or a square of 200 to 800 metres for a tighter fight.</p>
+      <div class="maps">
+        <div class="map"><img src="assets/maps/downtown.jpg" alt="Top-down map of Beirut Downtown" loading="lazy"><div><h3>Beirut Downtown</h3><p>Sandstone blocks and wide avenues around the city centre.</p></div></div>
+        <div class="map"><img src="assets/maps/souks.jpg" alt="Top-down map of Beirut Souks" loading="lazy"><div><h3>Beirut Souks</h3><p>Old stone streets and passages of the market quarter.</p></div></div>
+        <div class="map"><img src="assets/maps/hamra.jpg" alt="Top-down map of Hamra" loading="lazy"><div><h3>Hamra</h3><p>Dense mid-rise blocks with balconies and busy streets.</p></div></div>
+        <div class="map"><img src="assets/maps/ain_el_mreisseh.jpg" alt="Top-down map of Ain El Mreisseh" loading="lazy"><div><h3>Ain El Mreisseh</h3><p>White towers along the Corniche, facing the sea.</p></div></div>
+        <div class="map"><img src="assets/maps/raouche.jpg" alt="Top-down map of Raouche" loading="lazy"><div><h3>Raouche</h3><p>Seafront towers by the famous rocks.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Guns -->
+  <section id="guns">
+    <div class="wrap">
+      <p class="eyebrow">Arsenal</p>
+      <h2>12 real guns</h2>
+      <p class="lead">Before each match, carry one pistol, one primary and one sniper rifle, and switch between them in the city. Ammo runs out: find ammo packs and scopes in the streets.</p>
+
+      <div class="gun-group">
+        <h3>Pistols</h3>
+        <div class="guns">
+          <div class="gun"><h4>Beretta M9</h4><p class="cal">9 mm · the classic sidearm</p><dl><dt>Magazine</dt><dd>15 rounds</dd><dt>Fire</dt><dd>Semi-automatic</dd><dt>Range</dt><dd>40 m</dd><dt>Damage</dt><dd class="pips" aria-label="1 of 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>Glock 17</h4><p class="cal">9 mm · light, with a quick trigger</p><dl><dt>Magazine</dt><dd>17 rounds</dd><dt>Fire</dt><dd>Semi-automatic</dd><dt>Range</dt><dd>38 m</dd><dt>Damage</dt><dd class="pips" aria-label="1 of 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>Desert Eagle</h4><p class="cal">.50 AE · heavy, with big recoil</p><dl><dt>Magazine</dt><dd>7 rounds</dd><dt>Fire</dt><dd>Semi-automatic</dd><dt>Range</dt><dd>45 m</dd><dt>Damage</dt><dd class="pips" aria-label="2 of 5">♥♥<i>♥♥♥</i></dd></dl></div>
+        </div>
+      </div>
+
+      <div class="gun-group">
+        <h3>Rifles and machine guns</h3>
+        <div class="guns">
+          <div class="gun"><h4>AK-47</h4><p class="cal">7.62 mm · 600 rounds a minute</p><dl><dt>Magazine</dt><dd>30 rounds</dd><dt>Fire</dt><dd>Fully automatic</dd><dt>Range</dt><dd>80 m</dd><dt>Damage</dt><dd class="pips" aria-label="1 of 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>M4A1</h4><p class="cal">5.56 mm · soft recoil, 4× sight</p><dl><dt>Magazine</dt><dd>30 rounds</dd><dt>Fire</dt><dd>Fully automatic</dd><dt>Range</dt><dd>90 m</dd><dt>Scope</dt><dd>4×</dd></dl></div>
+          <div class="gun"><h4>MP5</h4><p class="cal">9 mm · light and steady, short range</p><dl><dt>Magazine</dt><dd>30 rounds</dd><dt>Fire</dt><dd>Fully automatic</dd><dt>Range</dt><dd>55 m</dd><dt>Move speed</dt><dd>Fastest</dd></dl></div>
+          <div class="gun"><h4>RPK</h4><p class="cal">7.62 mm light machine gun</p><dl><dt>Magazine</dt><dd>40 rounds</dd><dt>Fire</dt><dd>Fully automatic</dd><dt>Range</dt><dd>100 m</dd><dt>Damage</dt><dd class="pips" aria-label="1 of 5">♥<i>♥♥♥♥</i></dd></dl></div>
+          <div class="gun"><h4>M249 SAW</h4><p class="cal">5.56 mm · belt-fed</p><dl><dt>Belt</dt><dd>100 rounds</dd><dt>Fire</dt><dd>Fully automatic</dd><dt>Range</dt><dd>100 m</dd><dt>Reload</dt><dd>Slow (6.5 s)</dd></dl></div>
+        </div>
+      </div>
+
+      <div class="gun-group">
+        <h3>Sniper rifles</h3>
+        <div class="guns">
+          <div class="gun"><h4>SVD Dragunov</h4><p class="cal">7.62 mm · semi-automatic</p><dl><dt>Magazine</dt><dd>10 rounds</dd><dt>Scope</dt><dd>2× · 4×</dd><dt>Range</dt><dd>170 m</dd><dt>Damage</dt><dd class="pips" aria-label="3 of 5">♥♥♥<i>♥♥</i></dd></dl></div>
+          <div class="gun"><h4>M24</h4><p class="cal">7.62 mm · bolt action</p><dl><dt>Magazine</dt><dd>5 rounds</dd><dt>Scope</dt><dd>4× · 10×</dd><dt>Range</dt><dd>200 m</dd><dt>Damage</dt><dd class="pips" aria-label="4 of 5">♥♥♥♥<i>♥</i></dd></dl></div>
+          <div class="gun"><h4>AWM</h4><p class="cal">.338 Lapua · bolt action</p><dl><dt>Magazine</dt><dd>5 rounds</dd><dt>Scope</dt><dd>3× · 6× · 12×</dd><dt>Range</dt><dd>215 m</dd><dt>Damage</dt><dd class="pips" aria-label="5 of 5">♥♥♥♥♥</dd></dl></div>
+          <div class="gun"><h4>Barrett M82</h4><p class="cal">.50 BMG · semi-automatic</p><dl><dt>Magazine</dt><dd>10 rounds</dd><dt>Scope</dt><dd>5× · 10×</dd><dt>Range</dt><dd>230 m</dd><dt>Damage</dt><dd class="pips" aria-label="5 of 5">♥♥♥♥♥</dd></dl></div>
+        </div>
+      </div>
+      <p class="lead" style="margin:22px 0 0;font-size:15px">Damage is in hearts: every player has 5. A kill with a shot to the head is a headshot, and earns extra XP.</p>
+    </div>
+  </section>
+
+  <!-- Ranks -->
+  <section id="ranks">
+    <div class="wrap">
+      <p class="eyebrow">Career</p>
+      <h2>Rise through 20 military ranks</h2>
+      <p class="lead">Everyone starts as a Private. Earn XP in online matches to climb all the way to Beirut Legend. Your badge shows on the scoreboard and the ranking, and rooms can be limited to a minimum rank.</p>
+      <div class="xp"><span>Kill +50 XP</span><span>Headshot +25 XP</span><span>Win a match +500 XP</span></div>
+      <div class="ranks" id="rank-list"></div>
+    </div>
+  </section>
+
+  <!-- Characters and teams -->
+  <section id="characters">
+    <div class="wrap split">
+      <div class="shot"><img src="assets/shots/07_characters.jpg" alt="The character screen, with Ali El Lahib" loading="lazy"></div>
+      <div>
+        <p class="eyebrow">Characters and teams</p>
+        <h2>Pick your fighter</h2>
+        <p class="lead" style="margin-bottom:22px">Everyone in the room sees your character. Characters with dances celebrate when they win a match.</p>
+        <ul class="list">
+          <li><strong>Soldier</strong><span>The classic, in your team's uniform. Put your own face photo on him if you like.</span></li>
+          <li><strong>Ahmad El Lahib</strong><span>Dances: Wave hip-hop and Northern soul spin.</span></li>
+          <li><strong>Ali El Lahib</strong><span>Dances: Front twist flip and Running forward flip.</span></li>
+        </ul>
+        <p style="margin:22px 0 4px;font-weight:700">Factions</p>
+        <div class="teams">
+          <span style="background:#6a1b9a">عشيرة اللهيب</span>
+          <span style="background:#1565c0">Corniche Sharks</span>
+          <span style="background:#b88a00">Golden Lions</span>
+          <span style="background:#2a343e">+ create your own team</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How to play -->
+  <section id="how">
+    <div class="wrap">
+      <p class="eyebrow">How to play</p>
+      <h2>Controls</h2>
+      <p class="lead">Hold your phone sideways. Everything is on screen.</p>
+      <table class="table">
+        <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Joystick (bottom left)</td><td>Walk; push further to run</td></tr>
+          <tr><td>Swipe on the city</td><td>Look around and aim</td></tr>
+          <tr><td>Red button</td><td>Shoot. Hold it for automatic guns</td></tr>
+          <tr><td>Gun button</td><td>Switch between your pistol, primary and sniper rifle</td></tr>
+          <tr><td>Reload</td><td>Change the magazine</td></tr>
+          <tr><td>Scope and zoom</td><td>Aim through the scope and change its magnification</td></tr>
+          <tr><td>Jump / Crawl</td><td>Jump, or lie down and crawl to be harder to hit</td></tr>
+          <tr><td>Gun view / 3D person</td><td>See through your soldier's eyes, or from behind</td></tr>
+          <tr><td>Say</td><td>A speech bubble above your character, or a cheat code</td></tr>
+          <tr><td>Camera</td><td>Leave a photo in the street for others to find</td></tr>
+          <tr><td>Timer and minimap</td><td>Open the scoreboard, or the full map</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Cheat codes -->
+  <section id="cheats">
+    <div class="wrap">
+      <p class="eyebrow">Just for fun</p>
+      <h2>Cheat codes</h2>
+      <p class="lead">Create a room with <strong>Allow cheats (just for fun)</strong> turned on, then type a code in the <strong>Say</strong> box. Other players don't see it, and it only changes the game on your phone. Capitals, extra spaces and a final "!" don't matter.</p>
+      <table class="table">
+        <thead><tr><th>Code</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code class="cheat">unlimited ammo</code></td><td>Your bullets never run out</td></tr>
+          <tr><td><code class="cheat">unlimited health</code></td><td>Hits never cost a heart, and your health goes back to full</td></tr>
+          <tr><td><code class="cheat">find a scope</code></td><td>Gives you a scope; tap the scope button to aim further</td></tr>
+          <tr><td><code class="cheat">full health</code></td><td>Your health goes back to full, once</td></tr>
+          <tr><td><code class="cheat">super speed</code></td><td>Walk and run twice as fast</td></tr>
+          <tr><td><code class="cheat">rapid fire</code></td><td>Your guns fire automatically, twice as fast</td></tr>
+          <tr><td><code class="cheat">cancel cheats</code></td><td>Turns every cheat off</td></tr>
+        </tbody>
+      </table>
+      <p class="callout">Cheat rooms are marked "Cheats on · not ranked" in the room list. Matches there still have a scoreboard, but they don't count toward the Ranking, XP or military ranks, for anyone in the room. In a normal room, a code just shows "Cheats are off in this room".</p>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section id="screenshots">
+    <div class="wrap">
+      <p class="eyebrow">Screenshots</p>
+      <h2>Inside the game</h2>
+      <p class="lead">Tap a picture to see it full size.</p>
+      <div class="gallery">
+        <button type="button"><img src="assets/shots/01_beirut_streets.jpg" alt="Third-person view on the Corniche with an M249" loading="lazy"></button>
+        <button type="button"><img src="assets/shots/02_real_guns.jpg" alt="First-person view with an M4A1" loading="lazy"></button>
+        <button type="button"><img src="assets/shots/03_scope.jpg" alt="Aiming through a sniper scope" loading="lazy"></button>
+        <button type="button"><img src="assets/shots/04_team_battles.jpg" alt="Facing another player in third person" loading="lazy"></button>
+        <button type="button"><img src="assets/shots/05_ranks.jpg" alt="The home screen showing the Beirut Legend rank" loading="lazy"></button>
+        <button type="button"><img src="assets/shots/06_loadout.jpg" alt="Choosing guns before a match" loading="lazy"></button>
+        <button type="button"><img src="assets/shots/08_rooms.jpg" alt="Creating a room" loading="lazy"></button>
+        <button type="button"><img src="assets/shots/07_characters.jpg" alt="Choosing a character" loading="lazy"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="wrap">
+      <p class="eyebrow">FAQ</p>
+      <h2>Questions</h2>
+      <p class="lead">Can't find your answer? Email <a href="mailto:Ahmad.h.lahib@gmail.com">Ahmad.h.lahib@gmail.com</a>.</p>
+      <details><summary>Is Beirut Strike free?</summary><p>Yes. It's free, with no ads and nothing to buy.</p></details>
+      <details><summary>Do I need an account?</summary><p>No. Just type a player name and play. The game gives your phone an anonymous ID in the background; there's no email or password.</p></details>
+      <details><summary>Which phones does it run on?</summary><p>Android 8.0 or newer, with OpenGL ES 2.0 graphics (almost every phone from the last several years). The game is played with the phone held sideways.</p></details>
+      <details><summary>How do I play with my friends?</summary><p>Create a room, choose the map and match length, and add a password. Share the password with your friends; only they can join. You can also set a minimum rank so only experienced players get in.</p></details>
+      <details><summary>How do I rank up?</summary><p>Play online matches in rooms without cheats: every kill gives 50 XP, a headshot kill 25 more, and winning a match 500. Your rank goes from Private (level 1) to Beirut Legend (level 20, at 45,500 XP).</p></details>
+      <details><summary>Can I play without internet?</summary><p>You need the internet to play online with others. Without it, the city still works as a single-player sandbox.</p></details>
+      <details><summary>Is it safe for my data?</summary><p>The game collects only what it needs to run: your player name, an anonymous ID, game stats and the photos and messages you choose to share. Read the <a href="privacy/">privacy policy</a>. You can delete everything from the menu with <strong>Delete my data</strong>, or <a href="delete-data/">by email</a>.</p></details>
+      <details><summary>What if someone is abusive?</summary><p>Open <strong>Players</strong> in the game menu, or a photo someone dropped, to report or block them. You can also report a team by long-pressing it. Reports are reviewed, and offending content is removed.</p></details>
+    </div>
+  </section>
+
+  <!-- Download -->
+  <section id="download" class="download">
+    <div class="wrap">
+      <img class="logo" src="privacy/icon.png" alt="Beirut Strike icon" width="120" height="120">
+      <h2>Coming soon to Google Play</h2>
+      <p class="lead">Beirut Strike is in testing now. Want to play early and help test it? Email us and we'll add you to the test.</p>
+      <div class="buttons">
+        <a class="button primary" href="mailto:Ahmad.h.lahib@gmail.com?subject=Beirut%20Strike%20tester&amp;body=I%27d%20like%20to%20test%20Beirut%20Strike.%20My%20Google%20Play%20email%3A%20">Join the test</a>
+        <a class="button ghost" href="#trailer">Watch the trailer</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <h4>Beirut Strike</h4>
+        <p style="margin:0 0 10px">A multiplayer shooter for Android by Ahmad EL Lahib.</p>
+        <a href="mailto:Ahmad.h.lahib@gmail.com">Ahmad.h.lahib@gmail.com</a>
+      </div>
+      <div>
+        <h4>Links</h4>
+        <ul>
+          <li><a href="privacy/">Privacy policy</a></li>
+          <li><a href="delete-data/">Delete your data</a></li>
+          <li><a href="#cheats">Cheat codes</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Credits</h4>
+        <ul>
+          <li>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></li>
+          <li>3D guns and first-person arms from <a href="https://sketchfab.com">Sketchfab</a> under CC BY 4.0, by TastyTony, Friendly, quick_loop and BURNER</li>
+          <li>Gun sounds from Wikimedia Commons: Beeld en Geluid (CC BY-SA 3.0) and Mike Koenig (CC BY-SA 4.0)</li>
+          <li>Character animations from Mixamo</li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">© 2026 Ahmad EL Lahib. The factions in the game are fictional and don't represent any real group. Google Play is a trademark of Google LLC.</p>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-label="Screenshot"><img alt=""></div>
+
+<script>
+  // The 20 ranks (see app/.../progression/Rank.kt and XpConfig.kt).
+  const ranks = [
+    ["private", "جندي", "Private", 0],
+    ["private_first_class", "جندي أول", "Private First Class", 500],
+    ["corporal", "عريف", "Corporal", 1200],
+    ["sergeant", "رقيب", "Sergeant", 2100],
+    ["staff_sergeant", "رقيب أول", "Staff Sergeant", 3200],
+    ["warrant_officer", "معاون", "Warrant Officer", 4500],
+    ["chief_warrant_officer", "معاون أول", "Chief Warrant Officer", 6000],
+    ["second_lieutenant", "ملازم", "Second Lieutenant", 7700],
+    ["first_lieutenant", "ملازم أول", "First Lieutenant", 9600],
+    ["captain", "نقيب", "Captain", 11700],
+    ["major", "رائد", "Major", 14000],
+    ["lieutenant_colonel", "مقدم", "Lieutenant Colonel", 16500],
+    ["colonel", "عقيد", "Colonel", 19200],
+    ["brigadier_general", "عميد", "Brigadier General", 22100],
+    ["major_general", "لواء", "Major General", 25200],
+    ["general", "عماد", "General", 28500],
+    ["field_commander", "قائد ميداني", "Field Commander", 32000],
+    ["special_forces_commander", "قائد القوات الخاصة", "Special Forces Commander", 36000],
+    ["supreme_commander", "القائد الأعلى", "Supreme Commander", 40500],
+    ["beirut_legend", "أسطورة بيروت", "Beirut Legend", 45500],
+  ];
+  const list = document.getElementById("rank-list");
+  ranks.forEach(([file, ar, en, xp], i) => {
+    const el = document.createElement("div");
+    el.className = "rank" + (i === ranks.length - 1 ? " top" : "");
+    el.innerHTML =
+      `<img src="assets/ranks/rank_${file}.svg" alt="${en} badge" width="72" height="72" loading="lazy">` +
+      `<div class="lv">LEVEL ${i + 1}</div><div class="ar" lang="ar">${ar}</div>` +
+      `<div class="en">${en}</div><div class="need">${xp ? xp.toLocaleString("en-US") + " XP" : "Start here"}</div>`;
+    list.appendChild(el);
+  });
+
+  // Phone menu.
+  const menu = document.getElementById("menu"), toggle = document.querySelector(".menu-button");
+  toggle.addEventListener("click", () => {
+    const open = menu.classList.toggle("open");
+    toggle.setAttribute("aria-expanded", open);
+  });
+  menu.addEventListener("click", e => { if (e.target.tagName === "A") { menu.classList.remove("open"); toggle.setAttribute("aria-expanded", false); } });
+
+  // Screenshot lightbox.
+  const box = document.getElementById("lightbox"), boxImg = box.querySelector("img");
+  document.querySelectorAll(".gallery button").forEach(b => b.addEventListener("click", () => {
+    const img = b.querySelector("img");
+    boxImg.src = img.src; boxImg.alt = img.alt; box.classList.add("open");
+  }));
+  box.addEventListener("click", () => box.classList.remove("open"));
+  document.addEventListener("keydown", e => { if (e.key === "Escape") box.classList.remove("open"); });
+</script>
+</body>
+</html>
