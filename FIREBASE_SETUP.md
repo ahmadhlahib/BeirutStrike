@@ -51,6 +51,14 @@ tag, and a blue dot on the minimap. "Say" bubbles and dropped photos appear on b
 **After updating the app, publish [`firebase/database.rules.json`](firebase/database.rules.json)
 again.** Older rules don't know about game lengths and scores, and refuse to create rooms.
 
+Instead of pasting them into the console, the rules can be published with the
+[Firebase CLI](https://firebase.google.com/docs/cli): `firebase.json` and `.firebaserc` point it
+at the rules file and the `beirut-strike` project. Sign in once with `firebase login`, then:
+
+```
+firebase deploy --only database
+```
+
 Shots and health travel with each player in `players/{uid}` (`shotSeq`, `health`, `dead`).
 The shooter's phone decides whether a bullet hit, which keeps the game simple but means a
 modified app could cheat; fine among friends, not for a public game.
