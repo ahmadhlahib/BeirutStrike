@@ -76,6 +76,8 @@ class CityRenderer(
     private val pickupLabel: (PickupKind) -> String = { it.id },
     /** Called on the main thread when the player throws a grenade: its kind, and start x, y, z and velocity x, y, z. */
     private val onGrenadeThrown: (GrenadeKind, FloatArray) -> Unit = { _, _ -> },
+    /** Called on the main thread when the player starts winding up a throw (the grenade now in hand), and with null if it's called off. */
+    private val onHoldGrenade: (GrenadeKind?) -> Unit = {},
     /** Called on the main thread when the player tries to throw a grenade of a kind they have none of. */
     private val onNoGrenade: (GrenadeKind) -> Unit = {},
     /** Called on the main thread when any grenade goes off (for its sound): kind, x, y, z, and whether it was mine. */
@@ -589,12 +591,16 @@ class CityRenderer(
         val isDown = down
         val fp = eyeView
         if (fp) muzzleKnown = false
-        else playerSoldier?.let { drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown, weapon) }
+        else playerSoldier?.let {
+            val holding = if (throwStartedAt != 0L && !thrown) throwing else null
+            drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown, weapon, holding)
+        }
         for (r in remotes.values) {
             val soldier = r.soldier ?: continue
             if (!isWorthAnimating(r.x, r.z)) continue
             flashing = now < r.flashUntil
-            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.y, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon))
+            val holding = if (r.player.dead) null else GrenadeKind.byId(r.player.grenadeHold)
+            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.y, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon), holding)
             flashing = false
         }
         drawBullets()
@@ -815,6 +821,7 @@ class CityRenderer(
         }
     }
     private val gripMatrix = FloatArray(16)
+    private val soldierMatrix = FloatArray(16)
 
     /** Right hand on the pistol grip, left forward on the handguard, forearms in the team's uniform. */
     private fun drawRifleHands(gy: Float, gz: Float, sz: Float, sy: Float, sleeve: Int) {
@@ -1208,6 +1215,10 @@ class CityRenderer(
                     throwing = kind
                     thrown = false
                     throwStartedAt = SystemClock.uptimeMillis()
+                    // Turn to where the throw goes, in the aiming pose, for the whole wind-up.
+                    heading = yaw
+                    aimTime = THROW_RELEASE_MS / 1000f + 0.6f
+                    mainHandler.post { onHoldGrenade(kind) }
                 }
                 else -> mainHandler.post { onNoGrenade(kind) }
             }
@@ -1219,6 +1230,7 @@ class CityRenderer(
                 isDown && !thrown -> {
                     if (!unlimitedAmmo) grenadesLeft.incrementAndGet(throwing.ordinal)
                     throwStartedAt = 0L
+                    mainHandler.post { onHoldGrenade(null) }
                 }
                 !thrown && since >= THROW_RELEASE_MS -> {
                     thrown = true
@@ -1653,7 +1665,7 @@ class CityRenderer(
             r.speed += (hypot(rvx, rvz) - r.speed) * min(1f, dt * 8f)
             soldier.update(
                 dt, r.speed, SoldierAnimator.relativeAngle(rvx, rvz, r.heading),
-                aiming = now < (remoteAiming[r.player.uid] ?: 0L), dead = r.player.dead, skin = isWorthAnimating(r.x, r.z),
+                aiming = now < (remoteAiming[r.player.uid] ?: 0L) || r.player.grenadeHold.isNotEmpty(), dead = r.player.dead, skin = isWorthAnimating(r.x, r.z),
                 prone = r.player.prone, airborne = r.y > 0.05f,
             )
         }
@@ -2058,6 +2070,8 @@ class CityRenderer(
     private fun drawSoldier(
         anim: SoldierAnimator, look: SoldierLook, faceTex: Int, x: Float, z: Float, facing: Float,
         y: Float = 0f, prone: Boolean = false, gun: Weapon = Weapon.AK47,
+        /** A grenade about to be thrown: in the hand instead of the gun. */
+        holding: GrenadeKind? = null,
     ) {
         if (!anim.ready) return
         val meshes = soldierMeshes.getOrPut(anim) {
@@ -2119,6 +2133,18 @@ class CityRenderer(
         // Standing, the rifle points along model +z with +y up; lying flat (the model tipped
         // forwards) it points along +y with -z up, so it lies ahead of the soldier, not in the ground.
         val flat = prone && anim.lieDownForCrawl
+        if (holding != null) {
+            // The grenade in the hand (life-size, in metres, so times the model's units per
+            // metre), gripped a little above the wrist; the gun is put away meanwhile.
+            System.arraycopy(base, 0, soldierMatrix, 0, 16)
+            Matrix.translateM(gunInHand, 0, base, 0, wx, wy, wz)
+            if (flat) Matrix.rotateM(gunInHand, 0, -90f, 1f, 0f, 0f)
+            Matrix.scaleM(gunInHand, 0, u, u, u)
+            Matrix.translateM(base, 0, gunInHand, 0, 0f, -0.02f, 0.06f)
+            grenadeShape(holding)
+            System.arraycopy(soldierMatrix, 0, base, 0, 16)
+            return
+        }
         fun gunBox(up: Float, fwd: Float, width: Float, height: Float, length: Float, color: Int) =
             if (flat) partBox(wx, wy + fwd * u, wz - up * u, width * u, length * u, height * u, color)
             else partBox(wx, wy + up * u, wz + fwd * u, width * u, height * u, length * u, color)

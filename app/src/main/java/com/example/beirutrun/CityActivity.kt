@@ -302,6 +302,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 if (!gameOver) online.countShot()
                 updateGrenadeButtons()
             },
+            onHoldGrenade = { kind -> online.setGrenadeHold(kind?.id.orEmpty()) },
             onNoGrenade = { kind -> showBanner(getString(R.string.no_grenades, kind.displayName)) },
             onGrenadeBurst = { kind, x, _, z, _ ->
                 val hearing = GRENADE_HEARING_RANGE * if (kind == GrenadeKind.SMOKE) 0.3f else 1f

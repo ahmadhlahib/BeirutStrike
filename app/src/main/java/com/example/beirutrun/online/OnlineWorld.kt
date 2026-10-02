@@ -78,6 +78,8 @@ data class RemotePlayer(
     val grenadeVX: Float = 0f,
     val grenadeVY: Float = 0f,
     val grenadeVZ: Float = 0f,
+    /** The grenade in their hand while they wind up a throw (a GrenadeKind id; "" = none). */
+    val grenadeHold: String = "",
 )
 
 /** One player's score in the room's game, kept after they leave so the scoreboard stays whole. */
@@ -227,6 +229,7 @@ class OnlineWorld(
     private var killedBy = ""
     private var shotSeq = 0L
     private var grenadeSeq = 0L
+    private var grenadeHold = ""
     private var prone = false
     private var jumpSeq = 0L
     private var weapon = ""
@@ -387,6 +390,7 @@ class OnlineWorld(
             "killedBy" to killedBy,
             "shotSeq" to shotSeq,
             "nadeSeq" to grenadeSeq,
+            "nadeHold" to grenadeHold,
             "prone" to prone,
             "jumpSeq" to jumpSeq,
             "weapon" to weapon,
@@ -489,11 +493,14 @@ class OnlineWorld(
      * (vx, vy, vz), so their phones fly the same one.
      */
     fun sendGrenade(kind: String, x: Float, y: Float, z: Float, vx: Float, vy: Float, vz: Float) {
+        // It has left the hand (even if this throw can't be sent).
+        grenadeHold = ""
         val ref = me ?: return
         if (!active) return
         grenadeSeq++
         ref.updateChildren(mapOf(
             "nadeSeq" to grenadeSeq,
+            "nadeHold" to "",
             "nade" to kind,
             "nadeX" to x.toDouble(),
             "nadeY" to y.toDouble(),
@@ -502,6 +509,16 @@ class OnlineWorld(
             "nadeVY" to vy.toDouble(),
             "nadeVZ" to vz.toDouble(),
         ))
+    }
+
+    /**
+     * I'm winding up a throw with a grenade of [kind] (a GrenadeKind id) in my hand, so the others
+     * see it there; "" when the throw was called off. [sendGrenade] clears it as it leaves the hand.
+     */
+    fun setGrenadeHold(kind: String) {
+        if (kind == grenadeHold) return
+        grenadeHold = kind
+        if (active) me?.updateChildren(mapOf("nadeHold" to kind))
     }
 
     /** One of my bullets or grenades hit [victimUid], taking [damage] hearts (see Weapon.damage); their phone takes it from here. */
@@ -858,6 +875,7 @@ class OnlineWorld(
                     grenadeVX = s.num("nadeVX").toFloat(),
                     grenadeVY = s.num("nadeVY").toFloat(),
                     grenadeVZ = s.num("nadeVZ").toFloat(),
+                    grenadeHold = s.child("nadeHold").getValue(String::class.java).orEmpty(),
                 )
                 players[id] = player
                 // Events only for changes seen live, not for the state found on joining.
