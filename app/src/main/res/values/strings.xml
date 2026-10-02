@@ -218,6 +218,10 @@
     <string name="scope_off">Lower scope</string>
     <string name="weapon_ammo_unlimited">%1$s · ∞</string>
 
+    <!-- Ladders up buildings -->
+    <string name="climb_up">Climb up</string>
+    <string name="climb_down">Climb down</string>
+
     <!-- Grenades -->
     <string name="grenade_throw">Throw grenade</string>
     <string name="grenade_kind">Change grenade</string>

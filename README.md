@@ -57,6 +57,8 @@ shots and scores sync live between phones.
 - **Scope:** 4× zoom for the AK-47, with longer view, aim and bullet range.
 - **Grenades:** frag, flashbang, smoke and molotov, thrown and bouncing in 3D.
 - **Movement:** walk, run, jump and crawl. Crawling is slow, but makes you low and hard to hit.
+- **Ladders:** yellow ladders up some buildings (marked on the minimap) lead to their roofs, to
+  shoot down from above. Everyone sees you climb and stand up there, and can shoot you there too.
 
 ### Progression
 - **Live scoreboard** during the match and final results at the end: score, kills, deaths, K/D,
@@ -94,6 +96,7 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Grenade kind (round, left of Scope) | Change grenade: frag, flashbang, smoke, molotov (shows how many are left) |
 | Zoom in / out (round, far left of the controls) | Change the scope's magnification, while scoped |
 | Jump / Crawl (round, left of Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
+| Climb up / Climb down (above View photo) | Shows at the foot of a ladder, or beside its top on a roof: climbs it |
 | **Gun view / 3D person** | Switch between seeing through your soldier's eyes (gun in front) and seeing your soldier from behind |
 | Say (round, left of Jump) | Speech bubble, or a cheat code (see below) |
 | Camera (round, above the joystick) | Leave a photo in the street |
@@ -133,6 +136,15 @@ real speed, so they can be seen. Damage is in hearts; every player has 5.
 
 Killed players respawn after 4 seconds at a random street, with every gun loaded and at least
 its starting rounds and grenades.
+
+### Ladders
+
+Each map has ladders up some ordinary flat-roofed buildings of one to seven storeys, at least
+30 m apart, up to 14 in a room, the same for everyone. They are bright yellow, and marked on the
+minimap by small yellow squares. Stand at the foot of one and tap **Climb up**: the climb is
+automatic (3 m a second) and you can't shoot or throw on the way, so pick your moment. On the
+roof you walk up to its edge but not off it; tap **Climb down** beside the ladder to come back.
+Killed on a ladder, you end up at whichever end was nearer.
 
 ### Grenades
 

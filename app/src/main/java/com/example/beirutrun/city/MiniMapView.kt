@@ -204,6 +204,14 @@ class MiniMapView @JvmOverloads constructor(
         }
 
         val dot = if (full) 1.6f else 1f
+        // Ladders up to the roofs: small yellow squares at their foot.
+        for (l in r.ladders) {
+            val s = 2.8f * density * dot
+            paint.color = 0xFF222222.toInt()
+            canvas.drawRect(sx(l.footX) - s - density, sz(l.footZ) - s - density, sx(l.footX) + s + density, sz(l.footZ) + s + density, paint)
+            paint.color = 0xFFE5A823.toInt()
+            canvas.drawRect(sx(l.footX) - s, sz(l.footZ) - s, sx(l.footX) + s, sz(l.footZ) + s, paint)
+        }
         for (p in players) {
             paint.color = 0xFFFFFFFF.toInt()
             canvas.drawCircle(sx(p.x), sz(p.z), 5f * density * dot, paint)

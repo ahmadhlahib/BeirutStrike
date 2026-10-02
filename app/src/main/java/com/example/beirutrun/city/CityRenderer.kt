@@ -275,9 +275,49 @@ class CityRenderer(
     /** Lying on the ground (crawling): slow, low, hard to hit; can't run or jump. */
     @Volatile var prone = false
 
-    /** How high the player is off the ground right now (jumping), metres. */
+    /** How high the player's feet are right now, metres: the floor they stand on, plus a jump. */
     @Volatile var playerY = 0f
         private set
+
+    // ---- Ladders and roofs --------------------------------------------------------------------
+
+    /** The ladders up buildings on this map (the same on every phone, see Ladders). */
+    val ladders: List<Ladder> = Ladders.place(city)
+
+    /**
+     * What the player stands on: the street (0) or a roof's height, rising and falling while on a
+     * ladder. Other phones are sent it, so they draw (and can hit) the player up there.
+     */
+    @Volatile var floorY = 0f
+        private set
+
+    /** The building whose roof the player is on (null = in the street). */
+    private var roof: CityMap.Building? = null
+
+    /** What the Climb button would do now (see [climb]). */
+    enum class LadderAction { NONE, UP, DOWN }
+
+    @Volatile var ladderAction = LadderAction.NONE
+        private set
+
+    /** On a ladder right now (going up or down): no walking, shooting or throwing until off it. */
+    @Volatile var climbing = false
+        private set
+
+    @Volatile private var climbRequested = false
+
+    /** Climbs the ladder at whose foot the player stands, or back down the one beside them on a roof. */
+    fun climb() { climbRequested = true }
+
+    /** A climb under way: which ladder, which way, from where, and when it started (uptime ms). */
+    private class Climb(val ladder: Ladder, val up: Boolean, val fromX: Float, val fromZ: Float, val start: Long) {
+        /** Seconds stepping onto the ladder, on it, and stepping off at the other end. */
+        val onto = if (up) 0.35f else 0.5f
+        val rungs = ladder.height / CLIMB_SPEED
+        val off = if (up) 0.5f else 0.35f
+        val total get() = onto + rungs + off
+    }
+    private var climb: Climb? = null
 
     /** Goes up by one per jump, so other phones can play the same jump. */
     @Volatile var jumpSeq = 0L
@@ -314,6 +354,8 @@ class CityRenderer(
     private lateinit var openSea: Mesh
     /** The see-through wall round the play area (null when the whole map is playable). */
     private var border: Mesh? = null
+    /** Every ladder up a building, in one mesh (null when the map has none). */
+    private var ladderMesh: Mesh? = null
 
     /** Which map edges (north, south, west, east) the sea reaches, so the view beyond is water. */
     private fun seaEdges(): List<Boolean> {
@@ -352,8 +394,12 @@ class CityRenderer(
         var lastX = x
         var lastZ = z
         var speed = 0f
-        /** Their jump, replayed here from [RemotePlayer.jumpSeq] so it's smooth. */
+        /** The height they stand at (a roof, a ladder), easing towards [RemotePlayer.floor]. */
+        var floor = player.floor
+        /** Their jump, replayed here from [RemotePlayer.jumpSeq] so it's smooth: above [floor]. */
         var y = 0f
+        /** Where their feet are. */
+        val feet get() = floor + y
         var vy = 0f
         var jumpSeq = -1L
     }
@@ -600,7 +646,7 @@ class CityRenderer(
             if (!isWorthAnimating(r.x, r.z)) continue
             flashing = now < r.flashUntil
             val holding = if (r.player.dead) null else GrenadeKind.byId(r.player.grenadeHold)
-            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.y, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon), holding)
+            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.feet, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon), holding)
             flashing = false
         }
         drawBullets()
@@ -613,9 +659,9 @@ class CityRenderer(
         drawPickupLabels()
         for (r in remotes.values) {
             // Smoke hides who's behind it, name tag and all.
-            if (smokeBetween(eyeX, eyeY, eyeZ, r.x, r.y + 1.2f, r.z, now)) continue
+            if (smokeBetween(eyeX, eyeY, eyeZ, r.x, r.feet + 1.2f, r.z, now)) continue
             val saying = if (now < r.sayUntil && !r.player.dead) r.saying else null
-            drawLabels(r.x, r.z, r.player.name, saying, r.player.health, r.player.team, labelLift(r.y, r.player.prone))
+            drawLabels(r.x, r.z, r.player.name, saying, r.player.health, r.player.team, labelLift(r.feet, r.player.prone))
         }
         if (!fp) drawLabels(playerX, playerZ, playerName, if (now < speechUntil && !isDown) speech else null, health, playerTeam, labelLift(playerY, prone))
         // Through the scope the gun is out of sight (the scope picture covers the screen).
@@ -659,17 +705,18 @@ class CityRenderer(
      */
     private fun hitsBody(r: RemoteAvatar, x: Float, y: Float, z: Float): Boolean {
         if (r.player.prone) {
-            if (y > r.y + PRONE_BODY_HEIGHT) return false
+            // Lying on a roof, they're out of reach of anything below it.
+            if (y > r.feet + PRONE_BODY_HEIGHT || y < r.feet - 0.1f) return false
             val hx = r.x + sin(r.heading) * PRONE_BODY_LENGTH
             val hz = r.z - cos(r.heading) * PRONE_BODY_LENGTH
             return CityMap.segmentDistance(x, z, r.x, r.z, hx, hz) < HIT_RADIUS * 0.8f
         }
-        if (y < r.y || y > r.y + BODY_HEIGHT) return false
+        if (y < r.feet || y > r.feet + BODY_HEIGHT) return false
         return hypot(r.x - x, r.z - z) < HIT_RADIUS
     }
 
     /** Whether a bullet at height [y] that hit [r]'s body hit their head (standing only: lying down, the head is too low to tell). */
-    private fun hitsHead(r: RemoteAvatar, y: Float): Boolean = !r.player.prone && y > r.y + BODY_HEIGHT - HEAD_HEIGHT
+    private fun hitsHead(r: RemoteAvatar, y: Float): Boolean = !r.player.prone && y > r.feet + BODY_HEIGHT - HEAD_HEIGHT
 
     /** Turns [part] so its local z axis points along (dx, dy, dz). */
     private fun orientAlong(dx: Float, dy: Float, dz: Float) {
@@ -1023,6 +1070,13 @@ class CityRenderer(
             pendingRespawn = null
             playerX = x
             playerZ = z
+            // Back in the street, off any roof or ladder.
+            roof = null
+            climb = null
+            climbing = false
+            floorY = 0f
+            playerY = 0f
+            vy = 0f
             bullets.clear()
         }
         while (true) {
@@ -1056,11 +1110,12 @@ class CityRenderer(
             val p = r.player
             val jump = hypot(p.x - r.x, p.z - r.z)
             if (jump > 15f) {
-                r.x = p.x; r.z = p.z
+                r.x = p.x; r.z = p.z; r.floor = p.floor
             } else {
                 val nx = r.x + (p.x - r.x) * blend
                 val nz = r.z + (p.z - r.z) * blend
                 r.x = nx; r.z = nz
+                r.floor += (p.floor - r.floor) * blend
             }
             r.heading = approachAngle(r.heading, p.heading, 10f * dt)
 
@@ -1177,7 +1232,7 @@ class CityRenderer(
                         mainHandler.post { onHitPlayer(uid, damage, headshot) }
                         spent = true
                     }
-                } else if (!down && hypot(playerX - b.x, playerZ - b.z) < HIT_RADIUS && b.y < playerY + BODY_HEIGHT) {
+                } else if (!down && hypot(playerX - b.x, playerZ - b.z) < HIT_RADIUS && b.y > playerY && b.y < playerY + BODY_HEIGHT) {
                     // Someone else's bullet reached me: stop drawing it here.
                     spent = true
                 }
@@ -1196,6 +1251,117 @@ class CityRenderer(
         }
     }
 
+    // ---- Ladders and roofs --------------------------------------------------------------------
+
+    /** Where the player can't walk: walls and the like in the street; on a roof, past its edge or into anything built on it. */
+    private fun blocked(x: Float, z: Float): Boolean {
+        val r = roof ?: return city.isBlocked(x, z, BODY_RADIUS)
+        if (!CityMap.inside(r.pts, x, z) || CityMap.edgeDistance(r.pts, x, z) < ROOF_EDGE) return true
+        return city.isInsideBuilding(x, floorY + 1f, z, BODY_RADIUS) || !city.inPlayArea(x, z)
+    }
+
+    /**
+     * Starts a climb when asked (from a ladder's foot, or from its top on a roof), moves the player
+     * along one under way, and works out what the Climb button would do next.
+     */
+    private fun updateClimb(isDown: Boolean) {
+        val now = SystemClock.uptimeMillis()
+        val requested = climbRequested
+        climbRequested = false
+        val c = climb
+        if (c == null) {
+            val action = when {
+                isDown -> LadderAction.NONE
+                roof == null && nearestLadder(onRoof = false) != null -> LadderAction.UP
+                roof != null && nearestLadder(onRoof = true) != null -> LadderAction.DOWN
+                else -> LadderAction.NONE
+            }
+            ladderAction = action
+            if (!requested || action == LadderAction.NONE || prone || playerY > floorY + 0.05f) return
+            val ladder = nearestLadder(onRoof = action == LadderAction.DOWN) ?: return
+            climb = Climb(ladder, action == LadderAction.UP, playerX, playerZ, now)
+            climbing = true
+            ladderAction = LadderAction.NONE
+            return
+        }
+        val l = c.ladder
+        val t = (now - c.start) / 1000f
+        // Killed on the ladder: down at whichever end is nearer.
+        val done = t >= c.total
+        if (isDown || done) {
+            val atTop = if (done) c.up else playerY > l.height / 2f
+            playerX = if (atTop) l.topX else l.footX
+            playerZ = if (atTop) l.topZ else l.footZ
+            floorY = if (atTop) l.height else 0f
+            playerY = floorY
+            roof = if (atTop) l.building else null
+            climb = null
+            climbing = false
+            return
+        }
+        heading = l.facingWall
+        // Onto the ladder, up or down its rungs, then off it at the other end.
+        val (startY, endY) = if (c.up) 0f to l.height else l.height to 0f
+        when {
+            t < c.onto -> {
+                val k = smooth(t / c.onto)
+                playerX = c.fromX + (l.onX - c.fromX) * k
+                playerZ = c.fromZ + (l.onZ - c.fromZ) * k
+                playerY = startY
+            }
+            t < c.onto + c.rungs -> {
+                playerX = l.onX; playerZ = l.onZ
+                playerY = startY + (endY - startY) * ((t - c.onto) / c.rungs)
+            }
+            else -> {
+                val k = smooth((t - c.onto - c.rungs) / c.off)
+                val (ex, ez) = if (c.up) l.topX to l.topZ else l.footX to l.footZ
+                playerX = l.onX + (ex - l.onX) * k
+                playerZ = l.onZ + (ez - l.onZ) * k
+                // Over the top: a little lift to clear the edge of the roof.
+                playerY = endY + if (c.up) sin(k * PI.toFloat()) * 0.25f else 0f
+            }
+        }
+        floorY = playerY
+    }
+
+    /** The ladder whose foot (in the street) or top (on my roof) is within reach, if any. */
+    private fun nearestLadder(onRoof: Boolean): Ladder? {
+        val r = roof
+        return ladders
+            .filter { !onRoof || it.building === r }
+            .map { l -> l to if (onRoof) hypot(l.topX - playerX, l.topZ - playerZ) else hypot(l.footX - playerX, l.footZ - playerZ) }
+            .filter { it.second < LADDER_REACH }
+            .minByOrNull { it.second }?.first
+    }
+
+    private fun smooth(k: Float): Float {
+        val c = k.coerceIn(0f, 1f)
+        return c * c * (3f - 2f * c)
+    }
+
+    /** All the ladders as one mesh: two rails up the wall, rungs every [RUNG_GAP], and handles over the roof's edge. */
+    private fun buildLadders(): Mesh? {
+        if (ladders.isEmpty()) return null
+        val m = MeshBuilder()
+        for (l in ladders) {
+            // Along the wall, a hand's width out from it.
+            val ax = -l.nz; val az = l.nx
+            val cx = l.wallX + l.nx * 0.12f
+            val cz = l.wallZ + l.nz * 0.12f
+            val top = l.height + 1f
+            for (side in listOf(-1f, 1f)) {
+                m.turnedBox(cx + ax * side * 0.26f, top / 2f, cz + az * side * 0.26f, ax, az, 0.03f, top / 2f, 0.03f)
+            }
+            var y = RUNG_GAP
+            while (y < top - 0.05f) {
+                m.turnedBox(cx, y, cz, ax, az, 0.26f, 0.018f, 0.02f)
+                y += RUNG_GAP
+            }
+        }
+        return m.build()
+    }
+
     // ---- Grenades: throwing, flight and what they do ------------------------------------------
 
     /**
@@ -1208,7 +1374,7 @@ class CityRenderer(
             throwRequested = false
             val kind = grenadeKind
             when {
-                isDown || throwCooldown > 0f || throwStartedAt != 0L -> Unit
+                isDown || climbing || throwCooldown > 0f || throwStartedAt != 0L -> Unit
                 unlimitedAmmo || grenadesLeft.get(kind.ordinal) > 0 -> {
                     if (!unlimitedAmmo) grenadesLeft.decrementAndGet(kind.ordinal)
                     throwCooldown = THROW_INTERVAL
@@ -1380,7 +1546,7 @@ class CityRenderer(
         if (g.mine) {
             for (t in remotes.values) {
                 if (!isEnemy(t)) continue
-                val ty = t.y + if (t.player.prone) 0.3f else 1f
+                val ty = t.feet + if (t.player.prone) 0.3f else 1f
                 val d = dist(g.x, g.y, g.z, t.x, ty, t.z)
                 if (d > r || !clearPath(g.x, g.y, g.z, t.x, ty, t.z)) continue
                 t.flashUntil = now + 160
@@ -1428,7 +1594,7 @@ class CityRenderer(
             if (!b.mine) continue
             val r = b.kind.radius
             for (t in remotes.values) {
-                if (!isEnemy(t) || hypot(t.x - b.x, t.z - b.z) > r || abs(t.y - b.y) > 1.5f) continue
+                if (!isEnemy(t) || hypot(t.x - b.x, t.z - b.z) > r || abs(t.feet - b.y) > 1.5f) continue
                 t.flashUntil = now + 160
                 val uid = t.player.uid
                 mainHandler.post { onHitPlayer(uid, 1, false) }
@@ -1649,8 +1815,9 @@ class CityRenderer(
         lastPlayerZ = playerZ
         playerSpeed += (hypot(vx, vz) - playerSpeed) * min(1f, dt * 10f)
         player.update(
-            dt, playerSpeed, SoldierAnimator.relativeAngle(vx, vz, heading), aimTime > 0f, down, skin = true,
-            prone = prone, airborne = playerY > 0.05f,
+            // On a ladder there's no climbing animation: the legs walk on the spot, rung by rung.
+            dt, if (climbing) CLIMB_ANIM_SPEED else playerSpeed, SoldierAnimator.relativeAngle(vx, vz, heading),
+            aimTime > 0f, down, skin = true, prone = prone, airborne = playerY - floorY > 0.05f,
         )
 
         val now = SystemClock.uptimeMillis()
@@ -1693,8 +1860,10 @@ class CityRenderer(
         }
 
         val isDown = down
-        val jx = if (isDown) 0f else joyX
-        val jy = if (isDown) 0f else joyY
+        updateClimb(isDown)
+        // On a ladder the climb moves the player; the joystick does nothing.
+        val jx = if (isDown || climbing) 0f else joyX
+        val jy = if (isDown || climbing) 0f else joyY
         val amount = min(1f, hypot(jx, jy))
         walking = amount > 0.12f
         isWalking = walking
@@ -1712,7 +1881,7 @@ class CityRenderer(
         updateReload(gun)
         val wantsToFire = if (gun.automatic || rapidFire) triggerHeld || pulled else pulled
         // The gun is lowered while a grenade is thrown.
-        if (wantsToFire && !isDown && fireCooldown <= 0f && reloading == null && throwStartedAt == 0L) {
+        if (wantsToFire && !isDown && fireCooldown <= 0f && reloading == null && throwStartedAt == 0L && !climbing) {
             when {
                 unlimitedAmmo || loaded.get(gun.ordinal) > 0 -> {
                     if (!unlimitedAmmo) loaded.decrementAndGet(gun.ordinal)
@@ -1734,15 +1903,16 @@ class CityRenderer(
         val crawling = prone && !isDown
         if (jumpRequested) {
             jumpRequested = false
-            if (playerY <= 0f && !crawling && !isDown) {
+            if (playerY <= floorY && !crawling && !isDown && !climbing) {
                 vy = JUMP_SPEED
                 jumpSeq++
             }
         }
-        if (playerY > 0f || vy > 0f) {
+        // Back down onto whatever the player stands on: the street or a roof.
+        if (!climbing && (playerY > floorY || vy > 0f)) {
             vy -= GRAVITY * dt
-            playerY = (playerY + vy * dt).coerceAtLeast(0f)
-            if (playerY <= 0f) vy = 0f
+            playerY = (playerY + vy * dt).coerceAtLeast(floorY)
+            if (playerY <= floorY) vy = 0f
         }
 
         if (walking) {
@@ -1764,18 +1934,18 @@ class CityRenderer(
             }
             val step = speed * speedBoost * weapon.moveSpeed * dt
             // Slide along walls: try each axis on its own.
-            if (!city.isBlocked(playerX + dx * step, playerZ, BODY_RADIUS)) playerX += dx * step
-            if (!city.isBlocked(playerX, playerZ + dz * step, BODY_RADIUS)) playerZ += dz * step
+            if (!blocked(playerX + dx * step, playerZ)) playerX += dx * step
+            if (!blocked(playerX, playerZ + dz * step)) playerZ += dz * step
         } else {
             idleTime += dt
             // Standing still for a moment: turn round to face the camera so the face shows.
-            if (idleTime > 1.5f && aimTime <= 0f && !isDown && !eyeView) {
+            if (idleTime > 1.5f && aimTime <= 0f && !isDown && !eyeView && !climbing) {
                 heading = approachAngle(heading, yaw + PI.toFloat(), 2.5f * dt)
             }
         }
         // Shooting turns the character to aim along the camera, even while strafing; in first
         // person the soldier always faces where you look (so others see where you aim).
-        if (aimTime > 0f || eyeView) heading = yaw
+        if (!climbing && (aimTime > 0f || eyeView)) heading = yaw
         updateAim()
         updateSoldiers(dt)
 
@@ -1903,6 +2073,7 @@ class CityRenderer(
             box(x0p - t, 0f, z0p - t, x0p + t, BORDER_HEIGHT, z1p + t)
             box(x1p - t, 0f, z0p - t, x1p + t, BORDER_HEIGHT, z1p + t)
         }.build()
+        ladderMesh = buildLadders()
         cube = MeshBuilder().apply { box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f) }.build()
         quad = MeshBuilder().apply {
             quad(
@@ -1981,6 +2152,7 @@ class CityRenderer(
             for ((surface, mesh) in tile.meshes) drawSurface(surface, mesh)
         }
         for ((mesh, texture) in murals) draw(mesh, identity, WHITE, texture)
+        ladderMesh?.let { draw(it, identity, LADDER_COLOR) }
         border?.let {
             // Drawn without writing depth so what is behind it still shows through.
             GLES20.glDepthMask(false)
@@ -2440,6 +2612,16 @@ class CityRenderer(
         /** At full shake: how far the view direction (first person) or the camera (behind) jolts. */
         private const val SHAKE_LOOK = 0.08f
         private const val SHAKE_MOVE = 0.35f
+        // Ladders: climbed at this many metres a second, from within reach of their foot or top.
+        private const val CLIMB_SPEED = 3f
+        /** The walking animation's speed played on the spot while climbing, m/s. */
+        private const val CLIMB_ANIM_SPEED = 1.6f
+        private const val LADDER_REACH = 1.3f
+        /** How close to a roof's edge a player can walk, metres (there's no walking off it). */
+        private const val ROOF_EDGE = 0.35f
+        private const val RUNG_GAP = 0.32f
+        /** Safety yellow, so a ladder can be spotted down a street. */
+        private const val LADDER_COLOR = 0xFFE5A823.toInt()
         private const val MAX_MURALS = 16
         private const val MAX_LABELS = 64
         private const val BUBBLE_UNITS_PER_PX = 1f / 190f

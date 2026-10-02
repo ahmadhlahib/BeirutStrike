@@ -230,6 +230,27 @@ class MeshBuilder {
         if (!roof) quad(p(x0, y0, z0), p(x1, y0, z0), p(x1, y0, z1), p(x0, y0, z1), 0f, -1f, 0f)
     }
 
+    /**
+     * A box standing upright but turned to any direction on the ground: centred at (cx, cy, cz),
+     * [halfAlong] each way along the unit direction (ax, az), [halfDepth] across it, [halfHeight] up and down.
+     */
+    fun turnedBox(
+        cx: Float, cy: Float, cz: Float, ax: Float, az: Float,
+        halfAlong: Float, halfHeight: Float, halfDepth: Float,
+    ) {
+        // Across the box: the along direction turned a quarter.
+        val bx = -az; val bz = ax
+        fun c(sa: Float, sy: Float, sb: Float) = p(
+            cx + ax * halfAlong * sa + bx * halfDepth * sb, cy + halfHeight * sy, cz + az * halfAlong * sa + bz * halfDepth * sb,
+        )
+        quad(c(-1f, -1f, 1f), c(1f, -1f, 1f), c(1f, 1f, 1f), c(-1f, 1f, 1f), bx, 0f, bz)
+        quad(c(1f, -1f, -1f), c(-1f, -1f, -1f), c(-1f, 1f, -1f), c(1f, 1f, -1f), -bx, 0f, -bz)
+        quad(c(1f, -1f, 1f), c(1f, -1f, -1f), c(1f, 1f, -1f), c(1f, 1f, 1f), ax, 0f, az)
+        quad(c(-1f, -1f, -1f), c(-1f, -1f, 1f), c(-1f, 1f, 1f), c(-1f, 1f, -1f), -ax, 0f, -az)
+        quad(c(-1f, 1f, 1f), c(1f, 1f, 1f), c(1f, 1f, -1f), c(-1f, 1f, -1f), 0f, 1f, 0f)
+        quad(c(-1f, -1f, -1f), c(1f, -1f, -1f), c(1f, -1f, 1f), c(-1f, -1f, 1f), 0f, -1f, 0f)
+    }
+
     fun build() = Mesh(data.copyOf(size))
 
     private fun p(x: Float, y: Float, z: Float) = floatArrayOf(x, y, z)

@@ -195,6 +195,18 @@
         app:backgroundTint="#DDFFB300"
         app:icon="@drawable/ic_photo" />
 
+    <!-- At the foot of a ladder (or beside its top on a roof): climb up or down. Above View photo. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/climbButton"
+        style="@style/HudButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="76dp"
+        android:visibility="gone"
+        app:backgroundTint="#DDE5A823"
+        app:icon="@drawable/ic_ladder" />
+
     <!--
         Right-hand controls, kept low so nothing reaches the minimap (top right):
 
