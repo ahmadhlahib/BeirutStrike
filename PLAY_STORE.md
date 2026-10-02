@@ -9,7 +9,7 @@ code needs is already in this repository.
 | **Package name** | `com.alahib.beirutstrike` (permanent: it can never change after the first upload) |
 | **Target SDK** | 36 (Android 16) |
 | **Upload format** | Android App Bundle (`.aab`) |
-| **Privacy policy** | [PRIVACY_POLICY.md](PRIVACY_POLICY.md) |
+| **Privacy policy** | [PRIVACY_POLICY.md](PRIVACY_POLICY.md), published at <https://ahmadhlahib.github.io/BeirutStrike/privacy/> (`docs/privacy/index.html`) |
 | **Store listing text** | [STORE_LISTING.md](STORE_LISTING.md) |
 
 ---
@@ -79,7 +79,7 @@ every item under **Policy → App content** and **Grow → Store presence**:
 
 | Page | What to enter |
 | --- | --- |
-| **Privacy policy** | A public URL to [PRIVACY_POLICY.md](PRIVACY_POLICY.md), e.g. its GitHub page. The contact email is already filled in |
+| **Privacy policy** | <https://ahmadhlahib.github.io/BeirutStrike/privacy/>: served by GitHub Pages from `docs/privacy/index.html`. Keep it in step with [PRIVACY_POLICY.md](PRIVACY_POLICY.md) |
 | **App access** | *All functionality is available without special access* (no login; players just type a name) |
 | **Ads** | *No, my app does not contain ads* |
 | **Content rating** | The questionnaire: see [STORE_LISTING.md](STORE_LISTING.md#content-rating-questionnaire) |
