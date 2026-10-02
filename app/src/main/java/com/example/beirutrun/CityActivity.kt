@@ -123,6 +123,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private lateinit var zoomInButton: MaterialButton
     private lateinit var zoomOutButton: MaterialButton
     private lateinit var scopeOverlay: View
+    private lateinit var climbButton: MaterialButton
     private lateinit var grenadeButton: MaterialButton
     private lateinit var grenadeKindButton: MaterialButton
     /** White over everything while a flashbang has me blinded. */
@@ -145,7 +146,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private var ticks = 0
     private val tick = object : Runnable {
         override fun run() {
-            online.updatePose(renderer.playerX, renderer.playerZ, renderer.heading, renderer.isWalking, renderer.prone, renderer.jumpSeq)
+            online.updatePose(renderer.playerX, renderer.playerZ, renderer.heading, renderer.isWalking, renderer.prone, renderer.jumpSeq, renderer.floorY)
+            updateClimbButton()
             updateCrosshair()
             updateGameTimer()
             updateWeaponButtons()
@@ -371,6 +373,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         grenadeButton.setOnClickListener { throwGrenade() }
         grenadeKindButton = findViewById(R.id.grenadeKindButton)
         grenadeKindButton.setOnClickListener { switchGrenade() }
+        climbButton = findViewById(R.id.climbButton)
+        climbButton.setOnClickListener { climb() }
         // The three guns chosen on the loadout screen; the primary in hand to start with.
         guns = GunSlot.entries.associateWith { Session.gun(this, it) }
         renderer.weapon = guns.getValue(GunSlot.PRIMARY)
@@ -393,7 +397,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         crosshair = findViewById(R.id.crosshair)
         findViewById<MaterialButton>(R.id.jumpButton).setOnClickListener { if (!dead) renderer.jump() }
         crawlButton = findViewById(R.id.crawlButton)
-        crawlButton.setOnClickListener { setProne(!renderer.prone) }
+        crawlButton.setOnClickListener { if (!renderer.climbing) setProne(!renderer.prone) }
         heartsLabel = findViewById(R.id.hearts)
         banner = findViewById(R.id.banner)
         damageFlash = findViewById(R.id.damageFlash)
@@ -610,6 +614,26 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             .alpha(0f)
             .start()
         if (strength > 0.3f) sounds.earRinging(strength * 0.6f)
+    }
+
+    // ---- Ladders ------------------------------------------------------------------------------
+
+    /** Up or down the ladder within reach: standing up and lowering the scope first, since both hands are needed. */
+    private fun climb() {
+        if (dead || gameOver) return
+        setProne(false)
+        setScoped(false)
+        renderer.triggerHeld = false
+        renderer.climb()
+    }
+
+    /** The Climb button shows at a ladder's foot ("Climb up") or beside its top on a roof ("Climb down"). */
+    private fun updateClimbButton() {
+        val action = if (dead || gameOver) CityRenderer.LadderAction.NONE else renderer.ladderAction
+        climbButton.visibility = if (action == CityRenderer.LadderAction.NONE) View.GONE else View.VISIBLE
+        if (action != CityRenderer.LadderAction.NONE) {
+            climbButton.setText(if (action == CityRenderer.LadderAction.UP) R.string.climb_up else R.string.climb_down)
+        }
     }
 
     // ---- Grenades -----------------------------------------------------------------------------
