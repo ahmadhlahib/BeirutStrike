@@ -137,7 +137,8 @@ its starting rounds and grenades.
 ### Grenades
 
 Every player also carries grenades, thrown with the grenade button towards where you look (a
-weaker throw lying down). They bounce off walls, roofs and the ground, and every phone in the room
+weaker throw lying down; in gun view you see your hand pull back and throw it while the gun is
+lowered). They bounce off walls, roofs and the ground, and every phone in the room
 sees the same throw. Tap the button below it to change kind. More lie in the street (see
 [Pickups](#pickups)), up to twice what you start with.
 

@@ -413,6 +413,13 @@ class CityRenderer(
         var steps = 0
     }
     private val grenades = ArrayList<Grenade>()
+    /**
+     * A throw under way (uptime ms it started, 0 = none) and its grenade: the gun comes down,
+     * the hand winds back and the grenade leaves it [THROW_RELEASE_MS] in, then the gun comes back.
+     */
+    @Volatile private var throwStartedAt = 0L
+    private var throwing = GrenadeKind.FRAG
+    private var thrown = false
     /** Time not yet simulated in whole grenade steps. */
     private var grenadeClock = 0f
     private var throwCooldown = 0f
@@ -706,6 +713,12 @@ class CityRenderer(
             Matrix.rotateM(base, 0, 4f + dip * 20f, 0f, 1f, 0f)
             Matrix.rotateM(base, 0, 1.5f + kick * kickUp - dip * 25f, 1f, 0f, 0f)
         }
+        // Throwing a grenade: the gun drops down out of the way and comes back after.
+        val lower = gunLowered(now)
+        if (lower > 0f) {
+            Matrix.translateM(base, 0, -lower * 0.04f, -lower * 0.22f, lower * 0.06f)
+            Matrix.rotateM(base, 0, -lower * 40f, 1f, 0f, 0f)
+        }
         // The detailed model when there is one (in the same gun space), else the gun built from boxes.
         if (mesh != null) drawGunMesh(gun, mesh, base)
         else for (part in model.parts) tiltedBox(part.x, part.y, part.z, part.sx, part.sy, part.sz, part.pitch, part.color)
@@ -736,10 +749,72 @@ class CityRenderer(
             }
             muzzleFlash(0f, mesh?.muzzleY ?: model.muzzleY, (mesh?.muzzleZ ?: model.muzzleZ) - size * 0.3f, size)
         }
+        drawThrowingHand(now, sleeve, bobX, bobY)
         // Back to the world's projection.
         Matrix.multiplyMM(viewProj, 0, projection, 0, view, 0)
     }
     private val heldProjection = FloatArray(16)
+
+    /** How far the gun is lowered for a throw, 0..1: down quickly, held, back up once the grenade is gone. */
+    private fun gunLowered(now: Long): Float {
+        val start = throwStartedAt
+        if (start == 0L) return 0f
+        val p = ((now - start) / THROW_ANIM_MS.toFloat()).coerceIn(0f, 1f)
+        val k = when {
+            p < 0.18f -> p / 0.18f
+            p < 0.7f -> 1f
+            else -> 1f - (p - 0.7f) / 0.3f
+        }
+        return k * k * (3f - 2f * k)
+    }
+
+    /**
+     * First person, during a throw: the right hand comes up holding the grenade, draws back
+     * beside the head, swings forward and lets go (the grenade leaves at [THROW_RELEASE_MS]),
+     * then drops out of sight. In camera space, like the gun.
+     */
+    private fun drawThrowingHand(now: Long, sleeve: Int, bobX: Float, bobY: Float) {
+        val start = throwStartedAt
+        if (start == 0L) return
+        val p = ((now - start) / THROW_ANIM_MS.toFloat()).coerceIn(0f, 1f)
+        val release = THROW_RELEASE_MS / THROW_ANIM_MS.toFloat()
+        // Key poses (when 0..1, x, y, z, wrist tilt back in degrees): below the screen, up and
+        // cocked, drawn back to the edge of the view, forward at the release, and down out of
+        // view after the follow-through. With the held gun's narrow view, a point shows while
+        // |y| < 0.36 |z| and |x| < 0.65 |z|.
+        val keys = arrayOf(
+            floatArrayOf(0f, 0.2f, -0.28f, -0.35f, 0f),
+            floatArrayOf(0.2f, 0.17f, 0.02f, -0.32f, 35f),
+            floatArrayOf(release - 0.1f, 0.19f, 0.06f, -0.25f, 55f),
+            floatArrayOf(release, 0.06f, 0.02f, -0.42f, -15f),
+            floatArrayOf(0.75f, 0.04f, -0.3f, -0.4f, -40f),
+            floatArrayOf(1f, 0.04f, -0.32f, -0.4f, -40f),
+        )
+        val i = (1 until keys.size).first { p <= keys[it][0] || it == keys.lastIndex }
+        val a = keys[i - 1]; val b = keys[i]
+        val span = (b[0] - a[0]).coerceAtLeast(1e-4f)
+        val k0 = ((p - a[0]) / span).coerceIn(0f, 1f)
+        val k = k0 * k0 * (3f - 2f * k0)
+        fun mix(j: Int) = a[j] + (b[j] - a[j]) * k
+        Matrix.translateM(base, 0, cameraToWorld, 0, mix(1) + bobX, mix(2) + bobY, mix(3))
+        Matrix.rotateM(base, 0, -8f, 0f, 1f, 0f)
+        Matrix.rotateM(base, 0, mix(4), 1f, 0f, 0f)
+        // The grenade sits in the palm until it's thrown.
+        if (p < release) {
+            System.arraycopy(base, 0, gripMatrix, 0, 16)
+            Matrix.translateM(base, 0, 0f, 0.035f, -0.01f)
+            grenadeShape(throwing)
+            System.arraycopy(gripMatrix, 0, base, 0, 16)
+        }
+        // The arm reaching in from the right, as round a pistol's grip; boxes until the arms are read.
+        val arm = library()?.arms?.get(GunMeshes.Arm.PISTOL_RIGHT)
+        if (arm != null) drawArm(arm, GunMeshes.Arm.PISTOL_RIGHT, 0f, 0f, sleeve)
+        else {
+            tiltedBox(0f, 0f, 0f, 0.07f, 0.075f, 0.08f, -16f, SKIN)
+            tiltedBox(0.04f, -0.045f, 0.13f, 0.09f, 0.09f, 0.21f, -25f, sleeve, yawDeg = 15f)
+        }
+    }
+    private val gripMatrix = FloatArray(16)
 
     /** Right hand on the pistol grip, left forward on the handguard, forearms in the team's uniform. */
     private fun drawRifleHands(gy: Float, gz: Float, sz: Float, sy: Float, sleeve: Int) {
@@ -1126,13 +1201,30 @@ class CityRenderer(
             throwRequested = false
             val kind = grenadeKind
             when {
-                isDown || throwCooldown > 0f -> Unit
+                isDown || throwCooldown > 0f || throwStartedAt != 0L -> Unit
                 unlimitedAmmo || grenadesLeft.get(kind.ordinal) > 0 -> {
                     if (!unlimitedAmmo) grenadesLeft.decrementAndGet(kind.ordinal)
                     throwCooldown = THROW_INTERVAL
-                    throwOne(kind)
+                    throwing = kind
+                    thrown = false
+                    throwStartedAt = SystemClock.uptimeMillis()
                 }
                 else -> mainHandler.post { onNoGrenade(kind) }
+            }
+        }
+        if (throwStartedAt != 0L) {
+            val since = SystemClock.uptimeMillis() - throwStartedAt
+            when {
+                // Killed while winding up: the grenade is dropped unthrown, and kept.
+                isDown && !thrown -> {
+                    if (!unlimitedAmmo) grenadesLeft.incrementAndGet(throwing.ordinal)
+                    throwStartedAt = 0L
+                }
+                !thrown && since >= THROW_RELEASE_MS -> {
+                    thrown = true
+                    throwOne(throwing)
+                }
+                since >= THROW_ANIM_MS -> throwStartedAt = 0L
             }
         }
         while (true) {
@@ -1607,7 +1699,8 @@ class CityRenderer(
         triggerPulled = false
         updateReload(gun)
         val wantsToFire = if (gun.automatic || rapidFire) triggerHeld || pulled else pulled
-        if (wantsToFire && !isDown && fireCooldown <= 0f && reloading == null) {
+        // The gun is lowered while a grenade is thrown.
+        if (wantsToFire && !isDown && fireCooldown <= 0f && reloading == null && throwStartedAt == 0L) {
             when {
                 unlimitedAmmo || loaded.get(gun.ordinal) > 0 -> {
                     if (!unlimitedAmmo) loaded.decrementAndGet(gun.ordinal)
@@ -2296,6 +2389,9 @@ class CityRenderer(
         private const val THROW_SPEED_PRONE = 8f
         private const val THROW_LIFT = 3.5f
         private const val THROW_INTERVAL = 0.9f
+        /** A throw's whole movement (gun down, wind up, throw, gun back) and when in it the grenade leaves the hand, ms. */
+        private const val THROW_ANIM_MS = 850L
+        private const val THROW_RELEASE_MS = 380L
         /** Grenades fly in steps of this many seconds (the same on every phone). */
         private const val GRENADE_STEP = 1f / 120f
         private const val GRENADE_RADIUS = 0.07f
