@@ -15,7 +15,7 @@ questionnaires. See [PLAY_STORE.md](PLAY_STORE.md) for the full release checklis
 ### Short description (max 80 characters)
 
 ```
-Team shooter in real Beirut streets. Timed matches, two guns, live ranking.
+Team shooter in real Beirut streets. 12 guns, 20 military ranks, live matches.
 ```
 
 ### Full description (max 4000 characters)
@@ -27,26 +27,35 @@ built from OpenStreetMap data: Downtown, the Souks, Hamra, Ain El Mreisseh and R
 JOIN A ROOM, PICK A SIDE
 Create a public or password-protected room, choose the map, the play area and the match length
 (30 seconds to 1 hour), and invite your friends. Pick one of three factions, or create your own
-team with its own name, flag and colour, and fight until the clock runs out.
+team with its own name, flag and colour, and fight until the clock runs out. Want a tougher
+match? Set a minimum rank, and only experienced players can join.
 
-TWO GUNS, REAL CHOICES
-• Pistol: precise, one shot per tap.
-• AK-47: fully automatic, 10 rounds a second.
-Every bullet counts. Ammo runs out, so hunt the streets for ammo packs, and find a scope to zoom
-in and hit targets from across the city.
+12 REAL GUNS
+Pick your loadout from 12 guns, each with its own 3D model, sound, recoil, magazine and reload:
+• Pistols: Beretta M9, Glock 17, Desert Eagle
+• Rifles and machine guns: AK-47, M4A1, MP5, RPK, M249 SAW
+• Sniper rifles: SVD Dragunov, M24, AWM, Barrett M82
+Ammo runs out, so hunt the streets for ammo packs and scopes, and line up headshots from across
+the city.
 
 MOVE LIKE A SOLDIER
 Walk, run, jump and crawl. Take cover behind real buildings, and switch between first- and
 third-person view.
 
-SCORE, RANK UP, BECOME COMMANDER
-A live scoreboard tracks score, kills, deaths, K/D and accuracy for every player and team. Your
-successful shots add up across all matches on the global ranking. Land more than 100 and you're
-promoted to Commander, with a gold star next to your face.
+RISE THROUGH 20 MILITARY RANKS
+Every kill, headshot and win earns XP. Climb from Private (جندي) through Sergeant, Captain and
+General, all the way to Beirut Legend (أسطورة بيروت). Each promotion brings a new badge and a
+rank-up celebration, and your badge shows on the scoreboard and the ranking. Follow your
+progress, career stats and every rank on the Ranks / Career screen.
+
+SCORE AND COMPETE
+A live scoreboard tracks score, kills, deaths, K/D and accuracy for every player and team, and
+the global ranking adds up your results across all matches.
 
 MAKE IT YOURS
-Put your own face on your soldier with the front camera, talk with speech bubbles, and leave
-photos in the streets for other players to find.
+Choose your character and celebrate a win with a victory dance. Put your own face on the soldier
+with the front camera, talk with speech bubbles, and leave photos in the streets for other
+players to find.
 
 • No account or sign-up needed: just type a name and play
 • No ads
@@ -61,7 +70,7 @@ Map data © OpenStreetMap contributors.
 | --- | --- | --- |
 | App icon | 512 × 512 PNG, 32-bit | Same design as the launcher icon, no transparency around the edges |
 | Feature graphic | 1024 × 500 JPG/PNG | Title art: shown at the top of the listing |
-| Phone screenshots | 2–8, 16:9 or 9:16, 1080 px+ on the short side | Suggested: the city in third person, first person with the AK-47, the scope, the scoreboard, the ranking, the room list |
+| Phone screenshots | 2–8, 16:9 or 9:16, 1080 px+ on the short side | Suggested: the city in third person, first person with a gun, the scope, the ranks / career screen, the scoreboard, the room list |
 
 Use only the game's own art in screenshots and graphics: fictional factions, no real party
 flags or symbols.
@@ -97,7 +106,7 @@ Expect roughly **PEGI 16 / ESRB Teen–Mature 17+ / USK 16**.
 | Personal info → **User IDs** (Firebase anonymous ID) | Yes | No | No | App functionality, fraud prevention/security |
 | Photos and videos → **Photos** (face photo, dropped photos, team flags) | Yes | No | Yes | App functionality |
 | Messages → **Other in-app messages** (speech bubbles, captions) | Yes | No | Yes | App functionality |
-| App activity → **Other user-generated content / in-app actions** (game stats, scores) | Yes | No | No | App functionality |
+| App activity → **Other user-generated content / in-app actions** (game stats, scores, XP and rank) | Yes | No | No | App functionality |
 
 \* In Play's terms, showing content to other users of the same app is **not** "sharing", and
 Firebase acts as a service provider, which is not sharing either.
