@@ -215,6 +215,9 @@ class SoldierAnimator(val rig: SoldierRig) {
     private val crawl = if (lieDownForCrawl) CrawlPose(rig.model, CrawlPose.Bones.detect(rig.model)) else null
     /** Where in the crawl stroke the soldier is (0..1); moves with the distance crawled. */
     private var crawlCycle = 0.25f
+    /** Climbing a ladder is always posed by hand (see ClimbPose); [climbCycle] moves with the height climbed. */
+    private val climbPose = ClimbPose(rig.model, CrawlPose.Bones.detect(rig.model))
+    private var climbCycle = 0f
     private val hasJump = rig.model.clip("Jump") != null
     private var clip: SkinnedModel.Clip? = rig.model.clip(SoldierRig.IDLE)
     private var time = 0f
@@ -250,14 +253,20 @@ class SoldierAnimator(val rig: SoldierRig) {
     /**
      * Advances the animation. [speed] is metres per second; [moveAngle] is the direction of travel
      * relative to where the soldier faces (radians, 0 = forwards, positive = to their right).
+     * On a ladder ([climbing]), [speed] is how fast they're going up or down it.
      */
     fun update(
         dt: Float, speed: Float, moveAngle: Float, aiming: Boolean, dead: Boolean, skin: Boolean,
-        prone: Boolean = false, airborne: Boolean = false,
+        prone: Boolean = false, airborne: Boolean = false, climbing: Boolean = false,
     ) {
         val dance = dancing?.takeIf { !dead }
-        val (name, loop, fixedRate) = if (dance != null) Triple(dance, danceLoops, 1f)
-            else choose(speed, moveAngle, aiming, dead, prone, airborne)
+        val onLadder = climbing && !dead && dance == null && climbPose.usable
+        val (name, loop, fixedRate) = when {
+            dance != null -> Triple(dance, danceLoops, 1f)
+            // Standing still is the base the hand-made climb is set on.
+            onLadder -> Triple(SoldierRig.IDLE, true, 0.3f)
+            else -> choose(speed, moveAngle, aiming, dead, prone, airborne)
+        }
         val wanted = rig.model.clip(name)
         if (danceRestart && wanted != null) {
             // Start the dance from its first step (even if it's the one already playing).
@@ -284,13 +293,15 @@ class SoldierAnimator(val rig: SoldierRig) {
             if (dance != null && !looping && time >= c.duration) dancing = null
         }
         fromClip?.let { f -> fromTime = (fromTime + dt) % max(f.duration, 0.01f) }
-        val crawling = prone && !dead && crawl?.usable == true
+        val crawling = prone && !dead && crawl?.usable == true && !onLadder
         if (crawling && speed >= 0.2f) crawlCycle = (crawlCycle + dt * speed / CrawlPose.STRIDE) % 1f
+        if (onLadder) climbCycle = (climbCycle + dt * speed / ClimbPose.STRIDE) % 1f
         fade = min(1f, fade + dt / CROSSFADE)
         if (fade >= 1f) fromClip = null
         if (skin) {
             pose.update(clip, time, fromClip, fromTime, fade)
             if (crawling) crawl?.apply(pose, crawlCycle)
+            if (onLadder) climbPose.apply(pose, climbCycle)
             pose.skin()
             version++
             ready = true

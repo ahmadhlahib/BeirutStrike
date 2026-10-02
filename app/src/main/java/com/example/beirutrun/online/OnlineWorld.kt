@@ -82,6 +82,8 @@ data class RemotePlayer(
     val grenadeHold: String = "",
     /** The height they stand at, metres: 0 in the street, a roof's height, or partway up a ladder. */
     val floor: Float = 0f,
+    /** On a ladder, going up or down it. */
+    val climbing: Boolean = false,
 )
 
 /** One player's score in the room's game, kept after they leave so the scoreboard stays whole. */
@@ -236,6 +238,7 @@ class OnlineWorld(
     private var jumpSeq = 0L
     /** The height I stand at (a roof, or up a ladder; 0 in the street). */
     private var floor = 0f
+    private var climbing = false
     private var weapon = ""
     private var character = ""
     private var showFace = true
@@ -247,6 +250,7 @@ class OnlineWorld(
     private var sentProne = false
     private var sentJumpSeq = 0L
     private var sentFloor = 0f
+    private var sentClimbing = false
     private var lastWrite = 0L
     private var lastRoomTouch = 0L
 
@@ -399,6 +403,7 @@ class OnlineWorld(
             "prone" to prone,
             "jumpSeq" to jumpSeq,
             "floor" to floor.toDouble(),
+            "climbing" to climbing,
             "weapon" to weapon,
             "character" to character,
             "showFace" to showFace,
@@ -443,9 +448,10 @@ class OnlineWorld(
     /** Called often (a few times a second); only sends when something visibly changed. */
     fun updatePose(
         newX: Float, newZ: Float, newHeading: Float, isWalking: Boolean, isProne: Boolean = false, jumps: Long = 0L,
-        newFloor: Float = 0f,
+        newFloor: Float = 0f, isClimbing: Boolean = false,
     ) {
         x = newX; z = newZ; heading = newHeading; walking = isWalking; prone = isProne; jumpSeq = jumps; floor = newFloor
+        climbing = isClimbing
         val ref = me ?: return
         if (!active) return
         touchRoom()
@@ -456,12 +462,13 @@ class OnlineWorld(
             hypot(x - sentX, z - sentZ) > 0.05f ||
             abs(heading - sentHeading) > 0.05f ||
             walking != sentWalking || prone != sentProne || jumpSeq != sentJumpSeq ||
-            abs(floor - sentFloor) > 0.05f
+            abs(floor - sentFloor) > 0.05f || climbing != sentClimbing
         if (!changed && now - lastWrite < HEARTBEAT_MS) return
         ref.updateChildren(mapOf(
             "x" to x.toDouble(),
             "z" to z.toDouble(),
             "floor" to floor.toDouble(),
+            "climbing" to climbing,
             "heading" to heading.toDouble(),
             "walking" to walking,
             "prone" to prone,
@@ -474,6 +481,7 @@ class OnlineWorld(
     private fun markSent() {
         sentX = x; sentZ = z; sentHeading = heading; sentWalking = walking; sentProne = prone; sentJumpSeq = jumpSeq
         sentFloor = floor
+        sentClimbing = climbing
         lastWrite = System.currentTimeMillis()
     }
 
@@ -889,6 +897,7 @@ class OnlineWorld(
                     grenadeVZ = s.num("nadeVZ").toFloat(),
                     grenadeHold = s.child("nadeHold").getValue(String::class.java).orEmpty(),
                     floor = s.num("floor").toFloat(),
+                    climbing = s.child("climbing").getValue(Boolean::class.java) == true,
                 )
                 players[id] = player
                 // Events only for changes seen live, not for the state found on joining.
