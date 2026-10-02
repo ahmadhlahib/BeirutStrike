@@ -64,7 +64,7 @@ We do not sell, rent or share your information with anyone else, except where th
   example, if you uninstalled it). We will delete your data within 30 days.
 
 Uninstalling the game deletes the data stored on your phone, but not the data on our servers. Use
-one of the options above for that.
+one of the options above for that. Step-by-step instructions: <https://ahmadhlahib.github.io/BeirutStrike/delete-data/>.
 
 ## Safety
 

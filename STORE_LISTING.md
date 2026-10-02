@@ -98,7 +98,7 @@ Expect roughly **PEGI 16 / ESRB Teen–Mature 17+ / USK 16**.
 
 **Does your app collect or share any of the required user data types?** Yes.
 **Is all of the user data encrypted in transit?** Yes (Firebase uses TLS).
-**Do you provide a way for users to request that their data be deleted?** Yes (in the app, and by email).
+**Do you provide a way for users to request that their data be deleted?** Yes (in the app, and by email). Deletion URL: <https://ahmadhlahib.github.io/BeirutStrike/delete-data/>.
 
 | Data type | Collected | Shared* | Optional | Purpose |
 | --- | --- | --- | --- | --- |
