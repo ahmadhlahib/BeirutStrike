@@ -393,6 +393,7 @@ class CityRenderer(
         var soldier: SoldierAnimator? = null
         var lastX = x
         var lastZ = z
+        var lastFloor = player.floor
         var speed = 0f
         /** The height they stand at (a roof, a ladder), easing towards [RemotePlayer.floor]. */
         var floor = player.floor
@@ -414,6 +415,7 @@ class CityRenderer(
     private var statueSoldier: SoldierAnimator? = null
     private var lastPlayerX = playerX
     private var lastPlayerZ = playerZ
+    private var lastPlayerY = playerY
     private var playerSpeed = 0f
     /** GPU copies of each soldier's skinned mesh (recreated with the GL context). */
     private val soldierMeshes = HashMap<SoldierAnimator, List<DynamicMesh>>()
@@ -639,14 +641,14 @@ class CityRenderer(
         if (fp) muzzleKnown = false
         else playerSoldier?.let {
             val holding = if (throwStartedAt != 0L && !thrown) throwing else null
-            drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown, weapon, holding)
+            drawSoldier(it, lookFor(playerTeam), faceTexture(playerFace()), playerX, playerZ, heading, playerY, prone && !isDown, weapon, holding, climbing)
         }
         for (r in remotes.values) {
             val soldier = r.soldier ?: continue
             if (!isWorthAnimating(r.x, r.z)) continue
             flashing = now < r.flashUntil
             val holding = if (r.player.dead) null else GrenadeKind.byId(r.player.grenadeHold)
-            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.feet, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon), holding)
+            drawSoldier(soldier, lookFor(r.player.team), faceTexture(remoteFace(r.player)), r.x, r.z, r.heading, r.feet, r.player.prone && !r.player.dead, Weapon.byId(r.player.weapon), holding, r.player.climbing && !r.player.dead)
             flashing = false
         }
         drawBullets()
@@ -1814,10 +1816,12 @@ class CityRenderer(
         lastPlayerX = playerX
         lastPlayerZ = playerZ
         playerSpeed += (hypot(vx, vz) - playerSpeed) * min(1f, dt * 10f)
+        // On a ladder the hands and feet move with the height climbed (see ClimbPose).
+        val climbSpeed = abs(playerY - lastPlayerY) / dt
+        lastPlayerY = playerY
         player.update(
-            // On a ladder there's no climbing animation: the legs walk on the spot, rung by rung.
-            dt, if (climbing) CLIMB_ANIM_SPEED else playerSpeed, SoldierAnimator.relativeAngle(vx, vz, heading),
-            aimTime > 0f, down, skin = true, prone = prone, airborne = playerY - floorY > 0.05f,
+            dt, if (climbing) climbSpeed else playerSpeed, SoldierAnimator.relativeAngle(vx, vz, heading),
+            aimTime > 0f, down, skin = true, prone = prone, airborne = playerY - floorY > 0.05f, climbing = climbing,
         )
 
         val now = SystemClock.uptimeMillis()
@@ -1830,10 +1834,12 @@ class CityRenderer(
             r.lastX = r.x
             r.lastZ = r.z
             r.speed += (hypot(rvx, rvz) - r.speed) * min(1f, dt * 8f)
+            val climbSpeed = abs(r.floor - r.lastFloor) / dt
+            r.lastFloor = r.floor
             soldier.update(
-                dt, r.speed, SoldierAnimator.relativeAngle(rvx, rvz, r.heading),
+                dt, if (r.player.climbing) climbSpeed else r.speed, SoldierAnimator.relativeAngle(rvx, rvz, r.heading),
                 aiming = now < (remoteAiming[r.player.uid] ?: 0L) || r.player.grenadeHold.isNotEmpty(), dead = r.player.dead, skin = isWorthAnimating(r.x, r.z),
-                prone = r.player.prone, airborne = r.y > 0.05f,
+                prone = r.player.prone, airborne = r.y > 0.05f, climbing = r.player.climbing,
             )
         }
         // All photo-drop statues share one idle pose.
@@ -2244,6 +2250,8 @@ class CityRenderer(
         y: Float = 0f, prone: Boolean = false, gun: Weapon = Weapon.AK47,
         /** A grenade about to be thrown: in the hand instead of the gun. */
         holding: GrenadeKind? = null,
+        /** On a ladder: both hands on the rails, the gun slung out of sight. */
+        climbing: Boolean = false,
     ) {
         if (!anim.ready) return
         val meshes = soldierMeshes.getOrPut(anim) {
@@ -2298,7 +2306,7 @@ class CityRenderer(
 
         // Gun: held at the right hand, pointing where the soldier faces (+z in model space).
         // Sizes are in metres, times the model's units per metre.
-        if (rig.wrist < 0) return
+        if (rig.wrist < 0 || climbing) return
         anim.pose.nodeMatrix(rig.wrist, bone)
         val wx = bone[12]; val wy = bone[13]; val wz = bone[14]
         val u = rig.unit
@@ -2614,8 +2622,6 @@ class CityRenderer(
         private const val SHAKE_MOVE = 0.35f
         // Ladders: climbed at this many metres a second, from within reach of their foot or top.
         private const val CLIMB_SPEED = 3f
-        /** The walking animation's speed played on the spot while climbing, m/s. */
-        private const val CLIMB_ANIM_SPEED = 1.6f
         private const val LADDER_REACH = 1.3f
         /** How close to a roof's edge a player can walk, metres (there's no walking off it). */
         private const val ROOF_EDGE = 0.35f

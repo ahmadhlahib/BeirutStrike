@@ -146,7 +146,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private var ticks = 0
     private val tick = object : Runnable {
         override fun run() {
-            online.updatePose(renderer.playerX, renderer.playerZ, renderer.heading, renderer.isWalking, renderer.prone, renderer.jumpSeq, renderer.floorY)
+            online.updatePose(renderer.playerX, renderer.playerZ, renderer.heading, renderer.isWalking, renderer.prone, renderer.jumpSeq, renderer.floorY, renderer.climbing)
             updateClimbButton()
             updateCrosshair()
             updateGameTimer()
