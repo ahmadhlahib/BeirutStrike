@@ -84,7 +84,7 @@ every item under **Policy → App content** and **Grow → Store presence**:
 | **Ads** | *No, my app does not contain ads* |
 | **Content rating** | The questionnaire: see [STORE_LISTING.md](STORE_LISTING.md#content-rating-questionnaire) |
 | **Target audience** | **16 and over**, not appealing to children (avoids the Families policy) |
-| **Data safety** | See [STORE_LISTING.md](STORE_LISTING.md#data-safety-form) |
+| **Data safety** | See [STORE_LISTING.md](STORE_LISTING.md#data-safety-form). Data deletion URL: <https://ahmadhlahib.github.io/BeirutStrike/delete-data/> (`docs/delete-data/index.html`) |
 | **Government apps / financial / health** | No |
 | **Store listing** | Name, descriptions and graphics: see [STORE_LISTING.md](STORE_LISTING.md) |
 
