@@ -532,8 +532,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // Players I blocked still walk around (they're in the game), but their words don't show.
         val shown = players.map { if (Blocklist.isBlocked(this, it.uid)) it.copy(say = "") else it }
         renderer.setRemotePlayers(shown)
-        miniMap.players = shown
-        fullMap?.players = shown
+        // The maps only show teammates: players on other teams have to be found in the city.
+        val teammates = shown.filter { it.team == playerTeam.id }
+        miniMap.players = teammates
+        fullMap?.players = teammates
         updateStatusLabel()
     }
 
