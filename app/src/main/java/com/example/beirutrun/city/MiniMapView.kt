@@ -14,7 +14,7 @@ import kotlin.concurrent.thread
 
 /**
  * A north-up map: the real streets (drawn once, off the main thread), the play area's border (red),
- * other players (team colours), dropped photos (yellow) and the player as an arrow. Redraws ten
+ * [players] (team colours; CityActivity passes only teammates), dropped photos (yellow) and the player as an arrow. Redraws ten
  * times a second from [renderer]'s position.
  *
  * As the corner minimap it follows the player; with [full] set it shows the whole play area (or the
