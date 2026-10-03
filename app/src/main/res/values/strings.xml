@@ -3,12 +3,12 @@
     <string name="app_name">Beirut Strike</string>
     <string name="app_title">Beirut Strike</string>
 
-    <!-- Login -->
+    <!-- Player name (first screen). Just a nickname, not an account: avoid login wording. -->
     <string name="login_subtitle">Walk your city, say hi and drop photos for others to find</string>
-    <string name="login_title">Who are you?</string>
-    <string name="login_name_hint">Your name</string>
+    <string name="login_title">Pick a player name</string>
+    <string name="login_name_hint">Player name</string>
     <string name="login_enter">Enter the city</string>
-    <string name="login_name_required">Please enter your name</string>
+    <string name="login_name_required">Please pick a player name</string>
 
 
     <!-- Face photo -->
@@ -40,7 +40,7 @@
     <string name="streets_added">Added %1$d street photo(s)</string>
     <string name="menu_add_streets">Add street photos to buildings</string>
     <string name="menu_remove_streets">Remove street photos</string>
-    <string name="menu_logout">Log out</string>
+    <string name="menu_logout">Change name</string>
 
     <string name="osm_attribution">Map data © OpenStreetMap contributors</string>
 
