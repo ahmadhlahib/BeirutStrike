@@ -30,12 +30,13 @@ class PedestrianModelsTest {
                 Characters.pedestrianFile(i, path).firstNotNullOfOrNull { File(assets, it).takeIf { f -> f.exists() }?.readBytes() }
             }
             assertTrue("$who: should be a Mixamo skeleton (Hips bone)", rig.model.nodeIndex("mixamorig:Hips") >= 0 || rig.model.nodeIndex("Hips") >= 0)
-            for ((file, clip) in listOf("idle" to "Idle_Gun", "walk" to "Walk", "run" to "Run")) {
+            for ((file, clip) in listOf("idle" to "Idle_Gun", "walk" to "Walk", "run" to "Run", "turn" to "Turn", "death1" to "Death1", "death2" to "Death2", "death3" to "Death3")) {
                 assertNotNull("$who: missing $file.glb", rig.model.clip(clip))
             }
             val vertices = rig.model.primitives.sumOf { it.vertexCount }
             val size = folder.listFiles().orEmpty().sumOf { it.length() } / 1024
-            println("$who: $vertices vertices, ${rig.model.images.size} textures, ${size} KB, materials ${rig.model.primitives.map { it.material }}")
+            println("$who: $vertices vertices, ${rig.model.images.size} textures, ${size} KB, materials ${rig.model.primitives.map { it.material }}, " +
+                "clips ${listOf("Turn", "Death1", "Death2", "Death3").map { "$it ${rig.model.clip(it)?.duration}s" }}")
             assertTrue("$who: $vertices vertices; keep street people under $MAX_VERTICES", vertices <= MAX_VERTICES)
             // It animates.
             val anim = SoldierAnimator(rig)

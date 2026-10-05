@@ -298,6 +298,9 @@ class CityRenderer(
     /** The nearest people in the street drawn with a character model (see pedestrianRigs), by id. */
     private val passersby = HashMap<Int, SoldierAnimator>()
     private var passerbyViews: List<CityLife.Passerby> = emptyList()
+    /** How many times each was seen turning round (see CityLife.Passerby.turns), and who is turning now. */
+    private val passerbyTurns = HashMap<Int, Int>()
+    private val passerbyTurning = HashSet<Int>()
 
     /**
      * What the player stands on: the street (0) or a roof's height, rising and falling while on a
@@ -1256,6 +1259,9 @@ class CityRenderer(
                 b.travelled += s
                 if (b.travelled > b.range || b.y <= 0f || city.isInsideBuilding(b.x, b.y, b.z, 0f)) {
                     spent = true
+                } else if (life.shoot(b.x, b.y, b.z, b.dx, b.dz)) {
+                    // A passer-by hit: they fall, but it counts for nobody's score (not reported).
+                    spent = true
                 } else if (b.mine) {
                     val target = remotes.values.firstOrNull { isEnemy(it) && hitsBody(it, b.x, b.y, b.z) }
                     if (target != null) {
@@ -1579,6 +1585,8 @@ class CityRenderer(
      * my own grenade can hurt me too. Anyone near feels the ground shake.
      */
     private fun fragBlast(g: Grenade, now: Long) {
+        // Passers-by caught in it fall (any grenade; no score).
+        life.blast(g.x, g.z, g.kind.radius)
         val r = g.kind.radius
         if (g.mine) {
             for (t in remotes.values) {
@@ -2242,18 +2250,31 @@ class CityRenderer(
         life.modelled = passerbyViews.mapTo(HashSet()) { it.id }
         // Forget those who are no longer near (and their GPU copies).
         val gone = passersby.keys - life.modelled
-        for (id in gone) passersby.remove(id)?.let { soldierMeshes.remove(it)?.forEach { m -> m.release() }; uploadedVersion.remove(it) }
+        for (id in gone) {
+            passerbyTurns.remove(id)
+            passersby.remove(id)?.let { soldierMeshes.remove(it)?.forEach { m -> m.release() }; uploadedVersion.remove(it) }
+        }
+        passerbyTurning.clear()
         for (p in passerbyViews) {
             val anim = passersby.getOrPut(p.id) { SoldierAnimator(ready[p.variant % ready.size]) }
-            anim.update(dt, p.speed, 0f, aiming = false, dead = false, skin = true)
+            // Turned round to run from danger: the turn clip swings the body round from the old
+            // way to the new, then the run follows with no blend (which would swing it back).
+            val seen = passerbyTurns.put(p.id, p.turns)
+            if (seen != null && seen != p.turns) anim.dance(TURN_CLIP, snapBack = true)
+            // Judged before this frame's update, which may end the turn: its last frame still
+            // shows the turned body, so it's drawn the old way round once more.
+            if (anim.dancing == TURN_CLIP && p.death == 0) passerbyTurning += p.id
+            anim.update(dt, p.speed, 0f, aiming = false, dead = p.death > 0, skin = true, deathClip = "Death${p.death}")
         }
     }
 
     private fun drawPassersby() {
         for (p in passerbyViews) {
             val anim = passersby[p.id] ?: continue
+            // Mid-turn they're drawn facing the way they came; the clip turns them round.
+            val heading = if (p.id in passerbyTurning) p.heading + PI.toFloat() else p.heading
             // Models with plain materials named like clothes take the person's colours.
-            drawSoldier(anim, SoldierLook(p.shirt, p.trousers, 0), 0, p.x, p.z, p.heading, armed = false)
+            drawSoldier(anim, SoldierLook(p.shirt, p.trousers, 0), 0, p.x, p.z, heading, armed = false)
         }
     }
 
@@ -2678,6 +2699,8 @@ class CityRenderer(
         /** How many of the nearest people in the street get a character model, and how near they must be. */
         private const val MODELLED_PEOPLE = 8
         private const val MODELLED_PEOPLE_RANGE = 35f
+        /** A street person turning round to run away (turn.glb, see SoldierRig.MIXAMO_CLIPS). */
+        private const val TURN_CLIP = "Turn"
         /** The play-area wall: 3 m of see-through red. */
         private const val BORDER_HEIGHT = 3f
         private const val BORDER_COLOR = 0x55FF3B30

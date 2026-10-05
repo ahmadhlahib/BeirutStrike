@@ -355,7 +355,7 @@ The sources are Mixamo downloads (FBX), kept out of the app:
 | Folder | What |
 | --- | --- |
 | `tools/models/pedestrians/characters/` | one `<name>.fbx` per person: any Mixamo character, downloaded as FBX (T-pose) |
-| `tools/models/pedestrians/animations/` | shared by everyone, FBX with **In Place** ticked: `Walking.fbx`, `Running (1).fbx`, `Standing Idle.fbx`, `Talking On A Cell Phone.fbx` |
+| `tools/models/pedestrians/animations/` | shared by everyone, FBX with **In Place** ticked: `Walking.fbx`, `Running (1).fbx`, `Standing Idle.fbx`, `Talking On A Cell Phone.fbx`, `Running Turn 180.fbx` (turning to flee), and the deaths `Falling Back Death.fbx`, `Falling Forward Death.fbx`, `Flying Back Death.fbx` |
 
 To add a person, put their FBX in `characters/` and run:
 
@@ -371,7 +371,10 @@ github.com/zeux/meshoptimizer; a Mixamo character drops from ~50 MB and ~30,000 
 shared animations fit (`tools/RenameMixamoBones.java`), and strips the animations to their
 motion. Everything goes to `app/src/main/assets/models/pedestrians/`. The test loads every
 person with the shared animations, checks they are under 12,000 vertices and prints the sizes.
-Every other person talks on the phone (instead of the standing idle) when they stop.
+Every other person talks on the phone (instead of the standing idle) when they stop. People
+can be shot (or caught in a grenade): they fall with one of the death clips (backwards when shot
+from the front, forwards from behind) and lie there for 30 s; it counts for no one's score.
+When there's shooting nearby, people heading towards it turn round (the turn clip) and run.
 
 Each person in the street gets one of the models at random. Materials without a texture whose
 names look like clothes (`shirt`, `pants`, `top`, `body`, `cloth`...) are recoloured per person,

@@ -44,5 +44,11 @@ anim "Talking On A Cell Phone" phone
 anim "Walking" walk
 # "Running.fbx" turned out to be a running flip; "Running (1).fbx" is the run.
 anim "Running (1)" run
+# Turning round to run back the other way (people fleeing from shooting).
+anim "Running Turn 180" turn
+# Three ways to die when shot.
+anim "Falling Back Death" death1
+anim "Falling Forward Death" death2
+anim "Flying Back Death" death3
 
 ls -la "$OUT"/*/

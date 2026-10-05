@@ -62,6 +62,12 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         var panicUntil = -1f
         /** Which character model draws them up close, when there are any (see [Passerby.variant]). */
         val variant = (id * 7919) and 0xFFFF
+        /** Times turned round to run from danger, and when (see [Passerby.turns]). */
+        var turns = 0
+        var turnedAt = -10f
+        /** 0 alive, else how they died (see [Passerby.death]), and when. */
+        var death = 0
+        var diedAt = 0f
     }
 
     private val cars = ArrayList<Car>()
@@ -99,6 +105,10 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
     class Passerby(
         val id: Int, val x: Float, val z: Float, val heading: Float, val speed: Float,
         val variant: Int, val shirt: Int, val trousers: Int,
+        /** 0 alive; else how they died: 1 falling back, 2 falling forward, 3 thrown back (Death1..3 clips). */
+        val death: Int,
+        /** Goes up each time they turn round to run from danger, facing [heading] from then on. */
+        val turns: Int,
     )
 
     /** Ids of people drawn with a character model, so [fill] leaves them out. */
@@ -114,7 +124,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
             .map { (w, _) ->
                 Passerby(
                     w.id, w.drawX, w.drawZ, kotlin.math.atan2(w.drawFx, -w.drawFz), w.speed,
-                    w.variant, PALETTE[w.look[1]], PALETTE[w.look[2]],
+                    w.variant, PALETTE[w.look[1]], PALETTE[w.look[2]], death = w.death, turns = w.turns,
                 )
             }
             .toList()
@@ -133,7 +143,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         val first = !started
         started = true
         cars.removeAll { hypot(it.x - px, it.z - pz) > CAR_FORGET }
-        walkers.removeAll { hypot(it.x - px, it.z - pz) > WALKER_FORGET }
+        walkers.removeAll { hypot(it.x - px, it.z - pz) > WALKER_FORGET || (it.death > 0 && clock - it.diedAt > BODY_SECONDS) }
         // At the start fill the streets all round; later only out of sight, so nobody pops up.
         val tries = if (first) 200 else 2
         repeat(tries) { if (cars.size < MAX_CARS) spawnCar(px, pz, if (first) 20f else CAR_APPEAR) }
@@ -143,13 +153,53 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         for (w in walkers) walk(w, dt, px, pz)
     }
 
+    /**
+     * A bullet at (x, y, z) going along (dx, dz): if it's in someone, they're killed (and true is
+     * returned, so the bullet stops). Shot from the front they fall or are thrown back, from
+     * behind they fall forwards. It counts for nobody's score: these are scenery.
+     */
+    fun shoot(x: Float, y: Float, z: Float, dx: Float, dz: Float): Boolean {
+        for (w in walkers) {
+            if (w.death > 0 || y < 0f || y > PERSON_HEIGHT * w.scale) continue
+            if (hypot(x - w.drawX, z - w.drawZ) > HIT_RADIUS) continue
+            val fromFront = dx * w.drawFx + dz * w.drawFz < 0f
+            kill(w, if (fromFront) (if (rnd.nextBoolean()) FALL_BACK else THROWN_BACK) else FALL_FORWARD)
+            return true
+        }
+        return false
+    }
+
+    /** A grenade going off at (x, z): everyone within [radius] is killed, thrown away from it. */
+    fun blast(x: Float, z: Float, radius: Float) {
+        for (w in walkers) {
+            if (w.death > 0 || hypot(w.drawX - x, w.drawZ - z) > radius) continue
+            // Facing the blast, they're thrown back; with their back to it, they fall forwards.
+            val facing = (x - w.drawX) * w.drawFx + (z - w.drawZ) * w.drawFz > 0f
+            kill(w, if (facing) THROWN_BACK else FALL_FORWARD)
+        }
+        alarm(x, z)
+    }
+
+    private fun kill(w: Walker, how: Int) {
+        w.death = how
+        w.diedAt = clock
+        w.speed = 0f
+        alarm(w.drawX, w.drawZ)
+    }
+
     /** A shot or blast at (x, z): people near it run. */
     fun alarm(x: Float, z: Float) {
         for (w in walkers) {
-            if (hypot(w.x - x, w.z - z) > PANIC_RADIUS) continue
+            if (w.death > 0 || hypot(w.x - x, w.z - z) > PANIC_RADIUS) continue
             if (w.panicUntil < clock) {
                 // Turn away if heading towards the danger.
-                if (w.fx * (x - w.x) + w.fz * (z - w.z) > 0f) { val f = w.from; w.from = w.to; w.to = f; w.t = segLength(w) - w.t }
+                if (w.fx * (x - w.x) + w.fz * (z - w.z) > 0f) {
+                    val f = w.from; w.from = w.to; w.to = f; w.t = segLength(w) - w.t
+                    // Facing the new way at once: a character model turns itself round (see Passerby.turns).
+                    w.drawFx = -w.drawFx; w.drawFz = -w.drawFz
+                    w.turns++
+                    w.turnedAt = clock
+                }
             }
             w.panicUntil = clock + PANIC_SECONDS
             w.standUntil = 0f
@@ -241,7 +291,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
                 if (allowed < target) { target = allowed; blockedByCar = allowed < 0.5f }
             }
         }
-        for (w in walkers) target = min(target, max(0f, (gapAhead(c, w.x, w.z, 1.4f) - CAR_MODELS[c.model].halfLength - 2f) * 1.2f))
+        for (w in walkers) if (w.death == 0) target = min(target, max(0f, (gapAhead(c, w.x, w.z, 1.4f) - CAR_MODELS[c.model].halfLength - 2f) * 1.2f))
         var i = 0
         while (i + 1 < people.size) {
             target = min(target, max(0f, (gapAhead(c, people[i], people[i + 1], 1.6f) - CAR_MODELS[c.model].halfLength - 2.5f) * 1.2f))
@@ -269,9 +319,11 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
 
     private fun walk(w: Walker, dt: Float, px: Float, pz: Float) {
         w.age += dt
+        if (w.death > 0) { w.speed = 0f; return }
         val panic = w.panicUntil > clock
         var speed = when {
-            panic -> w.pace * 3f
+            // Turning round, they speed up into the run rather than slide away mid-turn.
+            panic -> w.pace * 3f * ((clock - w.turnedAt) / TURN_SECONDS).coerceIn(0.15f, 1f)
             w.age < w.standUntil -> 0f
             else -> w.pace
         }
@@ -436,6 +488,10 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         val lean = if (run) 0.17f else if (moving) 0.04f else 0f
         val cLean = cos(lean); val sLean = sin(lean)
         val ax = w.drawFz; val az = -w.drawFx
+        // Shot: falls over in the first moments, backwards or (shot from behind) forwards.
+        val fall = if (w.death > 0) ((clock - w.diedAt) / FALL_SECONDS).coerceIn(0f, 1f) else 0f
+        val fallAngle = fall * PI.toFloat() / 2f * if (w.death == FALL_FORWARD) 1f else -1f
+        val cFall = cos(fallAngle); val sFall = sin(fallAngle)
         val parts = (if (detail) PEOPLE_NEAR else PEOPLE_FAR)[w.kind]
         for (part in parts) {
             // A negative turn swings a limb forward; each arm's side is flipped, so it swings
@@ -483,6 +539,13 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
                 }
                 val lx = f[i] * w.bulk + sway
                 ly = ly * w.scale + bob; lz *= w.bulk
+                if (fall > 0f) {
+                    // Fallen: the whole body tipped over at the feet (+ forwards), resting on the ground.
+                    val ry = ly * cFall - lz * sFall; val rz = ly * sFall + lz * cFall
+                    ly = ry + fall * 0.11f; lz = rz
+                    val rny = ny * cFall - nz * sFall; val rnz = ny * sFall + nz * cFall
+                    ny = rny; nz = rnz
+                }
                 val nx = f[i + 3]
                 val color = when (val role = part.roles[v]) {
                     SKIN -> w.look[0]; SHIRT -> w.look[1]; LEGS -> w.look[2]; FEET -> w.look[3]
@@ -773,6 +836,16 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         private const val WALKER_FORGET = 150f
         private const val PANIC_RADIUS = 45f
         private const val PANIC_SECONDS = 9f
+        /** How long turning round to run away takes (the "Running Turn 180" clip), speeding up meanwhile. */
+        const val TURN_SECONDS = 0.67f
+        /** Being shot: how near a bullet must pass, how tall people are, how they fall, and how long bodies stay. */
+        private const val HIT_RADIUS = 0.3f
+        private const val PERSON_HEIGHT = 1.8f
+        private const val FALL_SECONDS = 0.7f
+        private const val BODY_SECONDS = 30f
+        private const val FALL_BACK = 1
+        private const val FALL_FORWARD = 2
+        private const val THROWN_BACK = 3
         private const val CELL = 64f
 
         // Colour roles; car roles are their palette entries, people's are looked up per person.

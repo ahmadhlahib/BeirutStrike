@@ -37,4 +37,27 @@ class CityLifeTest {
             println("$id: ${life.carCount} cars, ${life.walkerCount} people, ${size / 8} vertices")
         }
     }
+
+    @Test
+    fun peopleCanBeShotAndAreClearedAway() {
+        val map = maps.first().inputStream().use { CityMap.load(it) }
+        val life = CityLife(map, RoadNetwork(map.roads), seed = 3)
+        val px = map.spawnX; val pz = map.spawnZ
+        repeat(60) { life.update(1f / 60f, px, pz, floatArrayOf(px, pz)) }
+        val target = life.nearest(px, pz, 1, 1000f).first()
+        // A bullet at chest height, through them from the front, kills them.
+        assertTrue(life.shoot(target.x, 1.2f, target.z, -kotlin.math.sin(target.heading), kotlin.math.cos(target.heading)))
+        val dead = life.nearest(px, pz, 100, 1000f).first { it.id == target.id }
+        assertTrue("should be dead", dead.death in 1..3)
+        // A second bullet in the same place goes through the body.
+        assertFalse(life.shoot(target.x, 1.2f, target.z, 1f, 0f))
+        // Bodies lie still, are drawn without NaNs, and are cleared away after a while.
+        repeat(60 * 5) { life.update(1f / 60f, px, pz, floatArrayOf(px, pz)) }
+        val still = life.nearest(px, pz, 100, 1000f).first { it.id == target.id }
+        assertEquals(dead.x, still.x, 0.01f)
+        val (data, size) = life.fill(px, pz, 1000f, 1000f)
+        for (i in 0 until size) assertFalse(data[i].isNaN())
+        repeat(60 * 30) { life.update(1f / 60f, px, pz, floatArrayOf(px, pz)) }
+        assertTrue("body cleared", life.nearest(px, pz, 100, 1000f).none { it.id == target.id })
+    }
 }

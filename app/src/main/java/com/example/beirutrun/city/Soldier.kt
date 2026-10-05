@@ -161,6 +161,10 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
             "death" to "Death", "hit" to "HitRecieve",
             // Optional extras: if these files are added, jumping and crawling use them.
             "jump" to "Jump", "crawl" to "Crawl",
+            // People in the street turning round to run away (see CityRenderer.updatePassersby).
+            "turn" to "Turn",
+            // ...and the ways they fall when shot (see SoldierAnimator.update's deathClip).
+            "death1" to "Death1", "death2" to "Death2", "death3" to "Death3",
         )
 
         /** Inverse of a rotation(+uniform scale) + translation matrix. */
@@ -231,15 +235,20 @@ class SoldierAnimator(val rig: SoldierRig) {
         private set
     private var danceLoops = false
     private var danceRestart = false
+    private var snapBack = false
+    private var snapNext = false
 
     /**
      * Plays the dance clip [clipName] (see Dance.clip) once, or over and over if [loop]; asking
-     * for the same dance again starts it from the beginning, and null stops dancing.
+     * for the same dance again starts it from the beginning, and null stops dancing. With
+     * [snapBack], the usual animation starts straight after it instead of blending in (for a
+     * clip that turns the whole body round, where the blend would swing it back).
      */
-    fun dance(clipName: String?, loop: Boolean = false) {
+    fun dance(clipName: String?, loop: Boolean = false, snapBack: Boolean = false) {
         dancing = clipName?.takeIf { rig.model.clip(it) != null }
         danceLoops = loop
         danceRestart = dancing != null
+        this.snapBack = snapBack
     }
 
     /** Goes up each time [pose] is re-skinned, so the GPU copy knows when to refresh. */
@@ -258,6 +267,8 @@ class SoldierAnimator(val rig: SoldierRig) {
     fun update(
         dt: Float, speed: Float, moveAngle: Float, aiming: Boolean, dead: Boolean, skin: Boolean,
         prone: Boolean = false, airborne: Boolean = false, climbing: Boolean = false,
+        /** The clip played (once, then held) when [dead]. */
+        deathClip: String = "Death",
     ) {
         val dance = dancing?.takeIf { !dead }
         val onLadder = climbing && !dead && dance == null && climbPose.usable
@@ -265,6 +276,7 @@ class SoldierAnimator(val rig: SoldierRig) {
             dance != null -> Triple(dance, danceLoops, 1f)
             // Standing still is the base the hand-made climb is set on.
             onLadder -> Triple(SoldierRig.IDLE, true, 0.3f)
+            dead && rig.model.clip(deathClip) != null -> Triple(deathClip, false, 1f)
             else -> choose(speed, moveAngle, aiming, dead, prone, airborne)
         }
         val wanted = rig.model.clip(name)
@@ -282,7 +294,10 @@ class SoldierAnimator(val rig: SoldierRig) {
             fromTime = time
             clip = wanted
             time = 0f
-            fade = 0f
+            // After a one-shot that turned the whole body (see [dance]), cut straight to the next clip.
+            fade = if (snapNext) 1f else 0f
+            if (snapNext) fromClip = null
+            snapNext = false
             looping = loop
         }
         val c = clip
@@ -290,7 +305,7 @@ class SoldierAnimator(val rig: SoldierRig) {
             time += dt * rate
             if (looping && c.duration > 0f) time %= c.duration else time = min(time, c.duration)
             // A dance played once ends with its last step; then back to the usual animation.
-            if (dance != null && !looping && time >= c.duration) dancing = null
+            if (dance != null && !looping && time >= c.duration) { dancing = null; snapNext = snapBack }
         }
         fromClip?.let { f -> fromTime = (fromTime + dt) % max(f.duration, 0.01f) }
         val crawling = prone && !dead && crawl?.usable == true && !onLadder
