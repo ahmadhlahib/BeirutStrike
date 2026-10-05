@@ -97,7 +97,17 @@
         <div class="card">
           <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l5-3v16M10 21V3l9 4v14"/></svg></div>
           <h3>Real Beirut streets</h3>
-          <p>Five neighbourhoods built from real map data: building shapes and heights, roads, parks, squares, trees and the sea.</p>
+          <p>Five neighbourhoods built from real map data: building shapes and heights, roads, parks, squares, trees and the sea, with sandstone, plaster and glass facades, shop fronts and street lamps.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13l2-5h14l2 5v4H3z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></div>
+          <h3>A living city</h3>
+          <p>Traffic drives the streets with wheels that turn, and people walk the sidewalks, chat on the phone and run for cover when the shooting starts.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
+          <h3>Team voice chat</h3>
+          <p>Talk to your teammates during the match. Your mic stays off until you turn it on, and only your team can hear you.</p>
         </div>
         <div class="card">
           <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10h16l3 2v2H9l-2 5H4l1-5H2z"/></svg></div>
@@ -123,6 +133,11 @@
           <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
           <h3>Make it yours</h3>
           <p>Choose your character, celebrate wins with a victory dance, put your face on the soldier, talk with speech bubbles and leave photos in the streets.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3l4 2 4-2 5 4-3 3v11H6V10L3 7z"/></svg></div>
+          <h3>Army kit</h3>
+          <p>Every fighter wears army camouflage and boots in their team's colours, so you can tell friend from foe at a glance.</p>
         </div>
       </div>
     </div>
@@ -202,11 +217,11 @@
       <div>
         <p class="eyebrow">Characters and teams</p>
         <h2>Pick your fighter</h2>
-        <p class="lead" style="margin-bottom:22px">Everyone in the room sees your character. Characters with dances celebrate when they win a match.</p>
+        <p class="lead" style="margin-bottom:22px">Everyone in the room sees your character, in army camouflage in your team's colours. Characters with dances celebrate when they win a match.</p>
         <ul class="list">
           <li><strong>Soldier</strong><span>The classic, in your team's uniform. Put your own face photo on him if you like.</span></li>
-          <li><strong>Ahmad El Lahib</strong><span>Dances: Wave hip-hop and Northern soul spin.</span></li>
-          <li><strong>Ali El Lahib</strong><span>Dances: Front twist flip and Running forward flip.</span></li>
+          <li><strong>Ahmad El Lahib</strong><span>In camouflage fatigues. Dances: Wave hip-hop and Northern soul spin.</span></li>
+          <li><strong>Ali El Lahib</strong><span>In camouflage and army boots. Dances: Front twist flip and Running forward flip.</span></li>
         </ul>
         <p style="margin:22px 0 4px;font-weight:700">Factions</p>
         <div class="teams">
@@ -230,15 +245,16 @@
         <tbody>
           <tr><td>Joystick (bottom left)</td><td>Walk; push further to run</td></tr>
           <tr><td>Swipe on the city</td><td>Look around and aim</td></tr>
-          <tr><td>Red button</td><td>Shoot. Hold it for automatic guns</td></tr>
-          <tr><td>Gun button</td><td>Switch between your pistol, primary and sniper rifle</td></tr>
-          <tr><td>Reload</td><td>Change the magazine</td></tr>
+          <tr><td>Red button (under the minimap)</td><td>Shoot. Hold it for automatic guns, and slide your finger on it to aim while you fire</td></tr>
+          <tr><td>Jump / Crawl (under Shoot)</td><td>Jump, or lie down and crawl to be harder to hit</td></tr>
+          <tr><td>Reload (bottom right)</td><td>Change the magazine</td></tr>
           <tr><td>Scope and zoom</td><td>Aim through the scope and change its magnification</td></tr>
-          <tr><td>Jump / Crawl</td><td>Jump, or lie down and crawl to be harder to hit</td></tr>
           <tr><td>Gun view / 3D person</td><td>See through your soldier's eyes, or from behind</td></tr>
-          <tr><td>Say</td><td>A speech bubble above your character, or a cheat code</td></tr>
-          <tr><td>Camera</td><td>Leave a photo in the street for others to find</td></tr>
-          <tr><td>Timer and minimap</td><td>Open the scoreboard, or the full map</td></tr>
+          <tr><td>Grenade</td><td>Throw a grenade; the button beside it picks frag, flashbang, smoke or molotov</td></tr>
+          <tr><td>Mic and speaker</td><td>Turn your mic on or off for team voice chat, or mute your teammates</td></tr>
+          <tr><td>Gun button</td><td>Switch between your pistol, primary and sniper rifle</td></tr>
+          <tr><td>Chat button (above the joystick)</td><td>Opens <strong>Say</strong> (a speech bubble, or a cheat code) and <strong>Drop photo</strong> (leave a photo in the street for others to find)</td></tr>
+          <tr><td>Timer and minimap</td><td>Open the scoreboard, or the full map (it shows your teammates)</td></tr>
         </tbody>
       </table>
     </div>
@@ -296,6 +312,7 @@
       <details><summary>Which phones does it run on?</summary><p>Android 8.0 or newer, with OpenGL ES 2.0 graphics (almost every phone from the last several years). The game is played with the phone held sideways.</p></details>
       <details><summary>How do I play with my friends?</summary><p>Create a room, choose the map and match length, and add a password. Share the password with your friends; only they can join. You can also set a minimum rank so only experienced players get in.</p></details>
       <details><summary>How do I rank up?</summary><p>Play online matches in rooms without cheats: every kill gives 50 XP, a headshot kill 25 more, and winning a match 500. Your rank goes from Private (level 1) to Beirut Legend (level 20, at 45,500 XP).</p></details>
+      <details><summary>How does voice chat work?</summary><p>In an online room, tap the mic button to talk to your teammates; tap it again to stop. Only your team hears you, and the other team never does. Your voice goes straight from phone to phone while you talk and is never recorded or stored. The speaker button mutes all your teammates.</p></details>
       <details><summary>Can I play without internet?</summary><p>You need the internet to play online with others. Without it, the city still works as a single-player sandbox.</p></details>
       <details><summary>Is it safe for my data?</summary><p>The game collects only what it needs to run: your player name, an anonymous ID, game stats and the photos and messages you choose to share. Read the <a href="privacy/">privacy policy</a>. You can delete everything from the menu with <strong>Delete my data</strong>, or <a href="delete-data/">by email</a>.</p></details>
       <details><summary>What if someone is abusive?</summary><p>Open <strong>Players</strong> in the game menu, or a photo someone dropped, to report or block them. You can also report a team by long-pressing it. Reports are reviewed, and offending content is removed.</p></details>
@@ -307,7 +324,7 @@
     <div class="wrap">
       <img class="logo" src="privacy/icon.png" alt="Beirut Strike icon" width="120" height="120">
       <h2>Coming soon to Google Play</h2>
-      <p class="lead">Beirut Strike is in testing now. Want to play early and help test it? Email us and we'll add you to the test.</p>
+      <p class="lead">Beirut Strike 1.2.0 is in closed testing on Google Play now. Want to play early and help test it? Email us and we'll add you to the test.</p>
       <div class="buttons">
         <a class="button primary" href="mailto:Ahmad.h.lahib@gmail.com?subject=Beirut%20Strike%20tester&amp;body=I%27d%20like%20to%20test%20Beirut%20Strike.%20My%20Google%20Play%20email%3A%20">Join the test</a>
         <a class="button ghost" href="#trailer">Watch the trailer</a>
@@ -340,6 +357,7 @@
           <li>3D guns and first-person arms from <a href="https://sketchfab.com">Sketchfab</a> under CC BY 4.0, by TastyTony, Friendly, quick_loop and BURNER</li>
           <li>Gun sounds from Wikimedia Commons: Beeld en Geluid (CC BY-SA 3.0) and Mike Koenig (CC BY-SA 4.0)</li>
           <li>Character animations from Mixamo</li>
+          <li>Car models from the <a href="https://kenney.nl/assets/car-kit">Car Kit</a> by Kenney (CC0)</li>
         </ul>
       </div>
     </div>
