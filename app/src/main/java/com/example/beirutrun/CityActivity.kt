@@ -258,6 +258,14 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 })
             }
         }
+        // Character models for people in the street (assets/models/pedestrians/), in the background.
+        val pedestrianRigs = Characters.pedestrians(this).mapIndexed { i, folder ->
+            sceneBuilder.submit(Callable {
+                SoldierRig.load(folder) { path ->
+                    Characters.pedestrianFile(i, path).firstNotNullOfOrNull { p -> runCatching { assets.open(p).use { it.readBytes() } }.getOrNull() }
+                }
+            })
+        }
         // The detailed gun models (see GunMeshes), read in the background; until then guns are drawn from boxes.
         val gunMeshes = sceneBuilder.submit(Callable {
             GunMeshes.loadAll { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
@@ -277,6 +285,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             repo = repo,
             playerName = playerName,
             rigFor = rigFor,
+            pedestrianRigs = pedestrianRigs,
             playerCharacter = character.id,
             gunMeshSource = gunMeshes,
             // Where you last stood on this map, or its start point facing its view.

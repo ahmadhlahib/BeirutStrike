@@ -36,10 +36,32 @@ data class Dance(val file: String, val name: String) {
 object Characters {
     const val SOLDIER = "soldier"
     private const val DIR = "models/characters"
+    private const val PEDESTRIANS = "models/pedestrians"
 
     @Volatile private var cached: List<Character>? = null
 
     fun all(context: Context): List<Character> = cached ?: load(context).also { cached = it }
+
+    /**
+     * Folders of character models for people in the street: every folder in
+     * `assets/models/pedestrians/` with a `character.glb` (and its `idle`, `walk` and `run`
+     * clips, as for players' characters). They aren't offered to players.
+     */
+    fun pedestrians(context: Context): List<String> =
+        runCatching { context.assets.list(PEDESTRIANS)?.toList() }.getOrNull().orEmpty().sorted()
+            .map { "$PEDESTRIANS/$it" }
+            .filter { folder -> runCatching { context.assets.list(folder)?.contains("character.glb") }.getOrNull() == true }
+
+    /**
+     * Where a file of street person number [index] can come from, first choice first: its own
+     * folder, else the animations everyone shares (`pedestrians/animations/`, see
+     * tools/build_pedestrians.sh). Every other person talks on the phone when standing.
+     */
+    fun pedestrianFile(index: Int, path: String): List<String> {
+        val file = path.substringAfterLast('/')
+        val shared = if (file == "idle.glb" && index % 2 == 1) "phone.glb" else file
+        return listOf(path, "$PEDESTRIANS/animations/$shared")
+    }
 
     /** The character with [id], or the built-in soldier for an unknown one (e.g. from a newer version). */
     fun byId(context: Context, id: String?): Character =

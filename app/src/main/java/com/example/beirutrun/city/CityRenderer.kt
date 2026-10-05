@@ -44,6 +44,12 @@ class CityRenderer(
      * background thread; asked for once per character id.
      */
     private val rigFor: (String) -> java.util.concurrent.Future<SoldierRig>,
+    /**
+     * Character models for people in the street (assets/models/pedestrians/, see
+     * Characters.pedestrians), loading on a background thread; none means they are all drawn
+     * the simple way (see CityLife).
+     */
+    private val pedestrianRigs: List<java.util.concurrent.Future<SoldierRig>> = emptyList(),
     /** The character the player plays as. */
     private val playerCharacter: String,
     /** The detailed gun models (see GunMeshes), read on a background thread; guns without one are drawn from boxes. */
@@ -284,6 +290,15 @@ class CityRenderer(
     /** The ladders up buildings on this map (the same on every phone, see Ladders). */
     val ladders: List<Ladder> = Ladders.place(city)
 
+    /** Passing cars and people (scenery, made up on this phone; see CityLife). */
+    private val life = CityLife(city, RoadNetwork(city.roads))
+    private var lifeMesh: StreamMesh? = null
+    private var paletteTexture = 0
+    private var lifePeople = FloatArray(2)
+    /** The nearest people in the street drawn with a character model (see pedestrianRigs), by id. */
+    private val passersby = HashMap<Int, SoldierAnimator>()
+    private var passerbyViews: List<CityLife.Passerby> = emptyList()
+
     /**
      * What the player stands on: the street (0) or a roof's height, rising and falling while on a
      * ladder. Other phones are sent it, so they draw (and can hit) the player up there.
@@ -373,7 +388,7 @@ class CityRenderer(
     private class TileMeshes(val centerX: Float, val centerZ: Float, val meshes: List<Pair<Surface, Mesh>>)
     private val tileMeshes = ArrayList<TileMeshes>()
     private var alwaysMeshes: List<Pair<Surface, Mesh>> = emptyList()
-    private val facadeTextures = IntArray(WALL_STYLES)
+    private val surfaceTextures = IntArray(CityTextures.COUNT)
     private val murals = mutableListOf<Pair<Mesh, Int>>()
 
     private class Label(val texture: Int, val width: Float, val height: Float)
@@ -571,13 +586,15 @@ class CityRenderer(
 
         shader = CityShader()
         uploadWorld()
-        for (style in 0 until WALL_STYLES) {
-            val bitmap = CityBitmaps.facade(style)
-            facadeTextures[style] = Textures.upload(bitmap, repeat = true)
+        for (style in 0 until CityTextures.COUNT) {
+            val bitmap = CityTextures.draw(style)
+            surfaceTextures[style] = Textures.upload(bitmap, repeat = true)
             bitmap.recycle()
         }
         buildMurals()
         puffTexture = uploadAndRecycle(puffBitmap())
+        paletteTexture = uploadAndRecycle(CityTextures.palette(CityLife.PALETTE))
+        lifeMesh = StreamMesh()
         lastFrame = SystemClock.uptimeMillis()
     }
 
@@ -603,10 +620,18 @@ class CityRenderer(
 
     private var aspect = 1f
 
-    /** Normal view, or zoomed in (and seeing further) through the scope. */
+    /**
+     * Normal view, or zoomed in (and seeing further) through the scope. The near clipping plane
+     * is a little in front of the eye, and its corners reach about twice that far out; right up
+     * against a wall it would reach through it and show the inside of the building, so there it
+     * comes closer (at a cost in depth precision far away, which only matters while there).
+     */
     private fun updateProjection(zoomed: Boolean) {
         val far = if (zoomed) 900f else 600f
-        Matrix.perspectiveM(projection, 0, if (zoomed) scopeFov() else NORMAL_FOV, aspect, 0.25f, far)
+        val clear = city.wallClearance(eyeX, eyeY, eyeZ, NEAR_PLANE * 2.5f)
+        val near = (clear / 2.2f).coerceIn(MIN_NEAR_PLANE, NEAR_PLANE)
+        Matrix.perspectiveM(projection, 0, if (zoomed) scopeFov() else NORMAL_FOV, aspect, near, far)
+        Matrix.multiplyMM(viewProj, 0, projection, 0, view, 0)
     }
 
     override fun onDrawFrame(gl: GL10?) {
@@ -616,12 +641,17 @@ class CityRenderer(
 
         applyPending(now)
         val zoomed = scoped
-        updateProjection(zoomed)
         update(dt)
+        updateLife(dt)
         updateCamera()
+        // After the camera has moved, as the near plane depends on how close it is to a wall.
+        updateProjection(zoomed)
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glUseProgram(shader.program)
+        shineSet = -1f
+        aoSet = -1f
+        cutoutSet = -1f
         GLES20.glEnableVertexAttribArray(shader.aPos)
         GLES20.glEnableVertexAttribArray(shader.aNormal)
         GLES20.glEnableVertexAttribArray(shader.aUv)
@@ -1084,6 +1114,7 @@ class CityRenderer(
         while (true) {
             val s = remoteShots.poll() ?: break
             bullets += Bullet(s[0], s[1], s[2], s[3], s[4], s[5], mine = false, range = s[6], speed = s[7])
+            life.alarm(s[0], s[2])
             muzzleFlashes += floatArrayOf(s[0], s[1], s[2], s[3], s[4], s[5], (now - clockBase + MUZZLE_FLASH_MS).toFloat())
         }
         pendingRemote?.let { list ->
@@ -1178,6 +1209,7 @@ class CityRenderer(
         val x = if (muzzleKnown) muzzle[0] else muzzleX()
         val y = if (muzzleKnown) muzzle[1] else muzzleY()
         val z = if (muzzleKnown) muzzle[2] else muzzleZ()
+        life.alarm(x, z)
         var dx = aimX - x; var dy = aimY - y; var dz = aimZ - z
         var len = sqrt(dx * dx + dy * dy + dz * dz)
         if (len < 1.5f) {
@@ -1257,7 +1289,9 @@ class CityRenderer(
 
     /** Where the player can't walk: walls and the like in the street; on a roof, past its edge or into anything built on it. */
     private fun blocked(x: Float, z: Float): Boolean {
-        val r = roof ?: return city.isBlocked(x, z, BODY_RADIUS)
+        // A car blocks the way, unless already standing in one (then the player can step out).
+        val r = roof ?: return city.isBlocked(x, z, BODY_RADIUS) ||
+            (life.blocks(x, z, BODY_RADIUS) && !life.blocks(playerX, playerZ, BODY_RADIUS))
         if (!CityMap.inside(r.pts, x, z) || CityMap.edgeDistance(r.pts, x, z) < ROOF_EDGE) return true
         return city.isInsideBuilding(x, floorY + 1f, z, BODY_RADIUS) || !city.inPlayArea(x, z)
     }
@@ -1501,6 +1535,7 @@ class CityRenderer(
             else -> (kind.seconds * 1000).toLong()
         }
         blasts += Blast(kind, g.x, y, g.z, g.mine, now, now + lasts, puffsFor(kind))
+        life.alarm(g.x, g.z)
         when (kind) {
             GrenadeKind.FRAG -> fragBlast(g, now)
             GrenadeKind.FLASH -> flashBlind(g)
@@ -1998,16 +2033,17 @@ class CityRenderer(
 
         var distance = CAMERA_DISTANCE
         // Pull the camera in when a building is between it and the player.
-        var t = 0.6f
+        // Close against a wall it may come right up to the head rather than into the wall.
+        var t = 0.3f
         while (t < CAMERA_DISTANCE) {
             val px = lookX - sin(yaw) * cos(pitch) * t
             val py = targetY + sin(pitch) * t
             val pz = lookZ + cos(yaw) * cos(pitch) * t
             if (city.isInsideBuilding(px, py, pz, 0.35f)) {
-                distance = (t - 0.35f).coerceAtLeast(0.6f)
+                distance = (t - 0.35f).coerceAtLeast(0.3f)
                 break
             }
-            t += 0.25f
+            t += 0.2f
         }
         eyeX = lookX - sin(yaw) * cos(pitch) * distance
         eyeY = (targetY + sin(pitch) * distance).coerceAtLeast(0.3f)
@@ -2059,8 +2095,8 @@ class CityRenderer(
         val land = MeshBuilder()
         val water = MeshBuilder()
         fun strip(sea: Boolean, ax: Float, az: Float, bx: Float, bz: Float) =
-            if (sea) water.floor(ax, az, bx, bz, 0.012f) else land.floor(ax, az, bx, bz, 0f)
-        land.floor(x0, z0, x1, z1, 0f)
+            if (sea) water.floor(ax, az, bx, bz, 0.012f) else land.floor(ax, az, bx, bz, 0f, GROUND_SPAN)
+        land.floor(x0, z0, x1, z1, 0f, GROUND_SPAN)
         strip(north, x0, z0 - m, x1, z0)
         strip(south, x0, z1, x1, z1 + m)
         strip(west, x0 - m, z0, x0, z1)
@@ -2143,8 +2179,8 @@ class CityRenderer(
 
     /** Draws the ground, the sea, and the city tiles near the camera that are in front of it. */
     private fun drawWorld() {
-        draw(ground, identity, GROUND_COLOR)
-        draw(openSea, identity, Surface.SEA.color)
+        draw(ground, identity, GROUND_COLOR, surfaceTextures[CityTextures.GROUND])
+        draw(openSea, identity, Surface.SEA.color, shine = Surface.SEA.shine)
         for ((surface, mesh) in alwaysMeshes) drawSurface(surface, mesh)
         val fx = sin(yaw)
         val fz = -cos(yaw)
@@ -2158,6 +2194,8 @@ class CityRenderer(
             for ((surface, mesh) in tile.meshes) drawSurface(surface, mesh)
         }
         for ((mesh, texture) in murals) draw(mesh, identity, WHITE, texture)
+        drawLife()
+        drawPassersby()
         ladderMesh?.let { draw(it, identity, LADDER_COLOR) }
         border?.let {
             // Drawn without writing depth so what is behind it still shows through.
@@ -2167,9 +2205,61 @@ class CityRenderer(
         }
     }
 
+    /** Moves the passing cars and people on; they stop for me and the other players. */
+    private fun updateLife(dt: Float) {
+        val n = 2 + remotes.size * 2
+        if (lifePeople.size != n) lifePeople = FloatArray(n)
+        lifePeople[0] = playerX; lifePeople[1] = playerZ
+        var i = 2
+        for (r in remotes.values) { lifePeople[i++] = r.x; lifePeople[i++] = r.z }
+        life.update(dt, playerX, playerZ, lifePeople)
+        updatePassersby(dt)
+    }
+
+    /**
+     * The passing cars and people, uploaded as one batch coloured from the palette: the cars
+     * drawn with glossy paint and glass, then the people.
+     */
+    private fun drawLife() {
+        val mesh = lifeMesh ?: return
+        val scale = if (scoped) SCOPE_DRAW_SCALE else 1f
+        val (data, floats) = life.fill(eyeX, eyeZ, CAR_DRAW_DISTANCE * scale, WALKER_DRAW_DISTANCE * scale)
+        mesh.update(data, floats)
+        val cars = life.carFloats / Mesh.FLOATS
+        mesh.range(0, cars)
+        draw(mesh, identity, WHITE, paletteTexture, shine = CAR_SHINE)
+        mesh.range(cars, -1)
+        draw(mesh, identity, WHITE, paletteTexture)
+    }
+
+    /**
+     * Gives the people nearest the camera a real character model, walking, running or standing
+     * as they move, once the models have loaded; everyone else stays a simple figure.
+     */
+    private fun updatePassersby(dt: Float) {
+        val ready = pedestrianRigs.filter { it.isDone }.mapNotNull { runCatching { it.get() }.getOrNull() }
+        passerbyViews = if (ready.isEmpty()) emptyList() else life.nearest(eyeX, eyeZ, MODELLED_PEOPLE, MODELLED_PEOPLE_RANGE)
+        life.modelled = passerbyViews.mapTo(HashSet()) { it.id }
+        // Forget those who are no longer near (and their GPU copies).
+        val gone = passersby.keys - life.modelled
+        for (id in gone) passersby.remove(id)?.let { soldierMeshes.remove(it)?.forEach { m -> m.release() }; uploadedVersion.remove(it) }
+        for (p in passerbyViews) {
+            val anim = passersby.getOrPut(p.id) { SoldierAnimator(ready[p.variant % ready.size]) }
+            anim.update(dt, p.speed, 0f, aiming = false, dead = false, skin = true)
+        }
+    }
+
+    private fun drawPassersby() {
+        for (p in passerbyViews) {
+            val anim = passersby[p.id] ?: continue
+            // Models with plain materials named like clothes take the person's colours.
+            drawSoldier(anim, SoldierLook(p.shirt, p.trousers, 0), 0, p.x, p.z, p.heading, armed = false)
+        }
+    }
+
     private fun drawSurface(surface: Surface, mesh: Mesh) {
-        val texture = if (surface.wallStyle >= 0) facadeTextures[surface.wallStyle] else 0
-        draw(mesh, identity, surface.color, texture, surface.lit)
+        val texture = if (surface.texture >= 0) surfaceTextures[surface.texture] else 0
+        draw(mesh, identity, surface.color, texture, surface.lit, surface.shine, surface.ao, surface.cutout)
     }
 
     // ---- Photo drops --------------------------------------------------------------------------
@@ -2252,6 +2342,8 @@ class CityRenderer(
         holding: GrenadeKind? = null,
         /** On a ladder: both hands on the rails, the gun slung out of sight. */
         climbing: Boolean = false,
+        /** False for people in the street: no gun. */
+        armed: Boolean = true,
     ) {
         if (!anim.ready) return
         val meshes = soldierMeshes.getOrPut(anim) {
@@ -2306,7 +2398,7 @@ class CityRenderer(
 
         // Gun: held at the right hand, pointing where the soldier faces (+z in model space).
         // Sizes are in metres, times the model's units per metre.
-        if (rig.wrist < 0 || climbing) return
+        if (rig.wrist < 0 || climbing || !armed) return
         anim.pose.nodeMatrix(rig.wrist, bone)
         val wx = bone[12]; val wy = bone[13]; val wz = bone[14]
         val u = rig.unit
@@ -2388,6 +2480,7 @@ class CityRenderer(
         }
         GLES20.glUniform1f(shader.uUseTex, if (texture != 0) 1f else 0f)
         GLES20.glUniform1f(shader.uLit, 1f)
+        finish(0f, false)
         mesh.draw(shader)
     }
 
@@ -2488,7 +2581,10 @@ class CityRenderer(
     /** While [flashing], every body part turns red for a moment (a hit marker). */
     private fun tint(color: Int) = if (flashing) 0xFFFF5252.toInt() else color
 
-    private fun draw(mesh: Mesh, model: FloatArray, color: Int, texture: Int = 0, lit: Boolean = true) {
+    private fun draw(
+        mesh: Drawable, model: FloatArray, color: Int, texture: Int = 0, lit: Boolean = true,
+        shine: Float = 0f, ao: Boolean = false, cutout: Boolean = false,
+    ) {
         Matrix.multiplyMM(mvp, 0, viewProj, 0, model, 0)
         GLES20.glUniformMatrix4fv(shader.uMvp, 1, false, mvp, 0)
         GLES20.glUniformMatrix4fv(shader.uModel, 1, false, model, 0)
@@ -2503,7 +2599,22 @@ class CityRenderer(
         }
         GLES20.glUniform1f(shader.uUseTex, if (texture != 0) 1f else 0f)
         GLES20.glUniform1f(shader.uLit, if (lit) 1f else 0f)
+        finish(shine, ao, cutout)
         mesh.draw(shader)
+    }
+
+    /** What the shader's sky reflection, wall shading and cut-out are set to (-1 = not yet this frame). */
+    private var shineSet = -1f
+    private var aoSet = -1f
+    private var cutoutSet = -1f
+
+    /** Sets how much the sky is reflected, whether walls darken at their foot and whether see-through texels are cut away, if changed. */
+    private fun finish(shine: Float, ao: Boolean, cutout: Boolean = false) {
+        if (shine != shineSet) { GLES20.glUniform1f(shader.uShine, shine); shineSet = shine }
+        val a = if (ao) 1f else 0f
+        if (a != aoSet) { GLES20.glUniform1f(shader.uAo, a); aoSet = a }
+        val c = if (cutout) 0.5f else 0f
+        if (c != cutoutSet) { GLES20.glUniform1f(shader.uCutout, c); cutoutSet = c }
     }
 
     private fun p(x: Float, y: Float, z: Float) = floatArrayOf(x, y, z)
@@ -2554,12 +2665,19 @@ class CityRenderer(
         private const val SHOULDER_OFFSET = 0.9f
         private const val REACH = 3.5f
         private const val SPEECH_MILLIS = 12_000L
-        private const val WALL_STYLES = 5
-        private const val GROUND_COLOR = 0xFFCDC6B8.toInt()
+        private const val GROUND_COLOR = 0xFFDAD3C4.toInt()
+        private val GROUND_SPAN = CityTextures.groundSpan(CityTextures.GROUND)
         private const val FOG_START = 70f
         private const val FOG_END = 230f
         /** City tiles further than this from the player are not drawn (they'd be lost in the fog). */
         private const val DRAW_DISTANCE = 300f
+        /** Passing cars and people further than this aren't drawn (lost in the haze), and how glossy car paint is. */
+        private const val CAR_DRAW_DISTANCE = 200f
+        private const val WALKER_DRAW_DISTANCE = 90f
+        private const val CAR_SHINE = 0.3f
+        /** How many of the nearest people in the street get a character model, and how near they must be. */
+        private const val MODELLED_PEOPLE = 8
+        private const val MODELLED_PEOPLE_RANGE = 35f
         /** The play-area wall: 3 m of see-through red. */
         private const val BORDER_HEIGHT = 3f
         private const val BORDER_COLOR = 0x55FF3B30
@@ -2569,6 +2687,9 @@ class CityRenderer(
         /** How often "out of bullets" is reported while Shoot is held with an empty gun. */
         private const val EMPTY_CLICK_INTERVAL = 0.6f
         private const val NORMAL_FOV = 60f
+        /** The near clipping plane, and how close it may come when the camera is against a wall. */
+        private const val NEAR_PLANE = 0.25f
+        private const val MIN_NEAR_PLANE = 0.03f
         /** Field of view the held gun is drawn with in Gun view: narrower than the world's, so it looks bigger. */
         private const val HELD_GUN_FOV = 40f
         /** A textured sleeve (grey cloth) is tinted with the team colour brightened this much. */
