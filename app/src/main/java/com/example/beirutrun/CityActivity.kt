@@ -368,7 +368,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             ellipsize = android.text.TextUtils.TruncateAt.END
             setOnClickListener { showPlayerMenu() }
         }
-        findViewById<MaterialButton>(R.id.sayButton).setOnClickListener { showSayDialog() }
+        bindSayOrDrop()
         setupVoiceButtons()
         findViewById<MaterialButton>(R.id.viewModeButton).apply {
             renderer.firstPerson = Session.firstPerson(this@CityActivity)
@@ -427,7 +427,6 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         banner = findViewById(R.id.banner)
         damageFlash = findViewById(R.id.damageFlash)
         updateHearts()
-        findViewById<MaterialButton>(R.id.dropButton).setOnClickListener { takeDropPhoto() }
         viewPhotoButton = findViewById(R.id.viewPhotoButton)
         viewPhotoButton.setOnClickListener { nearby?.let(::showPhotoDialog) }
         RoomTeams.watch(onTeamsChanged)
@@ -487,22 +486,49 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
     }
 
-    /** Dragging on the city (outside the joystick and buttons) turns the camera. */
+    /**
+     * Dragging on the city (outside the joystick and buttons) turns the camera. One finger
+     * steers at a time: when it lifts, another still down takes over without a jump.
+     */
     @SuppressLint("ClickableViewAccessibility")
     private fun bindLookAround() {
+        var pointerId = MotionEvent.INVALID_POINTER_ID
         var lastX = 0f
         var lastY = 0f
+        fun follow(event: MotionEvent, index: Int) {
+            pointerId = event.getPointerId(index)
+            lastX = event.getX(index)
+            lastY = event.getY(index)
+        }
         glView.setOnTouchListener { _, event ->
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { lastX = event.x; lastY = event.y }
+                MotionEvent.ACTION_DOWN -> follow(event, 0)
                 MotionEvent.ACTION_MOVE -> {
-                    renderer.look(event.x - lastX, event.y - lastY)
-                    lastX = event.x
-                    lastY = event.y
+                    val index = event.findPointerIndex(pointerId)
+                    if (index >= 0) {
+                        renderer.look(event.getX(index) - lastX, event.getY(index) - lastY)
+                        lastX = event.getX(index)
+                        lastY = event.getY(index)
+                    }
                 }
+                MotionEvent.ACTION_POINTER_UP -> if (event.getPointerId(event.actionIndex) == pointerId) {
+                    follow(event, if (event.actionIndex == 0) 1 else 0)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pointerId = MotionEvent.INVALID_POINTER_ID
             }
             true
         }
+    }
+
+    /** One button for Say and Drop photo: it opens the two beside it, and picking one closes them. */
+    private fun bindSayOrDrop() {
+        val choices = findViewById<View>(R.id.sayOrDropChoices)
+        fun close() { choices.visibility = View.GONE }
+        findViewById<MaterialButton>(R.id.sayOrDropButton).setOnClickListener {
+            choices.visibility = if (choices.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
+        findViewById<MaterialButton>(R.id.sayButton).setOnClickListener { close(); showSayDialog() }
+        findViewById<MaterialButton>(R.id.dropButton).setOnClickListener { close(); takeDropPhoto() }
     }
 
     /** The team flag shrunk to button-icon size (flag images can be any size, even thousands of pixels). */
@@ -976,17 +1002,29 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     // ---- Shooting -----------------------------------------------------------------------------
 
-    /** Press to fire, hold to keep firing. */
+    /**
+     * Press to fire, hold to keep firing. Sliding the finger while it's down aims, just like
+     * dragging on the city, so you can follow a target without letting go of the trigger.
+     */
     @SuppressLint("ClickableViewAccessibility")
     private fun bindShootButton(button: View) {
+        var lastX = 0f
+        var lastY = 0f
         button.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     v.isPressed = true
+                    lastX = event.rawX
+                    lastY = event.rawY
                     if (!dead && !gameOver) {
                         renderer.triggerHeld = true
                         renderer.pullTrigger()
                     }
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    renderer.look(event.rawX - lastX, event.rawY - lastY)
+                    lastX = event.rawX
+                    lastY = event.rawY
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
