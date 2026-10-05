@@ -130,7 +130,7 @@
     <div>
       <small>Beirut Strike</small>
       <h1>Privacy Policy</h1>
-      <p>Last updated: 2 October 2026</p>
+      <p>Last updated: 5 October 2026</p>
     </div>
     <a class="langswitch" href="../ar/privacy/" hreflang="ar" lang="ar">العربية</a>
   </div>
@@ -146,7 +146,7 @@
     <h2>Summary</h2>
     <div class="cards">
       <div class="card"><strong>No account</strong><span>No email or password. You choose a player name when you start.</span></div>
-      <div class="card"><strong>Shared with players</strong><span>Your name, optional face photo, photos you drop, teams you create, messages and scores are shown to other players.</span></div>
+      <div class="card"><strong>Shared with players</strong><span>Your name, optional face photo, photos you drop, teams you create, messages and scores are shown to other players. With your mic on, your teammates hear you live; your voice is never recorded.</span></div>
       <div class="card"><strong>No ads or tracking</strong><span>No ads and no selling of data. The game doesn't track how you play; the only diagnostics are the technical ones from Google's face detection.</span></div>
       <div class="card"><strong>Delete anytime</strong><span>Delete all your data from the in-game menu: <em>Delete my data</em>.</span></div>
     </div>
@@ -161,6 +161,7 @@
       <div class="row"><div><strong>Photos you drop</strong> in the city (optional, taken with the camera)</div><div><span class="label">Why: </span>Shown where you dropped them, with your caption</div><div class="who"><span class="label">Seen by: </span>Players in the same room</div></div>
       <div class="row"><div><strong>Teams you create</strong> (optional): a team name, a flag picture you choose from your phone, and a colour</div><div><span class="label">Why: </span>Offered as a team in the room, and shown on its players</div><div class="who"><span class="label">Seen by: </span>Players in the same room</div></div>
       <div class="row"><div><strong>Messages</strong> (speech bubbles and captions)</div><div><span class="label">Why: </span>Shown above your character</div><div class="who"><span class="label">Seen by: </span>Players in the same room</div></div>
+      <div class="row"><div><strong>Voice</strong> (optional, only while your mic is on)</div><div><span class="label">Why: </span>Team voice chat. It goes straight from your phone to your teammates' phones, and is not recorded or stored</div><div class="who"><span class="label">Heard by: </span>Your teammates in the same room, live</div></div>
       <div class="row"><div><strong>Game activity:</strong> team, position in the game's map, shots, hits, kills, deaths, wins, XP (military rank), match and career scores</div><div><span class="label">Why: </span>To run the multiplayer game, scoreboards and ranking</div><div class="who"><span class="label">Seen by: </span>Other players</div></div>
       <div class="row"><div><strong>A random user ID</strong> created by Firebase Anonymous Authentication</div><div><span class="label">Why: </span>To tell players apart and protect your data so only you can change it</div><div class="who"><span class="label">Seen by: </span>Not shown</div></div>
       <div class="row"><div><strong>Reports</strong> you send about other players</div><div><span class="label">Why: </span>So we can review abusive content</div><div class="who"><span class="label">Seen by: </span>Only us</div></div>
@@ -169,11 +170,13 @@
     <p style="margin-top:16px">The face photo is found and cropped <strong>on your phone</strong> using Google ML Kit face detection. The game does not use face recognition or identify you from your photo. Your photo is never sent to Google for this: ML Kit only sends the technical diagnostics above, encrypted, and Google doesn't pass them on to anyone else (see <a href="https://developers.google.com/ml-kit/android-data-disclosure">ML Kit's data disclosure</a>).</p>
     <p>The game <strong>does not</strong> collect your real-world location, contacts, phone number, email address or advertising ID. Positions are inside the game's map only.</p>
     <p><strong>Camera:</strong> the game asks for camera permission only to take your face photo and photos you drop. Both are optional.</p>
+    <p><strong>Microphone:</strong> the game asks for microphone permission only for team voice chat, which is optional. Your mic starts off, and is only used while you have turned it on and the game is on screen.</p>
   </section>
 
   <section>
     <h2>How information is stored and shared</h2>
     <p>The game uses <strong>Google Firebase</strong> (Realtime Database and Authentication) to store and share game data between players. Firebase processes data on our behalf under <a href="https://firebase.google.com/support/privacy">Google's terms and privacy policy</a>. All data is sent over encrypted connections (HTTPS/TLS). Google ML Kit sends its face detection diagnostics to Google as described above.</p>
+    <p><strong>Team voice chat</strong> connects your phone directly to your teammates' phones (WebRTC, encrypted). Your voice never goes through our servers. To set up these connections, phones exchange short technical messages through Firebase, including network (IP) addresses. Players in the same room can see them, and they are deleted as soon as they are read or when you leave. Your teammates' phones, and Google's STUN server (which helps phones find each other), can see your IP address.</p>
     <p>We do not sell, rent or share your information with anyone else, except where the law requires it.</p>
   </section>
 
@@ -182,6 +185,7 @@
     <div class="panel">
       <ul>
         <li><strong>Room data</strong> (positions, messages, dropped photos, teams created in the room, match scores) is deleted once a room is left empty. The game removes empty rooms automatically, usually within minutes.</li>
+        <li><strong>Voice</strong> is not recorded or kept at all. Voice chat setup messages are deleted as soon as they are read, or when you leave.</li>
         <li><strong>Your face photo and career</strong> (career score, XP and military rank) are kept until you delete them.</li>
         <li><strong>Reports</strong> are kept while we review them, and deleted afterwards.</li>
       </ul>
@@ -201,7 +205,7 @@
 
   <section>
     <h2>Safety</h2>
-    <p>You can <strong>report</strong> another player's messages or photos, or <strong>block</strong> a player, from the photo view and from <strong>Players</strong> in the game menu. You can report a team a player created (its name or flag) by long-pressing it on the team screen. Blocked players' messages and photos are hidden on your phone. We review reports and remove content that breaks the rules.</p>
+    <p>You can <strong>report</strong> another player's messages or photos, or <strong>block</strong> a player, from the photo view and from <strong>Players</strong> in the game menu. You can report a team a player created (its name or flag) by long-pressing it on the team screen. Blocked players' messages and photos are hidden on your phone, and you never hear their voice. You can also mute all your teammates, or one teammate from <strong>Players</strong>. We review reports and remove content that breaks the rules.</p>
   </section>
 
   <section>
