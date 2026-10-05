@@ -4,11 +4,15 @@
 ![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF?logo=kotlin&logoColor=white)
 ![Min SDK](https://img.shields.io/badge/min%20SDK-26-blue)
 ![Firebase](https://img.shields.io/badge/backend-Firebase-FFCA28?logo=firebase&logoColor=black)
+![Google Play](https://img.shields.io/badge/Google%20Play-closed%20testing-414141?logo=googleplay&logoColor=white)
 
 **Beirut Strike** is a multiplayer third-person shooter for Android, set in real neighbourhoods of
 Beirut. The streets and buildings are generated from OpenStreetMap data and drawn in 3D with
 OpenGL ES. Players join a room, pick a team, and fight timed matches through the city. Positions,
-shots and scores sync live between phones.
+shots and scores sync live between phones, and teammates can talk over voice chat.
+
+> **Status:** version 1.2.0 is in **closed testing** on Google Play. The public release follows
+> once the test is done.
 
 ---
 
@@ -21,6 +25,7 @@ shots and scores sync live between phones.
 - [Project structure](#project-structure)
 - [Maps](#maps)
 - [Characters](#characters)
+- [People in the street](#people-in-the-street)
 - [Gun models](#gun-models)
 - [Testing](#testing)
 - [Publishing](#publishing)
@@ -33,8 +38,15 @@ shots and scores sync live between phones.
 ### World
 - **Real Beirut maps:** Downtown, Beirut Souks, Hamra, Ain El Mreisseh and Raouche, built from
   OpenStreetMap data (building footprints and heights, roads, parks, squares, the sea and trees).
+- **A realistic city:** textured facades (sandstone, plaster, concrete, glass) with shop fronts,
+  asphalt streets with sidewalks, lane markings, zebra crossings and street lamps, palm and leafy
+  trees, warm sunlight and sky reflections on glass and sea.
+- **Traffic and people in the street:** cars drive on the right, turn at junctions and stop for
+  people; their wheels roll and steer. Passers-by walk the sidewalks, stop to chat or talk on
+  the phone, and run from gunfire. They're scenery: shooting them counts for no one.
 - **Adjustable play area:** from 200 m to 800 m square, or the whole map.
-- **Minimap** with a full-screen map view, and a gun view (first person) or 3D person (third person) camera.
+- **Minimap** with a full-screen map view, showing only your teammates, and a gun view (first
+  person) or 3D person (third person) camera.
 
 ### Multiplayer
 - **Rooms:** public or password-protected. The password is checked by the database's security
@@ -46,15 +58,20 @@ shots and scores sync live between phones.
   Players can **add a team** to the room: a name, a flag picture from their phone and a colour
   (up to six per room). Everyone in the room sees it, and it can be reported with a long press.
   Teammates can't hurt each other.
+- **Team voice chat:** talk to your teammates, phone to phone (WebRTC). Your mic is off until
+  you turn it on, and you can mute all teammates. Voice is streamed live, never recorded.
 - **Timed matches:** the room's creator sets the length, from 30 seconds to 1 hour. Every phone
   counts down to the same end time, which comes from the server.
 
 ### Combat
-- **Two guns:** a semi-automatic pistol and a fully automatic AK-47, each with its own ammo,
-  fire rate, accuracy, sound, recoil and detailed first-person model.
+- **Twelve guns:** pick a pistol, a primary and a sniper rifle (Beretta M9 to Barrett M82), each
+  with its own ammo, fire rate, accuracy, sound, recoil and detailed 3D model. See
+  [Weapons](#weapons).
+- **Touch controls built for shooting:** Shoot sits under the minimap; slide your finger on it to
+  aim while you fire.
 - **Pickups:** ammo packs and scopes are scattered through the streets and shared by the room.
   The first player to reach one gets it.
-- **Scope:** 4× zoom for the AK-47, with longer view, aim and bullet range.
+- **Scopes:** zoom in through a scope, with longer view, aim and bullet range.
 - **Grenades:** frag, flashbang, smoke and molotov, thrown and bouncing in 3D.
 - **Movement:** walk, run, jump and crawl. Crawling is slow, but makes you low and hard to hit.
 - **Ladders:** yellow ladders up some buildings (marked on the minimap) lead to their roofs, to
@@ -69,8 +86,9 @@ shots and scores sync live between phones.
   career** screen (tap your rank on the rooms screen) shows your progress and every rank.
 
 ### Social
-- **Characters:** after choosing a team, pick who to play as (the built-in soldier or Ahmad El
-  Lahib), shown turning in 3D. Everyone in the room sees your character.
+- **Characters:** after choosing a team, pick who to play as (the built-in soldier, Ahmad El
+  Lahib or Ali El Lahib), shown turning in 3D. Everyone wears army camouflage and boots in their
+  team's colours, and everyone in the room sees your character.
 - **Your face on your character (optional):** turn it on on the character screen, and the front
   camera and ML Kit face detection put your photo on the character's head. It's off by default,
   and never used on characters with a real face of their own.
@@ -229,10 +247,11 @@ career screen for +500 XP to try a rank-up; tapping it replays your last promoti
 | Language | Kotlin 1.9, Java 11 bytecode |
 | Build | Gradle 8.13 (Kotlin DSL), Android Gradle Plugin 8.11 |
 | Platform | Android 8.0+ (min SDK 26), target SDK 36 (Android 16) |
-| Rendering | Custom OpenGL ES 2.0 renderer, skinned glTF (`.glb`) soldier models |
+| Rendering | Custom OpenGL ES 2.0 renderer; skinned glTF (`.glb`) characters and street people, glTF car models |
 | Camera | CameraX 1.3, ML Kit face detection |
 | Backend | Firebase Realtime Database and Anonymous Authentication (fits the free Spark plan) |
-| Audio | Sound effects synthesized at runtime (no audio assets) |
+| Audio | Gunshot and reload recordings plus effects synthesized at runtime |
+| Voice chat | WebRTC (stream-webrtc-android 1.3), peer-to-peer between teammates, signalled through Firebase |
 | Map data | OpenStreetMap, converted offline by a Java tool in `tools/` |
 
 ## Getting started
@@ -451,7 +470,9 @@ scoreboard ranking, army ranks, and weapon and pickup rules.
 
 ## Publishing
 
-The app is prepared for Google Play under the package name `com.alahib.beirutstrike`:
+The app is on Google Play under the package name `com.alahib.beirutstrike`. Version 1.2.0
+(versionCode 7) is in **closed testing**; production comes after the test (Play asks for at
+least 12 testers opted in for 14 days in a row). Raise `versionCode` before every upload.
 
 - **[PLAY_STORE.md](PLAY_STORE.md):** release checklist: developer account, Firebase, upload key,
   building the `.aab`, testing tracks and going live.
