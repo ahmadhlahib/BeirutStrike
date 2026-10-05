@@ -88,18 +88,18 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | --- | --- |
 | Joystick (bottom left) | Walk; push further to run |
 | Swipe on the city | Look and aim |
-| Big red button (bottom right) | Shoot. Hold for the AK-47; tap for the pistol |
-| Gun button (above Shoot) | Switch between your pistol, primary and sniper rifle (shows rounds in the magazine / spare) |
-| Reload (round, left of the gun button) | Change the magazine |
-| Scope (round, left of Crawl) | Look through the scope (sniper rifles, the M4, or a primary with a found scope); lit while scoped |
-| Grenade (round, left of Say) | Throw a grenade of the kind shown below it |
-| Grenade kind (round, left of Scope) | Change grenade: frag, flashbang, smoke, molotov (shows how many are left) |
-| Zoom in / out (round, far left of the controls) | Change the scope's magnification, while scoped |
-| Jump / Crawl (round, left of Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
+| Big red button (under the minimap) | Shoot. Hold for the AK-47; tap for the pistol. Slide your finger on it to aim while firing |
+| Jump / Crawl (small, under Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
+| Reload (round, bottom right) | Change the magazine |
+| Scope (round, left of Reload) | Look through the scope (sniper rifles, the M4, or a primary with a found scope); lit while scoped |
+| Zoom in / out (round, left of Scope) | Change the scope's magnification, while scoped |
+| **Gun view / 3D person** (top, left of the minimap) | Switch between seeing through your soldier's eyes (gun in front) and seeing your soldier from behind |
+| Grenade (round, under Gun view) | Throw a grenade of the kind shown beside it |
+| Grenade kind (round, beside Grenade) | Change grenade: frag, flashbang, smoke, molotov (shows how many are left) |
+| Mic / Speaker (small, beside the grenades; online) | Team voice chat: my mic on or off, and mute all teammates |
+| Gun button (under the grenades) | Switch between your pistol, primary and sniper rifle (shows rounds in the magazine / spare) |
+| Say / Drop photo (round, above the joystick) | Opens **Say** (speech bubble, or a cheat code, see below) and **Drop photo** (leave a photo in the street) |
 | Climb up / Climb down (above View photo) | Shows at the foot of a ladder, or beside its top on a roof: climbs it |
-| **Gun view / 3D person** | Switch between seeing through your soldier's eyes (gun in front) and seeing your soldier from behind |
-| Say (round, left of Jump) | Speech bubble, or a cheat code (see below) |
-| Camera (round, above the joystick) | Leave a photo in the street |
 | Timer (top centre) | Open the scoreboard |
 | Name button (top left) | Menu: scoreboard, players (report / block), change team, change guns, retake face photo, street photos, leave room, log out, delete my data |
 | Minimap (top right) | Open the full map |
@@ -380,6 +380,29 @@ Each person in the street gets one of the models at random. Materials without a 
 names look like clothes (`shirt`, `pants`, `top`, `body`, `cloth`...) are recoloured per person,
 so one model can make several different-looking people.
 
+### Cars
+
+The traffic is drawn with the car models in `app/src/main/assets/models/cars/` (`city/CarModels.kt`);
+with none there, cars are drawn from simple shapes. Today they are from Kenney's
+[Car Kit](https://kenney.nl/assets/car-kit) (CC0); the full kit is unpacked in
+`tools/models/cars/kenney/` (ignored by git).
+
+Every `.glb` in the folder is used, with its textures beside it (`Textures/colormap.png` for
+Kenney). Nodes named `wheel…` with a side (`wheel-front-left`, `wheel-back-right`...) are the
+wheels: they roll as the car drives, and the front ones steer into turns. Anything else,
+including a spare wheel with no side, is the body. Low-poly kits are toy-shaped, so bodies are
+stretched to real proportions (`SCALE_X`, `SCALE_Y`, `SCALE_Z`) with round wheels resting on the
+road. How often each car appears is set in `WEIGHTS`.
+
+To add or swap cars, copy the `.glb` files (and their textures) into the folder and run:
+
+```bash
+./gradlew testDebugUnitTest --tests "*CarModelsTest*"
+```
+
+The test checks each car's size, that it has four wheels on the road (two that steer) and that
+the traffic rolls and steers them, and prints each car's size and vertex count.
+
 ## Gun models
 
 The guns in Gun view and in soldiers' hands are 3D models from Sketchfab (credits in
@@ -451,6 +474,7 @@ Release builds are signed with an upload key described in a local, git-ignored
 - Soldier model by [Quaternius](https://quaternius.com); animations from
   [Mixamo](https://www.mixamo.com). The Ahmad El Lahib character and its animations are from
   Mixamo too; their FBX sources are in `tools/models/characters/ahmad/`.
+- Car models from the [Car Kit](https://kenney.nl/assets/car-kit) by [Kenney](https://kenney.nl) (CC0).
 - Model conversion with [FBX2glTF](https://github.com/facebookincubator/FBX2glTF).
 - Gunshot and reload recordings (by Beeld en Geluid and Mike Koenig) from
   [Wikimedia Commons](https://commons.wikimedia.org) under CC BY-SA; details in

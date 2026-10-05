@@ -38,3 +38,5 @@ keystore.properties
 # Firebase CLI logs
 firebase-debug.log
 database-debug.log
+# Car model sources (e.g. the Kenney Car Kit zip); the chosen models are in app/src/main/assets/models/cars
+/tools/models/cars/
