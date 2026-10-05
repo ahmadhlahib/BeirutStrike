@@ -130,6 +130,7 @@ class CharacterPreview(private val uniform: Int, private val gear: Int) : GLSurf
                 MaterialRole.HAIR -> 0xFF3B2A1C.toInt()
                 MaterialRole.BROWN -> 0xFF4A3322.toInt()
                 MaterialRole.OWN -> p.baseColor
+                MaterialRole.CAMO, MaterialRole.BOOTS -> ArmyOutfit.color(rig.roles[i], uniform)
             }
             GLES20.glUniform4f(
                 shader.uColor,
@@ -208,8 +209,9 @@ class CharacterPreview(private val uniform: Int, private val gear: Int) : GLSurf
         if (textures.isNotEmpty()) GLES20.glDeleteTextures(textures.size, textures.toIntArray(), 0)
         val a = SoldierAnimator(rig)
         meshes = rig.model.primitives.mapIndexed { i, p -> DynamicMesh(a.pose.vertices[i].size, p.indices) }
-        textures = rig.model.images.map { bytes ->
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { Textures.upload(it).also { _ -> it.recycle() } } ?: 0
+        textures = rig.model.images.mapIndexed { i, bytes ->
+            // A character in army kit has its clothes repainted (see ArmyOutfit).
+            ArmyOutfit.bitmap(bytes, rig.imageRole(i))?.let { Textures.upload(it).also { _ -> it.recycle() } } ?: 0
         }
         anim = a
         shown = rig

@@ -13,8 +13,11 @@ import kotlin.math.min
  */
 class SoldierLook(val uniform: Int, val gear: Int, val badgeTexture: Int)
 
-/** What part of the soldier a material is, which decides its colour. */
-enum class MaterialRole { UNIFORM, GEAR, DARK, SKIN, HAIR, BROWN, OWN }
+/**
+ * What part of the soldier a material is, which decides its colour. [CAMO] and [BOOTS] are a
+ * character's own textured clothes put into army camouflage and boots (see [ArmyOutfit]).
+ */
+enum class MaterialRole { UNIFORM, GEAR, DARK, SKIN, HAIR, BROWN, OWN, CAMO, BOOTS }
 
 /** The bone names a soldier model uses for the things the game attaches to it. */
 class SoldierBones(val head: String, val wrist: String, val armL: String, val armR: String, val chest: String) {
@@ -44,8 +47,10 @@ class SoldierBones(val head: String, val wrist: String, val armL: String, val ar
  *
  * Models come in any units (Mixamo uses centimetres): [scale] turns model units into metres so
  * every soldier is [HEIGHT] tall, and [unit] is one metre in model units.
+ *
+ * With [army], a character's own textured clothes are worn as army camouflage and boots.
  */
-class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.detect(model)) {
+class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.detect(model), val army: Boolean = false) {
     val head = model.nodeIndex(bones.head)
     val wrist = model.nodeIndex(bones.wrist)
     val chest = model.nodeIndex(bones.chest)
@@ -63,7 +68,10 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
     val badgeAnchors = listOf(FloatArray(16))
 
     /** Colour role of each primitive (see [roleOf]). */
-    val roles: List<MaterialRole> = model.primitives.map { roleOf(it.material, it.image >= 0) }
+    val roles: List<MaterialRole> = model.primitives.map { roleOf(it.material, it.image >= 0, army) }
+
+    /** The role of the material using texture [image] (the first, if several do), or null if none does. */
+    fun imageRole(image: Int): MaterialRole? = model.primitives.indexOfFirst { it.image == image }.takeIf { it >= 0 }?.let { roles[it] }
 
     init {
         val pose = SkinnedPose(model)
@@ -134,11 +142,13 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
         /**
          * Guesses what a material is from its name. Textured materials keep their texture (a
          * realistic soldier's clothes are painted into it); otherwise uniform and gear follow the
-         * team colours.
+         * team colours. With [army], textured clothes and shoes become camouflage and boots.
          */
-        fun roleOf(material: String, textured: Boolean): MaterialRole {
+        fun roleOf(material: String, textured: Boolean, army: Boolean = false): MaterialRole {
             val m = material.lowercase()
             return when {
+                army && textured && listOf("shoe", "sneaker", "boot", "feet", "foot").any { it in m } -> MaterialRole.BOOTS
+                army && textured && listOf("outfit", "top", "bottom", "shirt", "pant", "jean", "trouser", "jacket", "hood", "cloth", "dress", "skirt", "short").any { it in m } -> MaterialRole.CAMO
                 textured -> MaterialRole.OWN
                 listOf("swat", "surface", "highlimb", "body", "cloth", "uniform", "shirt", "pant", "top").any { it in m } -> MaterialRole.UNIFORM
                 listOf("grey", "gray", "joint", "vest", "gear", "boot", "armor", "armour", "strap").any { it in m } -> MaterialRole.GEAR
@@ -186,7 +196,8 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
          * without a character, the built-in Quaternius soldier. [open] reads an asset's bytes, or
          * returns null if it's missing.
          */
-        fun load(folder: String? = null, dances: List<Dance> = emptyList(), open: (String) -> ByteArray?): SoldierRig {
+        /** A character from [folder] (null: the built-in soldier); with [army] it wears its clothes as army camouflage. */
+        fun load(folder: String? = null, dances: List<Dance> = emptyList(), army: Boolean = false, open: (String) -> ByteArray?): SoldierRig {
             val character = folder?.let { open("$it/character.glb") }
             if (character != null) {
                 val clips = LinkedHashMap<String, SkinnedModel>()
@@ -200,7 +211,8 @@ class SoldierRig(val model: SkinnedModel, bones: SoldierBones = SoldierBones.det
                 // Dances play as "Dance:<file>" (see Dance.clip).
                 for (d in dances) open("$folder/${d.file}.glb")?.let(SkinnedModel::load)?.let { clips[d.clip] = it }
                 val model = SkinnedModel.load(character)
-                return SoldierRig(model.withClips(clips, rootBone = SoldierBones.hipsOf(model)))
+                val withClips = model.withClips(clips, rootBone = SoldierBones.hipsOf(model))
+                return SoldierRig(withClips, SoldierBones.detect(withClips), army)
             }
             return SoldierRig(SkinnedModel.load(open("models/soldier.glb") ?: error("No soldier model in assets")))
         }

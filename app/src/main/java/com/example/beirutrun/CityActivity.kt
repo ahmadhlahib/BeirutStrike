@@ -255,7 +255,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             rigLoads.getOrPut(id) {
                 val c = Characters.byId(this, id)
                 sceneBuilder.submit(Callable {
-                    SoldierRig.load(c.folder, c.dances) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
+                    SoldierRig.load(c.folder, c.dances, army = c.army) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
                 })
             }
         }
