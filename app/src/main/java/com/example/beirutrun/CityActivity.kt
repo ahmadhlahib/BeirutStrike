@@ -51,6 +51,7 @@ import com.example.beirutrun.online.OnlineWorld
 import com.example.beirutrun.online.PlayerStats
 import com.example.beirutrun.online.RemotePlayer
 import com.example.beirutrun.online.RoomTeams
+import com.example.beirutrun.online.VoiceChat
 import com.example.beirutrun.progression.PlayerProgress
 import com.example.beirutrun.progression.XpGain
 import com.example.beirutrun.progression.XpReward
@@ -91,6 +92,12 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private var drops: MutableList<PhotoDrop> = mutableListOf()
     private var playerCount = 0
     private var status = OnlineWorld.Status.CONNECTING
+    /** Talking with teammates; null when not playing online. */
+    private var voice: VoiceChat? = null
+    private lateinit var micButton: MaterialButton
+    private lateinit var speakerButton: MaterialButton
+    /** Between onResume and onPause: voice chat only runs then. */
+    private var inForeground = false
     private var nearby: PhotoDrop? = null
     /** Set when the player chose to leave the room (so an empty room gets deleted). */
     private var leavingRoom = false
@@ -170,6 +177,13 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         else Toast.makeText(this, R.string.photo_permission_denied, Toast.LENGTH_LONG).show()
     }
 
+    private val micPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) setMic(true)
+        else Toast.makeText(this, R.string.voice_mic_denied, Toast.LENGTH_LONG).show()
+    }
+
     private val takeFace = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -221,6 +235,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         sounds = SoundEffects(this)
         online = OnlineWorld(applicationContext, repo, roomId, playerTeam.id)
         online.listener = this
+        if (online.configured && roomId != null) voice = VoiceChat(applicationContext, roomId)
         // The real Downtown Beirut (OpenStreetMap); its 3D geometry is built in the background.
         // The room's map; Downtown if this build doesn't have it (e.g. an older app version).
         mapInfo = CityMaps.byId(Session.roomMap(this))
@@ -345,6 +360,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             setOnClickListener { showPlayerMenu() }
         }
         findViewById<MaterialButton>(R.id.sayButton).setOnClickListener { showSayDialog() }
+        setupVoiceButtons()
         findViewById<MaterialButton>(R.id.viewModeButton).apply {
             renderer.firstPerson = Session.firstPerson(this@CityActivity)
             fun label() = setText(if (renderer.firstPerson) R.string.view_gun else R.string.view_3d_person)
@@ -416,6 +432,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         glView.onResume()
         online.resume()
         ticker.post(tick)
+        inForeground = true
+        startVoice()
     }
 
     override fun onPause() {
@@ -424,6 +442,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         ticker.removeCallbacks(tick)
         glView.onPause()
         online.pause()
+        // In the background nobody hears me and I don't record: the mic goes off.
+        inForeground = false
+        voice?.stop()
+        updateVoiceButtons()
         Session.savePosition(this, mapInfo.id, renderer.playerX, renderer.playerZ, renderer.yaw)
     }
 
@@ -439,6 +461,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // Only "Leave room" and "Log out" delete an empty room here; if the app is just closed,
         // the room list cleans it up after a few minutes.
         if (::online.isInitialized) online.stop(leavingRoom)
+        voice?.stop()
         if (::sounds.isInitialized) sounds.release()
     }
 
@@ -516,6 +539,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     override fun onStatus(status: OnlineWorld.Status) {
         this.status = status
         updateStatusLabel()
+        if (status == OnlineWorld.Status.ONLINE) startVoice()
     }
 
     override fun onDrops(drops: List<PhotoDrop>) {
@@ -537,6 +561,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         miniMap.players = teammates
         fullMap?.players = teammates
         updateStatusLabel()
+        startVoice()
+        voice?.setTeammates(teammates.mapTo(HashSet()) { it.uid })
     }
 
     /** The latest drops and players from the server, before blocked players are filtered out. */
@@ -1049,6 +1075,52 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         statusLabel.text = if (room != null) getString(R.string.status_in_room, room, text) else text
     }
 
+    // ---- Team voice chat ----------------------------------------------------------------------
+
+    private fun setupVoiceButtons() {
+        micButton = findViewById(R.id.micButton)
+        speakerButton = findViewById(R.id.speakerButton)
+        val voice = voice ?: return
+        findViewById<View>(R.id.voiceButtons).visibility = View.VISIBLE
+        micButton.setOnClickListener {
+            when {
+                voice.micOn -> setMic(false)
+                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED -> setMic(true)
+                else -> micPermission.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+        speakerButton.setOnClickListener {
+            voice.setAllMuted(!voice.allMuted)
+            updateVoiceButtons()
+            Toast.makeText(this, if (voice.allMuted) R.string.voice_all_muted else R.string.voice_all_unmuted,
+                Toast.LENGTH_SHORT).show()
+        }
+        updateVoiceButtons()
+    }
+
+    private fun setMic(on: Boolean) {
+        val voice = voice ?: return
+        voice.setMic(on)
+        updateVoiceButtons()
+        Toast.makeText(this, if (on) R.string.voice_mic_on else R.string.voice_mic_off, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Green mic while my team can hear me; crossed-out speaker while they're muted. */
+    private fun updateVoiceButtons() {
+        val voice = voice ?: return
+        micButton.setIconResource(if (voice.micOn) R.drawable.ic_mic else R.drawable.ic_mic_off)
+        micButton.backgroundTintList = ColorStateList.valueOf(if (voice.micOn) MIC_ON_COLOR else HUD_COLOR)
+        speakerButton.setIconResource(if (voice.allMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
+    }
+
+    /** Joins the team's voice chat once signed in, while the game is on screen. */
+    private fun startVoice() {
+        if (!inForeground) return
+        val uid = online.uid ?: return
+        voice?.start(uid)
+    }
+
     // ---- Dropping photos ----------------------------------------------------------------------
 
     private fun takeDropPhoto() {
@@ -1168,14 +1240,28 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             Toast.makeText(this, R.string.players_none, Toast.LENGTH_SHORT).show()
             return
         }
+        val voice = voice
+        // Teammates' voices can be muted one by one (players on other teams can't be heard anyway).
+        fun canMute(p: RemotePlayer) = voice != null && p.team == playerTeam.id && !Blocklist.isBlocked(this, p.uid)
+        val names = others.map {
+            if (canMute(it) && voice!!.isMuted(it.uid)) getString(R.string.voice_muted_name, it.name) else it.name
+        }
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.menu_players)
-            .setItems(others.map { it.name }.toTypedArray()) { _, which ->
+            .setItems(names.toTypedArray()) { _, which ->
                 val p = others[which]
-                MaterialAlertDialogBuilder(this)
+                val dialog = MaterialAlertDialogBuilder(this)
                     .setTitle(p.name)
                     .setMessage(if (p.say.isNotBlank()) getString(R.string.player_last_said, p.say) else null)
-                    .setNegativeButton(android.R.string.cancel, null)
+                if (voice != null && canMute(p)) {
+                    val muted = voice.isMuted(p.uid)
+                    dialog.setNegativeButton(if (muted) R.string.voice_unmute else R.string.voice_mute) { _, _ ->
+                        voice.setMuted(p.uid, !muted)
+                    }
+                } else {
+                    dialog.setNegativeButton(android.R.string.cancel, null)
+                }
+                dialog
                     .setNeutralButton(R.string.report) { _, _ ->
                         report(if (p.say.isNotBlank()) "message" else "player", p.uid, p.name, p.say)
                     }
@@ -1384,6 +1470,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val POSE_INTERVAL_MS = 200L
         private const val RESPAWN_MS = 4_000L
         private const val BANNER_MS = 2_500L
+        /** HUD button background (as in the HudButton style), and the mic button's while it's on. */
+        private const val HUD_COLOR = 0x99000000.toInt()
+        private const val MIC_ON_COLOR = 0xCC2E7D32.toInt()
         private const val HEARING_RANGE = 60f
         /** A frag or flashbang can be heard this far away (smoke much less), metres. */
         private const val GRENADE_HEARING_RANGE = 150f

@@ -124,6 +124,37 @@
         android:layout_marginEnd="152dp"
         app:icon="@drawable/ic_eye" />
 
+    <!-- Team voice chat, under the view button: my mic on/off, and mute all teammates. Online only. -->
+    <LinearLayout
+        android:id="@+id/voiceButtons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="68dp"
+        android:layout_marginEnd="152dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/micButton"
+            style="@style/HudRoundButton"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:contentDescription="@string/voice_mic"
+            app:icon="@drawable/ic_mic_off"
+            app:iconSize="22dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/speakerButton"
+            style="@style/HudRoundButton"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:contentDescription="@string/voice_speaker"
+            app:icon="@drawable/ic_volume_up"
+            app:iconSize="22dp" />
+    </LinearLayout>
+
     <!-- Time left in the room's game; tap for the scoreboard. Hidden in rooms without a time limit. -->
     <TextView
         android:id="@+id/gameTimer"

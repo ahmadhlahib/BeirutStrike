@@ -173,8 +173,21 @@
     <string name="respawned">Back in the city</string>
     <string name="someone">someone</string>
 
+    <!-- Team voice chat -->
+    <string name="voice_mic">Microphone</string>
+    <string name="voice_speaker">Teammates\' voices</string>
+    <string name="voice_mic_on">Mic on: your team can hear you</string>
+    <string name="voice_mic_off">Mic off</string>
+    <string name="voice_all_muted">Teammates muted</string>
+    <string name="voice_all_unmuted">You can hear your teammates</string>
+    <string name="voice_mic_denied">Microphone permission is needed to talk to your team</string>
+    <string name="voice_mute">Mute voice</string>
+    <string name="voice_unmute">Unmute voice</string>
+    <!-- A muted teammate in the Players list: "Rami 🔇" -->
+    <string name="voice_muted_name">%1$s 🔇</string>
+
     <!-- Reporting, blocking and deleting data -->
-    <string name="menu_players">Players (report / block)</string>
+    <string name="menu_players">Players (mute / report / block)</string>
     <string name="players_none">No other players here right now</string>
     <string name="player_last_said">Last said: “%1$s”</string>
     <string name="report">Report</string>
@@ -182,7 +195,7 @@
     <string name="report_failed">Couldn\'t send the report. Check your connection and try again</string>
     <string name="block">Block</string>
     <string name="block_title">Block %1$s?</string>
-    <string name="block_message">You won\'t see their messages or photos on this phone. They won\'t be told.</string>
+    <string name="block_message">You won\'t see their messages or photos, or hear their voice, on this phone. They won\'t be told.</string>
     <string name="blocked">%1$s is blocked</string>
     <string name="menu_delete_data">Delete my data</string>
     <string name="delete_data_title">Delete all your data?</string>
