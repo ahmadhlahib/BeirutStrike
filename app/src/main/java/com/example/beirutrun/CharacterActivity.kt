@@ -149,7 +149,7 @@ class CharacterActivity : AppCompatActivity() {
         showDances(c)
         val source = rigs.getOrPut(c.id) {
             loader.submit<SoldierRig> {
-                SoldierRig.load(c.folder, c.dances) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
+                SoldierRig.load(c.folder, c.dances, army = c.army) { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
             }
         }
         loading.visibility = View.VISIBLE

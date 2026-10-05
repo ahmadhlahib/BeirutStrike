@@ -2454,8 +2454,9 @@ class CityRenderer(
         Matrix.scaleM(base, 0, s, s, s)
         Matrix.translateM(base, 0, 0f, -rig.footY, 0f)
         val textures = modelTextures.getOrPut(rig) {
-            rig.model.images.map { bytes ->
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let(::uploadAndRecycle) ?: 0
+            rig.model.images.mapIndexed { i, bytes ->
+                // A character in army kit has its clothes repainted (see ArmyOutfit).
+                ArmyOutfit.bitmap(bytes, rig.imageRole(i))?.let(::uploadAndRecycle) ?: 0
             }
         }
         rig.model.primitives.forEachIndexed { i, p ->
@@ -2547,6 +2548,7 @@ class CityRenderer(
         MaterialRole.HAIR -> 0xFF3B2A1C.toInt()
         MaterialRole.BROWN -> 0xFF4A3322.toInt()
         MaterialRole.OWN -> own
+        MaterialRole.CAMO, MaterialRole.BOOTS -> ArmyOutfit.color(role, look.uniform)
     }
 
     private fun drawMesh(mesh: DynamicMesh, model: FloatArray, color: Int, texture: Int = 0) {

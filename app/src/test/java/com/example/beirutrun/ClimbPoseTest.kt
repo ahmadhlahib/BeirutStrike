@@ -17,8 +17,8 @@ class ClimbPoseTest {
     private val rigs: List<Pair<String, SoldierRig>> by lazy {
         val folders = File(assets, "models/characters").listFiles { f -> File(f, "character.glb").exists() }
             .orEmpty().sortedBy { it.name }
-        listOf("soldier" to SoldierRig.load(null, emptyList(), open)) +
-            folders.map { it.name to SoldierRig.load("models/characters/${it.name}", emptyList(), open) }
+        listOf("soldier" to SoldierRig.load(null, emptyList(), open = open)) +
+            folders.map { it.name to SoldierRig.load("models/characters/${it.name}", emptyList(), open = open) }
     }
 
     @Test

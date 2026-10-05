@@ -340,6 +340,13 @@ To add a Mixamo character:
    Each dance gets a button on the character screen to watch it, and when that character wins a
    game it plays one of them (in the 3D-person view, facing the camera) before the results.
 
+Characters wear army kit: textures of materials named like clothes (`outfit`, `top`, `bottom`,
+`shirt`, `pants`, `jeans`, `jacket`...) are repainted as woodland camouflage in the team's
+uniform colours, keeping their folds and seams, and shoes (`shoe`, `sneaker`, `boot`) become
+dark boots (`city/ArmyOutfit.kt`). Skin, face, eyes and hair keep their own textures. Add
+`"army": false` to `character.json` to keep a character's own clothes. `ArmyOutfitTest` checks
+it and writes the repainted textures to `app/build/army-outfit/` to look at.
+
 Bone names with or without the `mixamorig:` prefix both work. `MixamoSoldierTest` checks every
 character folder for the clips the game needs. Keep characters light: every player's character
 is animated on the phone each frame (Ahmad El Lahib has about 45,000 vertices).

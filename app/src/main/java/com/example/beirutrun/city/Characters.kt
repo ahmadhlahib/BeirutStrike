@@ -15,6 +15,8 @@ import org.json.JSONObject
  */
 data class Character(
     val id: String, val name: String, val folder: String?, val ownFace: Boolean,
+    /** Wears its own clothes as army camouflage and boots (see ArmyOutfit); `"army": false` in character.json keeps them. */
+    val army: Boolean = true,
     /** Dances the character can do (on the character screen, and when they win a game). */
     val dances: List<Dance> = emptyList(),
 )
@@ -82,6 +84,7 @@ object Characters {
                 name = info?.optString("name")?.takeIf { it.isNotBlank() } ?: id.replaceFirstChar { it.uppercase() },
                 folder = folder,
                 ownFace = info?.optBoolean("ownFace", false) ?: false,
+                army = info?.optBoolean("army", true) ?: true,
                 // Only dances whose animation file is there.
                 dances = info?.optJSONArray("dances")?.let { list ->
                     List(list.length()) { i -> list.getJSONObject(i).let { Dance(it.getString("file"), it.optString("name", it.getString("file"))) } }
