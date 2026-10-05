@@ -16,14 +16,16 @@ import java.io.File;
 public class MakeScreenshots {
     /** Output name, raw file (in the raw folder), title, subtitle. */
     static final String[][] SHOTS = {
-        {"01_beirut_streets", "Screenshot_20261002_101603_Beirut Strike.jpg", "FIGHT IN REAL BEIRUT STREETS", "Downtown, Hamra, the Corniche and more, built from real city maps"},
-        {"02_real_guns", "Screenshot_20261002_101327_Beirut Strike.jpg", "12 REAL GUNS", "Pistols, rifles, machine guns and sniper rifles, each with its own feel"},
-        {"03_scope", "Screenshot_20261002_101343_Beirut Strike.jpg", "SCOPE IN AND SNIPE", "Find a scope in the streets and hit targets from across the city"},
-        {"04_team_battles", "Screenshot_20261002_101718_Beirut Strike.jpg", "ONLINE TEAM BATTLES", "Timed matches with friends, in first or third person"},
+        {"01_beirut_streets", "20261005_3d_person_street.jpeg", "FIGHT IN A LIVING BEIRUT", "Real streets with traffic and people, built from real city maps"},
+        {"02_real_guns", "20261005_gun_view_taxi.jpeg", "12 REAL GUNS", "Pistols, rifles, machine guns and sniper rifles, each with its own feel"},
+        {"03_scope", "20261005_scope_street.jpeg", "SCOPE IN AND SNIPE", "Zoom in up to 12x and hit targets from across the city"},
+        {"04_team_battles", "20261005_scope_enemy.jpeg", "ONLINE TEAM BATTLES", "Timed matches with friends, with team voice chat"},
         {"05_ranks", "Screenshot_20261002_101157_Beirut Strike.jpg", "RISE THROUGH 20 MILITARY RANKS", "Earn XP with every kill, headshot and win, from Private to Beirut Legend"},
-        {"06_loadout", "Screenshot_20261002_101318_Beirut Strike.jpg", "BUILD YOUR LOADOUT", "Choose a pistol, a primary and a sniper rifle before every match"},
-        {"07_characters", "Screenshot_20261002_101248_Beirut Strike.jpg", "PICK YOUR CHARACTER", "Each with a victory dance for when you win"},
+        {"06_loadout", "20261005_loadout.jpeg", "BUILD YOUR LOADOUT", "Choose a pistol, a primary and a sniper rifle before every match"},
+        {"07_characters", "20261005_character_ali.jpeg", "PICK YOUR FIGHTER", "In army camouflage, with a victory dance for when you win"},
         {"08_rooms", "Screenshot_20261002_101229_Beirut Strike.jpg", "CREATE YOUR OWN MATCH", "Pick the map, size and length, add a password or a minimum rank"},
+        {"09_living_city", "20261005_people_corniche.jpeg", "A CITY THAT'S ALIVE", "Cars drive the streets, people walk the sidewalks and run when the shooting starts"},
+        {"10_rooftops", "20261005_rooftop.jpeg", "TAKE THE ROOFTOPS", "Climb the ladders and cover the streets from above"},
     };
 
     static final int W = 1920, H = 1080;
