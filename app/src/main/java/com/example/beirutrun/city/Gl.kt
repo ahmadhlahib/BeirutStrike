@@ -10,7 +10,7 @@ import javax.microedition.khronos.egl.EGL10
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.egl.EGLDisplay
 
-/** The one shader used for the whole city: optional texture, simple sun lighting and distance fog. */
+/** The one shader used for the whole city: optional texture, sun and sky lighting, reflections and distance fog. */
 class CityShader {
     val program: Int = link(VERTEX, FRAGMENT)
     val aPos = GLES20.glGetAttribLocation(program, "aPos")
@@ -22,6 +22,9 @@ class CityShader {
     val uColor = GLES20.glGetUniformLocation(program, "uColor")
     val uUseTex = GLES20.glGetUniformLocation(program, "uUseTex")
     val uLit = GLES20.glGetUniformLocation(program, "uLit")
+    val uAo = GLES20.glGetUniformLocation(program, "uAo")
+    val uShine = GLES20.glGetUniformLocation(program, "uShine")
+    val uCutout = GLES20.glGetUniformLocation(program, "uCutout")
     val uLightDir = GLES20.glGetUniformLocation(program, "uLightDir")
     val uFogColor = GLES20.glGetUniformLocation(program, "uFogColor")
     val uFog = GLES20.glGetUniformLocation(program, "uFog")
@@ -38,6 +41,7 @@ class CityShader {
             varying vec3 vNormal;
             varying vec2 vUv;
             varying vec3 vFromEye;
+            varying float vHeight;
             void main() {
                 vec4 world = uModel * vec4(aPos, 1.0);
                 gl_Position = uMvp * vec4(aPos, 1.0);
@@ -46,32 +50,66 @@ class CityShader {
                 // Pass the offset, not the distance: an offset interpolates correctly across big
                 // triangles (like the ground), a distance does not.
                 vFromEye = world.xyz - uEye;
+                vHeight = world.y;
             }
         """
 
+        /**
+         * Sunlight is warm and the shade cool, with sky light from above. Walls ([uAo]) darken
+         * near the ground, as light reaching the foot of a wall is blocked by the street around
+         * it. Shiny surfaces ([uShine]: glass, water) reflect the sky, more at a glancing angle,
+         * with a glint of the sun. Texture coordinates are high precision where the GPU has it,
+         * so world-mapped textures stay sharp across a whole tile.
+         */
         private const val FRAGMENT = """
             precision mediump float;
             uniform sampler2D uTex;
             uniform float uUseTex;
             uniform float uLit;
+            uniform float uAo;
+            uniform float uShine;
+            uniform float uCutout;
             uniform vec4 uColor;
             uniform vec3 uLightDir;
             uniform vec3 uFogColor;
             uniform vec2 uFog;
             varying vec3 vNormal;
+            #ifdef GL_FRAGMENT_PRECISION_HIGH
+            varying highp vec2 vUv;
+            #else
             varying vec2 vUv;
+            #endif
             varying vec3 vFromEye;
+            varying float vHeight;
             void main() {
                 vec4 base = uColor;
                 if (uUseTex > 0.5) base *= texture2D(uTex, vUv);
-                if (base.a < 0.02) discard;
-                float light = 1.0;
+                if (base.a < max(uCutout, 0.02)) discard;
+                vec3 color = base.rgb;
                 if (uLit > 0.5) {
                     vec3 n = normalize(vNormal);
-                    light = 0.52 + 0.4 * max(dot(n, uLightDir), 0.0) + 0.08 * n.y;
+                    // Leaves are seen from both sides: light the side that faces the camera.
+                    if (uCutout > 0.0 && !gl_FrontFacing) n = -n;
+                    float sun = max(dot(n, uLightDir), 0.0);
+                    float sky = 0.5 + 0.5 * n.y;
+                    vec3 light = vec3(0.38, 0.41, 0.46) + vec3(0.14, 0.15, 0.17) * sky + vec3(0.58, 0.52, 0.42) * sun;
+                    if (uAo > 0.5) {
+                        float ao = mix(0.62, 1.0, smoothstep(0.0, 2.6, vHeight));
+                        light *= mix(1.0, ao, 1.0 - abs(n.y));
+                    }
+                    color *= light;
+                    if (uShine > 0.0) {
+                        vec3 v = normalize(vFromEye);
+                        vec3 r = reflect(v, n);
+                        vec3 zenith = vec3(0.30, 0.50, 0.76);
+                        vec3 skyColor = r.y > 0.0 ? mix(uFogColor, zenith, sqrt(r.y)) : vec3(0.34, 0.33, 0.31);
+                        float fresnel = 0.2 + 0.8 * pow(1.0 - max(dot(-v, n), 0.0), 3.0);
+                        color = mix(color, skyColor, uShine * fresnel);
+                        color += vec3(1.0, 0.95, 0.85) * (uShine * pow(max(dot(r, uLightDir), 0.0), 60.0));
+                    }
                 }
                 float fog = clamp((length(vFromEye) - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
-                gl_FragColor = vec4(mix(base.rgb * light, uFogColor, fog), base.a);
+                gl_FragColor = vec4(mix(color, uFogColor, fog), base.a);
             }
         """
 
@@ -98,8 +136,51 @@ class CityShader {
     }
 }
 
+/** Triangles the city shader can draw. */
+interface Drawable {
+    fun draw(shader: CityShader)
+}
+
+/**
+ * Triangles rewritten every frame (the passing cars and people), same vertex layout as [Mesh]:
+ * [update] uploads the first floats of an array, [draw] draws them.
+ */
+class StreamMesh : Drawable {
+    private val vbo: Int = IntArray(1).also { GLES20.glGenBuffers(1, it, 0) }[0]
+    private var buffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+    private var vertexCount = 0
+    private var rangeFirst = 0
+    private var rangeCount = -1
+
+    /** Draws only [count] vertices from [first] from now on (count -1: all of them). */
+    fun range(first: Int, count: Int) { rangeFirst = first; rangeCount = count }
+
+    fun update(data: FloatArray, floats: Int) {
+        vertexCount = floats / Mesh.FLOATS
+        if (floats == 0) return
+        if (buffer.capacity() < floats) buffer = ByteBuffer.allocateDirect(floats * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        buffer.position(0)
+        buffer.put(data, 0, floats)
+        buffer.position(0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, floats * 4, buffer, GLES20.GL_STREAM_DRAW)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+    }
+
+    override fun draw(shader: CityShader) {
+        if (vertexCount == 0) return
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+        GLES20.glVertexAttribPointer(shader.aPos, 3, GLES20.GL_FLOAT, false, 32, 0)
+        GLES20.glVertexAttribPointer(shader.aNormal, 3, GLES20.GL_FLOAT, false, 32, 12)
+        GLES20.glVertexAttribPointer(shader.aUv, 2, GLES20.GL_FLOAT, false, 32, 24)
+        val first = rangeFirst.coerceIn(0, vertexCount)
+        val count = (if (rangeCount < 0) vertexCount else rangeCount).coerceAtMost(vertexCount - first)
+        if (count > 0) GLES20.glDrawArrays(GLES20.GL_TRIANGLES, first, count)
+    }
+}
+
 /** Triangles stored in a GPU buffer: position (3), normal (3), uv (2) per vertex. */
-class Mesh(data: FloatArray) {
+class Mesh(data: FloatArray) : Drawable {
     private val vertexCount = data.size / FLOATS
     private val vbo: Int
 
@@ -114,7 +195,7 @@ class Mesh(data: FloatArray) {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
 
-    fun draw(shader: CityShader) {
+    override fun draw(shader: CityShader) {
         if (vertexCount == 0) return
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glVertexAttribPointer(shader.aPos, 3, GLES20.GL_FLOAT, false, STRIDE, 0)
@@ -206,10 +287,11 @@ class MeshBuilder {
         v(a, 0f, vh); v(c, uw, 0f); v(d, 0f, 0f)
     }
 
-    /** Flat horizontal rectangle at height [y], facing up. */
-    fun floor(x0: Float, z0: Float, x1: Float, z1: Float, y: Float) = quad(
+    /** Flat horizontal rectangle at height [y], facing up; a texture repeats every [span] metres (0 = once). */
+    fun floor(x0: Float, z0: Float, x1: Float, z1: Float, y: Float, span: Float = 0f) = quad(
         floatArrayOf(x0, y, z1), floatArrayOf(x1, y, z1), floatArrayOf(x1, y, z0), floatArrayOf(x0, y, z0),
         0f, 1f, 0f,
+        uw = if (span > 0f) (x1 - x0) / span else 1f, vh = if (span > 0f) (z1 - z0) / span else 1f,
     )
 
     /**

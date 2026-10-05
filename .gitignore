@@ -18,6 +18,8 @@ local.properties
 # Mixamo source files (licence does not allow redistributing them)
 /tools/models/mixamo/
 /tools/models/mixamo_glb/
+# Street people sources (Mixamo FBX, ~50 MB each); the built models are in assets (see tools/build_pedestrians.sh)
+/tools/models/pedestrians/
 
 # Firebase config (keep it local; see FIREBASE_SETUP.md)
 google-services.json

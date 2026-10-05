@@ -123,7 +123,9 @@ class SkinnedModel private constructor(
 
     companion object {
         private const val FLOAT = 5126
+        private const val BYTE = 5120
         private const val UNSIGNED_BYTE = 5121
+        private const val SHORT = 5122
         private const val UNSIGNED_SHORT = 5123
         private const val UNSIGNED_INT = 5125
 
@@ -180,7 +182,11 @@ class SkinnedModel private constructor(
                     val mat = prim.optInt("material", -1).takeIf { it >= 0 }?.let { materials?.getJSONObject(it) }
                     val pbr = mat?.optJSONObject("pbrMetallicRoughness")
                     val texture = pbr?.optJSONObject("baseColorTexture")?.optInt("index", -1) ?: -1
-                    val image = if (texture >= 0) textures?.optJSONObject(texture)?.optInt("source", -1) ?: -1 else -1
+                    // A WebP texture (as gltfpack writes them) names its image in an extension.
+                    val image = if (texture >= 0) textures?.optJSONObject(texture)?.let { t ->
+                        t.optInt("source", -1).takeIf { it >= 0 }
+                            ?: t.optJSONObject("extensions")?.optJSONObject("EXT_texture_webp")?.optInt("source", -1)
+                    } ?: -1 else -1
                     primitives += Primitive(
                         mat?.optString("name").orEmpty(), n.getInt("skin"),
                         readFloats(attrs.getInt("POSITION")),
@@ -258,7 +264,7 @@ class SkinnedModel private constructor(
             val view = views.getJSONObject(a.getInt("bufferView"))
             val components = componentsOf(a.getString("type"))
             val type = a.getInt("componentType")
-            val size = when (type) { FLOAT, UNSIGNED_INT -> 4; UNSIGNED_SHORT -> 2; else -> 1 }
+            val size = when (type) { FLOAT, UNSIGNED_INT -> 4; UNSIGNED_SHORT, SHORT -> 2; else -> 1 }
             val stride = view.optInt("byteStride", 0).takeIf { it > 0 } ?: (components * size)
             val start = view.optInt("byteOffset", 0) + a.optInt("byteOffset", 0)
             return intArrayOf(start, a.getInt("count"), components, type, stride)
@@ -273,6 +279,9 @@ class SkinnedModel private constructor(
                     FLOAT -> bin.getFloat(start + i * stride + c * 4)
                     UNSIGNED_SHORT -> (bin.getShort(start + i * stride + c * 2).toInt() and 0xFFFF) / if (normalized) 65535f else 1f
                     UNSIGNED_BYTE -> (bin.get(start + i * stride + c).toInt() and 0xFF) / if (normalized) 255f else 1f
+                    // Signed, as gltfpack stores animated rotations.
+                    SHORT -> bin.getShort(start + i * stride + c * 2).let { if (normalized) max(it / 32767f, -1f) else it.toFloat() }
+                    BYTE -> bin.get(start + i * stride + c).let { if (normalized) max(it / 127f, -1f) else it.toFloat() }
                     else -> error("Unsupported float component type $type")
                 }
             }

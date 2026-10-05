@@ -3,6 +3,7 @@ package com.example.beirutrun.city
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -102,8 +103,8 @@ class MiniMapView @JvmOverloads constructor(
         val c = Canvas(bitmap)
         c.scale(pxPerMetre, pxPerMetre)
         c.translate(-area.left, -area.top)
-        val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        c.drawColor(0xFFD8D2C4.toInt())
+        val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG)
+        c.drawColor(LAND)
 
         fun polygon(ring: FloatArray, color: Int) {
             val path = Path()
@@ -115,40 +116,71 @@ class MiniMapView @JvmOverloads constructor(
             c.drawPath(path, p)
         }
 
-        for (s in map.sea) polygon(s, 0xFF3A7CA5.toInt())
+        for (s in map.sea) polygon(s, SEA)
         for (a in map.areas) polygon(a.pts, when (a.kind) {
-            CityMap.AREA_PARK, CityMap.AREA_PITCH -> 0xFF7FB069.toInt()
-            CityMap.AREA_WATER -> 0xFF3A7CA5.toInt()
-            CityMap.AREA_PARKING -> 0xFFA7A39A.toInt()
-            CityMap.AREA_PLAZA -> 0xFFE6DFCF.toInt()
-            else -> 0xFFC9BFAA.toInt()
+            CityMap.AREA_PARK, CityMap.AREA_PITCH -> 0xFFBFDDA6.toInt()
+            CityMap.AREA_WATER -> SEA
+            CityMap.AREA_PARKING -> 0xFFDAD6CE.toInt()
+            CityMap.AREA_PLAZA -> 0xFFF4EFE6.toInt()
+            else -> 0xFFE2D8C6.toInt()
         })
+
+        // Roads as on a printed street map: every road's darker edge first, then the fills on
+        // top, so junctions merge cleanly; quieter roads under busier ones. Footpaths are dashed.
+        val roadPaths = map.roads.map { road ->
+            Path().apply {
+                moveTo(road.pts[0], road.pts[1])
+                for (i in 2 until road.pts.size step 2) lineTo(road.pts[i], road.pts[i + 1])
+            }
+        }
+        val order = intArrayOf(CityMap.ROAD_PIER, CityMap.ROAD_PATH, CityMap.ROAD_PEDESTRIAN, CityMap.ROAD_MINOR, CityMap.ROAD_MEDIUM, CityMap.ROAD_MAJOR)
         p.style = Paint.Style.STROKE
         p.strokeCap = Paint.Cap.ROUND
         p.strokeJoin = Paint.Join.ROUND
-        for (kind in intArrayOf(CityMap.ROAD_PIER, CityMap.ROAD_PATH, CityMap.ROAD_PEDESTRIAN, CityMap.ROAD_MINOR, CityMap.ROAD_MEDIUM, CityMap.ROAD_MAJOR)) {
-            p.color = when (kind) {
-                CityMap.ROAD_MAJOR -> 0xFF3C3C3C.toInt()
-                CityMap.ROAD_MEDIUM -> 0xFF4A4A4A.toInt()
-                CityMap.ROAD_MINOR -> 0xFF595959.toInt()
-                CityMap.ROAD_PEDESTRIAN -> 0xFFCFC6B4.toInt()
-                CityMap.ROAD_PATH -> 0xFFBDB29C.toInt()
-                else -> 0xFF8C8C8C.toInt()
+        for (casing in booleanArrayOf(true, false)) for (kind in order) {
+            if (kind == CityMap.ROAD_PATH && casing) continue
+            p.color = when {
+                kind == CityMap.ROAD_PATH -> 0xFFB9A88A.toInt()
+                casing && kind == CityMap.ROAD_MAJOR -> 0xFFD9A956.toInt()
+                casing && kind == CityMap.ROAD_PEDESTRIAN -> 0xFFD9D0C0.toInt()
+                casing -> 0xFFC2BAAB.toInt()
+                kind == CityMap.ROAD_MAJOR -> 0xFFFCD27E.toInt()
+                kind == CityMap.ROAD_PEDESTRIAN -> 0xFFF8F4EC.toInt()
+                kind == CityMap.ROAD_PIER -> 0xFFD6D3CD.toInt()
+                else -> 0xFFFFFFFF.toInt()
             }
-            for (road in map.roads) {
-                if (road.kind != kind) continue
-                p.strokeWidth = road.width
-                val path = Path()
-                path.moveTo(road.pts[0], road.pts[1])
-                for (i in 2 until road.pts.size step 2) path.lineTo(road.pts[i], road.pts[i + 1])
-                c.drawPath(path, p)
+            p.pathEffect = if (kind == CityMap.ROAD_PATH) DashPathEffect(floatArrayOf(2.5f, 2f), 0f) else null
+            map.roads.forEachIndexed { i, road ->
+                if (road.kind != kind) return@forEachIndexed
+                p.strokeWidth = if (kind == CityMap.ROAD_PATH) 1.2f else road.width + if (casing) 1.6f else 0f
+                c.drawPath(roadPaths[i], p)
             }
         }
-        for (b in map.buildings) polygon(b.pts, when (b.kind) {
-            CityMap.BUILDING_MOSQUE -> 0xFF2E6FB7.toInt()
-            CityMap.BUILDING_CHURCH -> 0xFFB05A3C.toInt()
-            else -> 0xFF8E7F68.toInt()
-        })
+        p.pathEffect = null
+
+        // Buildings: a soft shadow, a fill darker the taller they are, and a fine outline.
+        for (b in map.buildings) {
+            val path = Path()
+            path.moveTo(b.pts[0], b.pts[1])
+            for (i in 2 until b.pts.size step 2) path.lineTo(b.pts[i], b.pts[i + 1])
+            path.close()
+            p.style = Paint.Style.FILL
+            p.color = 0x2A000000
+            c.save()
+            c.translate(0.9f, 0.9f)
+            c.drawPath(path, p)
+            c.restore()
+            p.color = when (b.kind) {
+                CityMap.BUILDING_MOSQUE -> 0xFF6E9BCF.toInt()
+                CityMap.BUILDING_CHURCH -> 0xFFCB8B6E.toInt()
+                else -> blend(0xFFDDD6CB.toInt(), 0xFFB5AA9A.toInt(), (b.height / 40f).coerceIn(0f, 1f))
+            }
+            c.drawPath(path, p)
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 0.5f
+            p.color = 0xFFA99E8C.toInt()
+            c.drawPath(path, p)
+        }
         bitmapArea = area
         bitmapScale = pxPerMetre
         mapBitmap = bitmap
@@ -161,7 +193,7 @@ class MiniMapView @JvmOverloads constructor(
         val r = renderer ?: return
         canvas.save()
         if (!full) canvas.clipPath(clip)
-        canvas.drawColor(0xFFD8D2C4.toInt())
+        canvas.drawColor(LAND)
 
         val px = r.playerX
         val pz = r.playerZ
@@ -252,5 +284,13 @@ class MiniMapView @JvmOverloads constructor(
     companion object {
         /** Metres shown across the corner minimap. */
         private const val VIEW_UNITS = 160f
+        private const val LAND = 0xFFECE7DE.toInt()
+        private const val SEA = 0xFF8EC1E3.toInt()
+
+        /** [a] blended towards [b] by [t] (0..1), channel by channel. */
+        private fun blend(a: Int, b: Int, t: Float): Int {
+            fun ch(shift: Int) = ((((a shr shift) and 0xFF) * (1 - t) + ((b shr shift) and 0xFF) * t).toInt() and 0xFF) shl shift
+            return 0xFF000000.toInt() or ch(16) or ch(8) or ch(0)
+        }
     }
 }

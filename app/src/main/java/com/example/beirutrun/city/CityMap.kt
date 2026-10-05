@@ -127,6 +127,23 @@ class CityMap(
         return false
     }
 
+    /**
+     * How far (x, y, z) is from the nearest building wall, up to [max] metres, or 0 inside a
+     * building; the camera uses it to keep its near clipping plane from reaching through walls.
+     */
+    fun wallClearance(x: Float, y: Float, z: Float, max: Float): Float {
+        var best = max
+        forCells(x - max, z - max, x + max, z + max) { cell ->
+            for (b in buildingCells[cell]) {
+                if (y > b.height + 0.3f || y < b.minHeight - 0.3f) continue
+                if (x < b.minX - best || x > b.maxX + best || z < b.minZ - best || z > b.maxZ + best) continue
+                if (inside(b.pts, x, z) && y <= b.height && y >= b.minHeight) return 0f
+                best = min(best, edgeDistance(b.pts, x, z))
+            }
+        }
+        return best
+    }
+
     /** A random clear spot on a street inside the play area (for respawning). */
     fun randomStreetPoint(random: Random = Random): Pair<Float, Float> {
         val points = ArrayList<Pair<Float, Float>>()

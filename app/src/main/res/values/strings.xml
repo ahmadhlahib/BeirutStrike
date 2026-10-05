@@ -27,6 +27,7 @@
     <string name="say_title">Say something</string>
     <string name="say_hint">What do you want to say?</string>
     <string name="drop_photo">Drop photo</string>
+    <string name="say_or_drop">Say something or drop a photo</string>
     <string name="drop_title">Drop this photo</string>
     <string name="drop_caption_hint">Write something about it</string>
     <string name="drop_here">Drop it here</string>

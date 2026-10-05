@@ -113,46 +113,107 @@
         android:layout_gravity="top|end"
         android:layout_margin="12dp" />
 
-    <!-- Switches between seeing your soldier from behind and seeing through their eyes. -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/viewModeButton"
-        style="@style/HudButton"
+    <!--
+        Left of the minimap, at the top:
+
+            [⇄ AK-47 · 30] [view]
+            (nade) (kind) (mic) (speaker)
+    -->
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_marginTop="12dp"
         android:layout_marginEnd="152dp"
-        app:icon="@drawable/ic_eye" />
+        android:gravity="end"
+        android:orientation="vertical">
 
-    <!-- Team voice chat, under the view button: my mic on/off, and mute all teammates. Online only. -->
-    <LinearLayout
-        android:id="@+id/voiceButtons"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="68dp"
-        android:layout_marginEnd="152dp"
-        android:orientation="vertical"
-        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/micButton"
-            style="@style/HudRoundButton"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:contentDescription="@string/voice_mic"
-            app:icon="@drawable/ic_mic_off"
-            app:iconSize="22dp" />
+            <!-- The gun in hand with its rounds; tap to switch guns. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/weaponButton"
+                style="@style/HudButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="end"
+                android:fontFeatureSettings="tnum"
+                android:maxLines="1"
+                app:icon="@drawable/ic_swap" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/speakerButton"
-            style="@style/HudRoundButton"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            <!-- Switches between seeing your soldier from behind and seeing through their eyes. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/viewModeButton"
+                style="@style/HudButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                app:icon="@drawable/ic_eye" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:contentDescription="@string/voice_speaker"
-            app:icon="@drawable/ic_volume_up"
-            app:iconSize="22dp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Throw a grenade, and the kind to throw with how many are left (tap to change). -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/grenadeButton"
+                style="@style/HudRoundButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/grenade_throw"
+                app:icon="@drawable/ic_grenade" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/grenadeKindButton"
+                style="@style/HudRoundButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/grenade_kind"
+                android:fontFeatureSettings="tnum"
+                android:gravity="center"
+                android:lineSpacingMultiplier="0.9"
+                android:maxLines="2"
+                android:textSize="10sp" />
+
+            <!-- Team voice chat: my mic on/off, and mute all teammates. Online only. -->
+            <LinearLayout
+                android:id="@+id/voiceButtons"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/micButton"
+                    style="@style/HudRoundButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/voice_mic"
+                    app:icon="@drawable/ic_mic_off"
+                    app:iconSize="18dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/speakerButton"
+                    style="@style/HudRoundButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:contentDescription="@string/voice_speaker"
+                    app:icon="@drawable/ic_volume_up"
+                    app:iconSize="18dp" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Time left in the room's game; tap for the scoreboard. Hidden in rooms without a time limit. -->
@@ -203,17 +264,48 @@
         android:layout_gravity="bottom|start"
         android:layout_margin="12dp" />
 
-    <!-- Drop photo: just above the joystick, centred over it. -->
+    <!--
+        Just above the joystick, centred over it: one button that opens Say and Drop photo
+        to its right; picking one (or tapping it again) closes them.
+    -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/dropButton"
+        android:id="@+id/sayOrDropButton"
         style="@style/HudRoundButton"
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_gravity="bottom|start"
         android:layout_marginStart="66dp"
         android:layout_marginBottom="182dp"
-        android:contentDescription="@string/drop_photo"
-        app:icon="@drawable/ic_camera" />
+        android:contentDescription="@string/say_or_drop"
+        app:icon="@drawable/ic_chat" />
+
+    <LinearLayout
+        android:id="@+id/sayOrDropChoices"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="126dp"
+        android:layout_marginBottom="182dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/sayButton"
+            style="@style/HudButton"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:text="@string/say"
+            app:icon="@drawable/ic_chat" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/dropButton"
+            style="@style/HudButton"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:layout_marginStart="8dp"
+            android:text="@string/drop_photo"
+            app:icon="@drawable/ic_camera" />
+    </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/viewPhotoButton"
@@ -239,90 +331,94 @@
         app:icon="@drawable/ic_ladder" />
 
     <!--
-        Right-hand controls, kept low so nothing reaches the minimap (top right):
+        Right-hand controls. Shoot sits under the minimap, with nothing to its left, so the
+        thumb can drag there (or on Shoot itself) to aim while firing:
 
-                                [⇄ AK-47 · 30]
-         (zoom+) (nade) (say)  (jump)  (  SHOOT  )
-         (zoom-) (kind) (scope) (crawl)
+                                       [minimap]
+                                        (SHOOT)
+                                     (jump)(crawl)
+
+                       (zoom+)
+                       (zoom-)  (scope)  (reload)
     -->
 
-    <!-- AK-47: hold to keep firing. Pistol: one shot per tap. -->
+    <!-- AK-47: hold to keep firing. Pistol: one shot per tap. Drag on it to aim while firing. -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/shootButton"
         style="@style/HudRoundButton"
         android:layout_width="88dp"
         android:layout_height="88dp"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="150dp"
+        android:layout_marginEnd="33dp"
         android:contentDescription="@string/shoot"
         app:backgroundTint="#DDD32F2F"
         app:icon="@drawable/ic_target"
         app:iconSize="40dp" />
 
-    <!-- Just above Shoot: reload, and the gun in hand with its rounds (tap to switch guns). -->
+    <!-- Jump and crawl: a small pair just under Shoot. -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="132dp"
-        android:gravity="center_vertical"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="246dp"
+        android:layout_marginEnd="29dp"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/reloadButton"
+            android:id="@+id/jumpButton"
             style="@style/HudRoundButton"
             android:layout_width="44dp"
             android:layout_height="44dp"
-            android:layout_marginEnd="8dp"
-            android:contentDescription="@string/reload"
-            app:icon="@drawable/ic_reload"
-            app:iconSize="24dp" />
+            android:contentDescription="@string/jump"
+            app:icon="@drawable/ic_jump"
+            app:iconSize="22dp" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/weaponButton"
-            style="@style/HudButton"
-            android:layout_width="wrap_content"
+            android:id="@+id/crawlButton"
+            style="@style/HudRoundButton"
+            android:layout_width="44dp"
             android:layout_height="44dp"
-            android:fontFeatureSettings="tnum"
-            app:icon="@drawable/ic_swap" />
+            android:layout_marginStart="8dp"
+            android:contentDescription="@string/crawl"
+            app:icon="@drawable/ic_crawl"
+            app:iconSize="22dp" />
     </LinearLayout>
 
-    <!-- Throw a grenade (left of Say), and below it the kind to throw with how many are left (tap to change). -->
+    <!-- Reload: bottom right corner. -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/grenadeButton"
+        android:id="@+id/reloadButton"
         style="@style/HudRoundButton"
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="244dp"
-        android:layout_marginBottom="72dp"
-        android:contentDescription="@string/grenade_throw"
-        app:icon="@drawable/ic_grenade" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/grenadeKindButton"
-        style="@style/HudRoundButton"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="244dp"
+        android:layout_marginEnd="16dp"
         android:layout_marginBottom="12dp"
-        android:contentDescription="@string/grenade_kind"
-        android:fontFeatureSettings="tnum"
-        android:gravity="center"
-        android:lineSpacingMultiplier="0.9"
-        android:maxLines="2"
-        android:textSize="10sp" />
+        android:contentDescription="@string/reload"
+        app:icon="@drawable/ic_reload"
+        app:iconSize="24dp" />
 
-    <!-- Through a scope with more than one magnification: zoom in and out, left of the grenades. -->
+    <!-- Only with a scope and the AK-47 in hand: left of Reload. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/scopeButton"
+        style="@style/HudRoundButton"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="80dp"
+        android:layout_marginBottom="12dp"
+        android:contentDescription="@string/scope"
+        android:visibility="gone"
+        app:icon="@drawable/ic_scope" />
+
+    <!-- Through a scope with more than one magnification: zoom in and out, left of Scope. -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/zoomInButton"
         style="@style/HudRoundButton"
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="308dp"
+        android:layout_marginEnd="144dp"
         android:layout_marginBottom="72dp"
         android:contentDescription="@string/zoom_in"
         android:visibility="gone"
@@ -334,61 +430,9 @@
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_gravity="bottom|end"
-        android:layout_marginEnd="308dp"
+        android:layout_marginEnd="144dp"
         android:layout_marginBottom="12dp"
         android:contentDescription="@string/zoom_out"
         android:visibility="gone"
         app:icon="@drawable/ic_zoom_out" />
-
-    <!-- Jump and crawl: a column just left of Shoot. -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="116dp"
-        android:layout_marginBottom="12dp"
-        android:orientation="vertical">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/jumpButton"
-            style="@style/HudRoundButton"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:contentDescription="@string/jump"
-            app:icon="@drawable/ic_jump" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/crawlButton"
-            style="@style/HudRoundButton"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:layout_marginTop="8dp"
-            android:contentDescription="@string/crawl"
-            app:icon="@drawable/ic_crawl" />
-    </LinearLayout>
-
-    <!-- Say: left of Jump. -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/sayButton"
-        style="@style/HudRoundButton"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="180dp"
-        android:layout_marginBottom="72dp"
-        android:contentDescription="@string/say"
-        app:icon="@drawable/ic_chat" />
-
-    <!-- Only with a scope and the AK-47 in hand: left of Crawl. -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/scopeButton"
-        style="@style/HudRoundButton"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="180dp"
-        android:layout_marginBottom="12dp"
-        android:contentDescription="@string/scope"
-        android:visibility="gone"
-        app:icon="@drawable/ic_scope" />
 </FrameLayout>

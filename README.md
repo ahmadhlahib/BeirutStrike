@@ -344,6 +344,42 @@ Bone names with or without the `mixamorig:` prefix both work. `MixamoSoldierTest
 character folder for the clips the game needs. Keep characters light: every player's character
 is animated on the phone each frame (Ahmad El Lahib has about 45,000 vertices).
 
+## People in the street
+
+Cars and passers-by are made up on each phone (`city/CityLife.kt`). The 8 people nearest the
+camera (within 35 m) can be drawn with real character models; everyone else, and everyone when
+there are no models, is drawn from simple shapes.
+
+The sources are Mixamo downloads (FBX), kept out of the app:
+
+| Folder | What |
+| --- | --- |
+| `tools/models/pedestrians/characters/` | one `<name>.fbx` per person: any Mixamo character, downloaded as FBX (T-pose) |
+| `tools/models/pedestrians/animations/` | shared by everyone, FBX with **In Place** ticked: `Walking.fbx`, `Running (1).fbx`, `Standing Idle.fbx`, `Talking On A Cell Phone.fbx`, `Running Turn 180.fbx` (turning to flee), and the deaths `Falling Back Death.fbx`, `Falling Forward Death.fbx`, `Flying Back Death.fbx` |
+
+To add a person, put their FBX in `characters/` and run:
+
+```bash
+bash tools/build_pedestrians.sh
+./gradlew testDebugUnitTest --tests "*PedestrianModelsTest*"
+```
+
+The script converts each character with FBX2glTF, cuts it to about a third of its triangles
+with 1024 px WebP textures using gltfpack (`tools/bin/gltfpack.exe`, from
+github.com/zeux/meshoptimizer; a Mixamo character drops from ~50 MB and ~30,000 vertices to
+~1 MB and ~10,000), renames its bones from Mixamo's numbered `mixamorig7:` to `mixamorig:` so the
+shared animations fit (`tools/RenameMixamoBones.java`), and strips the animations to their
+motion. Everything goes to `app/src/main/assets/models/pedestrians/`. The test loads every
+person with the shared animations, checks they are under 12,000 vertices and prints the sizes.
+Every other person talks on the phone (instead of the standing idle) when they stop. People
+can be shot (or caught in a grenade): they fall with one of the death clips (backwards when shot
+from the front, forwards from behind) and lie there for 30 s; it counts for no one's score.
+When there's shooting nearby, people heading towards it turn round (the turn clip) and run.
+
+Each person in the street gets one of the models at random. Materials without a texture whose
+names look like clothes (`shirt`, `pants`, `top`, `body`, `cloth`...) are recoloured per person,
+so one model can make several different-looking people.
+
 ## Gun models
 
 The guns in Gun view and in soldiers' hands are 3D models from Sketchfab (credits in

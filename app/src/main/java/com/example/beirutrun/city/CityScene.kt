@@ -2,28 +2,52 @@ package com.example.beirutrun.city
 
 import com.example.beirutrun.city.CityMap.Companion.triangulate
 import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-/** What a piece of the city is made of: its colour, optional wall texture, and whether sunlight shades it. */
-enum class Surface(val color: Int, val wallStyle: Int = -1, val lit: Boolean = true) {
-    SEA(0xFF2F6E95.toInt()),
-    PARKING(0xFF8E8C88.toInt()), PLAZA(0xFFE0D6C2.toInt()), PARK(0xFF6FA35A.toInt()), PITCH(0xFF4F9A48.toInt()),
-    WATER(0xFF2F6E95.toInt()), SAND(0xFFE3D3A2.toInt()), PIER(0xFFA3A19C.toInt()), CONSTRUCTION(0xFFA88F70.toInt()),
-    ROAD_PATH(0xFFBBAE95.toInt()), ROAD_PEDESTRIAN(0xFFCBBFA7.toInt()), ROAD_MINOR(0xFF4E4F54.toInt()),
-    ROAD_MEDIUM(0xFF44454A.toInt()), ROAD_MAJOR(0xFF3B3C40.toInt()), ROAD_PIER(0xFF9A9894.toInt()),
+/**
+ * What a piece of the city is made of: its colour, optional repeating texture (see [CityTextures]),
+ * whether sunlight shades it, how much of the sky it reflects ([shine]), whether it darkens
+ * near the ground the way real walls do ([ao]), and whether its texture's see-through parts are
+ * cut away, as between a palm frond's leaflets ([cutout]).
+ */
+enum class Surface(
+    val color: Int, val texture: Int = -1, val lit: Boolean = true, val shine: Float = 0f, val ao: Boolean = false,
+    val cutout: Boolean = false,
+) {
+    SEA(0xFF2F6E95.toInt(), shine = 0.5f),
+    PARKING(0xFF96938E.toInt(), CityTextures.ASPHALT), PLAZA(0xFFE8DDC8.toInt(), CityTextures.PAVING),
+    PARK(0xFF78AE5F.toInt(), CityTextures.GRASS), PITCH(0xFF56A44E.toInt(), CityTextures.GRASS),
+    WATER(0xFF2F6E95.toInt(), shine = 0.5f), SAND(0xFFEFDDA8.toInt(), CityTextures.SAND),
+    PIER(0xFFADABA6.toInt(), CityTextures.SLABS), CONSTRUCTION(0xFFB39878.toInt(), CityTextures.SAND),
+    ROAD_PATH(0xFFC8BA9F.toInt(), CityTextures.SAND), ROAD_PEDESTRIAN(0xFFDDCFB3.toInt(), CityTextures.PAVING),
+    ROAD_MINOR(0xFF56575C.toInt(), CityTextures.ASPHALT), ROAD_MEDIUM(0xFF4C4D52.toInt(), CityTextures.ASPHALT),
+    ROAD_MAJOR(0xFF434448.toInt(), CityTextures.ASPHALT), ROAD_PIER(0xFFA4A29E.toInt(), CityTextures.SLABS),
+    SIDEWALK(0xFFD6D1C7.toInt(), CityTextures.SLABS), CURB(0xFFBDB9B0.toInt()),
     LANE(0xFFE9E4D0.toInt(), lit = false),
-    WALL_SANDSTONE(0xFFFFFFFF.toInt(), 0), WALL_CREAM(0xFFFFFFFF.toInt(), 1),
-    WALL_CONCRETE(0xFFFFFFFF.toInt(), 2), WALL_GLASS(0xFFFFFFFF.toInt(), 3), WALL_WHITE(0xFFFFFFFF.toInt(), 4),
-    ROOF(0xFFB8AD99.toInt()), ROOF_TOWER(0xFF5A646C.toInt()),
+    WALL_SANDSTONE(0xFFFFFFFF.toInt(), CityTextures.SANDSTONE, ao = true),
+    WALL_CREAM(0xFFFFFFFF.toInt(), CityTextures.CREAM, ao = true),
+    WALL_CONCRETE(0xFFFFFFFF.toInt(), CityTextures.CONCRETE, ao = true),
+    WALL_GLASS(0xFFFFFFFF.toInt(), CityTextures.GLASS, shine = 0.45f, ao = true),
+    WALL_WHITE(0xFFFFFFFF.toInt(), CityTextures.WHITE_TOWER, ao = true),
+    SHOPFRONT(0xFFFFFFFF.toInt(), CityTextures.SHOPFRONT, ao = true),
+    CORNICE(0xFFE4DACA.toInt()),
+    ROOF(0xFFBDB2A0.toInt(), CityTextures.ROOF), ROOF_TOWER(0xFF5E6870.toInt(), CityTextures.ROOF),
     DOME(0xFF2F6DB5.toInt()), GOLD(0xFFD4AF37.toInt()), MINARET(0xFFE8E0CC.toInt()), TERRACOTTA(0xFFA4553A.toInt()),
     ROCK(0xFF9C8A74.toInt()),
-    TRUNK(0xFF6B4A2F.toInt()), PALM_TRUNK(0xFF8A7355.toInt()), LEAVES(0xFF4E8C3A.toInt()), PALM_LEAVES(0xFF3F7F2E.toInt()),
+    TRUNK(0xFF8E6E52.toInt(), CityTextures.BARK), PALM_TRUNK(0xFFAA9474.toInt(), CityTextures.PALM_BARK),
+    LEAVES(0xFF74B654.toInt(), CityTextures.LEAF), LEAVES_DARK(0xFF559A4A.toInt(), CityTextures.LEAF),
+    LEAVES_OLIVE(0xFF98AE58.toInt(), CityTextures.LEAF),
+    PALM_LEAVES(0xFF6EA43E.toInt(), CityTextures.FROND, cutout = true), PALM_CROWN(0xFF6E5A3E.toInt()),
+    POLE(0xFF4A4D50.toInt()), LAMP(0xFFF4F0DE.toInt(), lit = false), GUTTER(0xFF3A3A38.toInt()),
 }
 
 /**
@@ -40,7 +64,33 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
     companion object {
         const val FLOATS = 8
         const val TILE = 128f
-        private const val WINDOW_CELL = 3.2f
+        /** Road layers, bottom to top: where roads cross, the higher one covers the other's edges. */
+        private const val SIDEWALK_Y = 0.045f
+        private const val CURB_Y = 0.054f
+        private const val CURB_WIDTH = 0.25f
+        private const val GUTTER_Y = 0.06f
+        private const val GUTTER_WIDTH = 0.08f
+        /** Lane lines stop this far short of a junction's widest road. */
+        private const val JUNCTION_CLEAR = 1.5f
+        /** Zebra crossings: how far back from a junction's widest road they start, and how long the stripes are. */
+        private const val CROSSING_BACK = 2.4f
+        private const val CROSSING_LENGTH = 3f
+        private const val LAMP_SPACING = 32f
+        private const val LAMP_HEIGHT = 7.5f
+        /** Pieces a palm trunk is curved in, and panels along a frond. */
+        private const val PALM_SEGMENTS = 3
+        private const val FROND_PANELS = 3
+
+        /** How wide the sidewalk is each side of a kind of road (0: none). */
+        fun sidewalkWidth(kind: Int) = when (kind) {
+            CityMap.ROAD_MAJOR -> 3f
+            CityMap.ROAD_MEDIUM -> 2.5f
+            CityMap.ROAD_MINOR -> 1.8f
+            else -> 0f
+        }
+        /** The moulding round the top of a building's walls: how far it sticks out, and how tall it is. */
+        private const val CORNICE_DEPTH = 0.28f
+        private const val CORNICE_HEIGHT = 0.4f
 
         fun build(map: CityMap, look: CityLook = CityLook.MIXED): CityScene {
             val builder = Builder(map, look)
@@ -49,8 +99,11 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         }
     }
 
-    /** Growable float list for vertex data. */
-    class Floats {
+    /**
+     * Growable float list for vertex data. Ground textures are mapped from ([ox], [oz]), the
+     * tile's corner, so their coordinates stay small enough for the GPU to keep precise.
+     */
+    class Floats(val ox: Float = 0f, val oz: Float = 0f) {
         var data = FloatArray(1024)
         var size = 0
 
@@ -71,11 +124,23 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         private val rows = ((map.maxZ - map.minZ) / TILE).toInt() + 1
         private val tileParts = Array(cols * rows) { HashMap<Surface, Floats>() }
         private val alwaysParts = HashMap<Surface, Floats>()
+        /** Buildings with a ladder up the wall (see Ladders): no cornice, so it doesn't cut through one. */
+        private val withLadder = Ladders.place(map).mapTo(HashSet()) { it.building }
+        private val network = RoadNetwork(map.roads)
 
         private fun out(x: Float, z: Float, s: Surface): Floats {
             val c = floor((x - map.minX) / TILE).toInt().coerceIn(0, cols - 1)
             val r = floor((z - map.minZ) / TILE).toInt().coerceIn(0, rows - 1)
-            return tileParts[r * cols + c].getOrPut(s) { Floats() }
+            return tileParts[r * cols + c].getOrPut(s) { Floats(map.minX + c * TILE, map.minZ + r * TILE) }
+        }
+
+        /** Metres one repeat of [s]'s ground texture covers; 0 when it has none. */
+        private fun span(s: Surface) = if (s.texture >= 0) CityTextures.groundSpan(s.texture) else 0f
+
+        /** An upward-facing vertex, its texture laid in world space every [span] metres (0 = untextured). */
+        private fun flat(o: Floats, x: Float, y: Float, z: Float, span: Float) {
+            if (span > 0f) o.vertex(x, y, z, 0f, 1f, 0f, (x - o.ox) / span, (z - o.oz) / span)
+            else o.vertex(x, y, z, 0f, 1f, 0f, 0.02f, 0.02f)
         }
 
         fun result(): CityScene {
@@ -106,92 +171,243 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     else -> Surface.CONSTRUCTION to 0.022f
                 }
                 val (cx, cz) = centroid(a.pts)
-                flatPolygon(out(cx, cz, surface), a.pts, y)
+                flatPolygon(out(cx, cz, surface), a.pts, y, span(surface))
             }
             for (road in map.roads) addRoad(road)
+            addCrossings()
             map.buildings.forEachIndexed { i, b -> addBuilding(b, i) }
             for (t in map.trees) if (t.kind == CityMap.TREE_PALM) addPalm(t) else addLeafyTree(t)
         }
 
         // ---- Flat things ---------------------------------------------------------------------
 
-        private fun flatPolygon(o: Floats, ring: FloatArray, y: Float) {
+        private fun flatPolygon(o: Floats, ring: FloatArray, y: Float, span: Float = 0f) {
             val tri = triangulate(ring)
             var i = 0
             while (i < tri.size) {
                 // triangulate() returns counter-clockwise triangles; face them upwards.
-                for (k in intArrayOf(tri[i], tri[i + 2], tri[i + 1])) {
-                    o.vertex(ring[2 * k], y, ring[2 * k + 1], 0f, 1f, 0f, 0.02f, 0.02f)
-                }
+                for (k in intArrayOf(tri[i], tri[i + 2], tri[i + 1])) flat(o, ring[2 * k], y, ring[2 * k + 1], span)
                 i += 3
             }
         }
 
+        /**
+         * A street: the carriageway over a curb and a sidewalk (on roads with traffic), then its
+         * lane markings. Each layer is a little higher than the one under it, and busier roads are
+         * higher than quieter ones, so at junctions the road on top covers the other's sidewalk.
+         */
         private fun addRoad(road: CityMap.Road) {
-            val (surface, y) = when (road.kind) {
-                CityMap.ROAD_MAJOR -> Surface.ROAD_MAJOR to 0.06f
-                CityMap.ROAD_MEDIUM -> Surface.ROAD_MEDIUM to 0.055f
-                CityMap.ROAD_MINOR -> Surface.ROAD_MINOR to 0.05f
-                CityMap.ROAD_PEDESTRIAN -> Surface.ROAD_PEDESTRIAN to 0.045f
-                CityMap.ROAD_PIER -> Surface.ROAD_PIER to 0.3f
-                else -> Surface.ROAD_PATH to 0.04f
+            val surface = when (road.kind) {
+                CityMap.ROAD_MAJOR -> Surface.ROAD_MAJOR
+                CityMap.ROAD_MEDIUM -> Surface.ROAD_MEDIUM
+                CityMap.ROAD_MINOR -> Surface.ROAD_MINOR
+                CityMap.ROAD_PEDESTRIAN -> Surface.ROAD_PEDESTRIAN
+                CityMap.ROAD_PIER -> Surface.ROAD_PIER
+                else -> Surface.ROAD_PATH
             }
+            val y = roadY(road.kind)
             val p = road.pts
             val half = road.width / 2f
-            var i = 0
-            while (i + 3 < p.size) {
-                val ax = p[i]; val az = p[i + 1]; val bx = p[i + 2]; val bz = p[i + 3]
-                val o = out((ax + bx) / 2f, (az + bz) / 2f, surface)
-                strip(o, ax, az, bx, bz, half, y)
-                disc(o, ax, az, half, y)
-                i += 2
+            val sidewalk = sidewalkWidth(road.kind)
+            if (sidewalk > 0f) {
+                band(p, Surface.SIDEWALK, half + sidewalk, SIDEWALK_Y)
+                band(p, Surface.CURB, half + CURB_WIDTH, CURB_Y)
+                // The dark gutter where the road meets the curb.
+                band(p, Surface.GUTTER, half + GUTTER_WIDTH, GUTTER_Y)
             }
-            disc(out(p[p.size - 2], p[p.size - 1], surface), p[p.size - 2], p[p.size - 1], half, y)
+            band(p, surface, half, y)
+            if (road.kind == CityMap.ROAD_MAJOR || road.kind == CityMap.ROAD_MEDIUM) addLamps(road, half)
 
-            // Dashed centre line on the bigger roads.
-            if (road.kind == CityMap.ROAD_MAJOR || road.kind == CityMap.ROAD_MEDIUM) {
-                var carry = 2f
-                i = 0
-                while (i + 3 < p.size) {
-                    val ax = p[i]; val az = p[i + 1]; val bx = p[i + 2]; val bz = p[i + 3]
-                    val len = hypot(bx - ax, bz - az)
-                    var t = carry
-                    while (t + 3f < len) {
-                        val sx = ax + (bx - ax) * t / len; val sz = az + (bz - az) * t / len
-                        val ex = ax + (bx - ax) * (t + 3f) / len; val ez = az + (bz - az) * (t + 3f) / len
-                        strip(out(sx, sz, Surface.LANE), sx, sz, ex, ez, 0.08f, y + 0.012f)
-                        t += 9f
+            val paint = y + 0.012f
+            when (road.kind) {
+                CityMap.ROAD_MEDIUM -> line(p, 0f, 0.08f, paint, dash = 3f, gap = 6f)
+                CityMap.ROAD_MAJOR -> {
+                    // A double solid line down the middle, and dashed lanes on wide avenues.
+                    line(p, 0.14f, 0.06f, paint)
+                    line(p, -0.14f, 0.06f, paint)
+                    if (road.width >= 12f) {
+                        line(p, road.width / 4f, 0.07f, paint, dash = 3f, gap = 6f)
+                        line(p, -road.width / 4f, 0.07f, paint, dash = 3f, gap = 6f)
                     }
-                    carry = max(0f, t - len)
-                    i += 2
                 }
             }
         }
 
-        private fun strip(o: Floats, ax: Float, az: Float, bx: Float, bz: Float, half: Float, y: Float) {
+        /** A strip [half] wide each side of the line [p], with round joins at its bends and ends. */
+        private fun band(p: FloatArray, surface: Surface, half: Float, y: Float) {
+            val span = span(surface)
+            var i = 0
+            while (i + 3 < p.size) {
+                val ax = p[i]; val az = p[i + 1]; val bx = p[i + 2]; val bz = p[i + 3]
+                val o = out((ax + bx) / 2f, (az + bz) / 2f, surface)
+                strip(o, ax, az, bx, bz, half, y, span)
+                if (i == 0) disc(o, ax, az, half, y, span) else join(o, p, i, half, y, span)
+                i += 2
+            }
+            disc(out(p[p.size - 2], p[p.size - 1], surface), p[p.size - 2], p[p.size - 1], half, y, span)
+        }
+
+        /**
+         * Fills the gap between two strips where the line [p] bends at index [i]: nothing when
+         * it runs straight on, a wedge each side at a gentle bend, a round join at a sharp one.
+         */
+        private fun join(o: Floats, p: FloatArray, i: Int, half: Float, y: Float, span: Float) {
+            val bx = p[i]; val bz = p[i + 1]
+            val d0x = bx - p[i - 2]; val d0z = bz - p[i - 1]
+            val d1x = p[i + 2] - bx; val d1z = p[i + 3] - bz
+            val l0 = hypot(d0x, d0z); val l1 = hypot(d1x, d1z)
+            if (l0 < 1e-3f || l1 < 1e-3f) { disc(o, bx, bz, half, y, span); return }
+            val cos = (d0x * d1x + d0z * d1z) / (l0 * l1)
+            if (cos > 0.99995f) return
+            if (cos < 0.6f) { disc(o, bx, bz, half, y, span); return }
+            val n0x = -d0z / l0 * half; val n0z = d0x / l0 * half
+            val n1x = -d1z / l1 * half; val n1z = d1x / l1 * half
+            for (s in floatArrayOf(1f, -1f)) {
+                flat(o, bx, y, bz, span)
+                flat(o, bx + n0x * s, y, bz + n0z * s, span)
+                flat(o, bx + n1x * s, y, bz + n1z * s, span)
+            }
+        }
+
+        /** How high each kind of road is laid (see [addRoad]). */
+        private fun roadY(kind: Int) = when (kind) {
+            CityMap.ROAD_MAJOR -> 0.085f
+            CityMap.ROAD_MEDIUM -> 0.08f
+            CityMap.ROAD_MINOR -> 0.075f
+            CityMap.ROAD_PEDESTRIAN -> 0.068f
+            CityMap.ROAD_PIER -> 0.3f
+            else -> 0.062f
+        }
+
+        /**
+         * A painted line [offset] metres to the left of the line [p], [half] wide: solid, or
+         * [dash] metres on and [gap] off, the pattern carried on round bends. Lines stop short
+         * of junctions instead of running across the road they meet.
+         */
+        private fun line(p: FloatArray, offset: Float, half: Float, y: Float, dash: Float = 0f, gap: Float = 0f) {
+            // A solid line is laid as touching pieces, so the bits in a junction can be left out.
+            val on = if (dash > 0f) dash else 4f
+            val off = if (dash > 0f) gap else 0f
+            var carry = if (dash > 0f) 2f else 0f
+            var i = 0
+            while (i + 3 < p.size) {
+                val ax = p[i]; val az = p[i + 1]; val bx = p[i + 2]; val bz = p[i + 3]
+                i += 2
+                val len = hypot(bx - ax, bz - az)
+                if (len < 1e-3f) continue
+                val dx = (bx - ax) / len; val dz = (bz - az) / len
+                val ox = -dz * offset; val oz = dx * offset
+                var t = carry
+                while (t < len) {
+                    val t1 = minOf(t + on, len)
+                    val sx = ax + dx * t + ox; val sz = az + dz * t + oz
+                    val ex = ax + dx * t1 + ox; val ez = az + dz * t1 + oz
+                    if (!network.nearJunction((sx + ex) / 2f, (sz + ez) / 2f, JUNCTION_CLEAR)) {
+                        strip(out(sx, sz, Surface.LANE), sx, sz, ex, ez, half, y, 0f)
+                    }
+                    t += on + off
+                }
+                carry = if (dash > 0f) max(0f, t - len) else 0f
+            }
+        }
+
+        /**
+         * Zebra crossings across each road leading into a junction (a little back from it, past
+         * the corner's sidewalk), with a stop line before each for the traffic coming in.
+         */
+        private fun addCrossings() {
+            for (j in network.junctions) for (stop in j.stops) {
+                val road = map.roads[stop.road]
+                if (road.kind > CityMap.ROAD_MINOR || road.width < 5f) continue
+                val p = road.pts
+                val n = p.size / 2
+                val half = road.width / 2f
+                val y = roadY(road.kind) + 0.012f
+                for (step in intArrayOf(-1, 1)) {
+                    val next = stop.vertex + step
+                    if (next !in 0 until n) continue
+                    // Along the arm, away from the junction.
+                    val jx = p[2 * stop.vertex]; val jz = p[2 * stop.vertex + 1]
+                    val len = hypot(p[2 * next] - jx, p[2 * next + 1] - jz)
+                    val start = j.half + CROSSING_BACK
+                    if (len < start + CROSSING_LENGTH + 2f) continue
+                    val ax = (p[2 * next] - jx) / len; val az = (p[2 * next + 1] - jz) / len
+                    val sx = -az; val sz = ax
+                    var o = -half + 0.5f
+                    while (o <= half - 0.45f) {
+                        val x0 = jx + ax * start + sx * o; val z0 = jz + az * start + sz * o
+                        val x1 = x0 + ax * CROSSING_LENGTH; val z1 = z0 + az * CROSSING_LENGTH
+                        strip(out(x0, z0, Surface.LANE), x0, z0, x1, z1, 0.25f, y, 0f)
+                        o += 1f
+                    }
+                    if (road.width >= 6f) {
+                        // Traffic coming in drives on its right: the side (az, -ax) of the arm.
+                        val d = start + CROSSING_LENGTH + 0.9f
+                        val cx = jx + ax * d; val cz = jz + az * d
+                        val rx = az; val rz = -ax
+                        strip(out(cx, cz, Surface.LANE), cx + rx * 0.15f, cz + rz * 0.15f, cx + rx * (half - 0.3f), cz + rz * (half - 0.3f), 0.15f, y, 0f)
+                    }
+                }
+            }
+        }
+
+        /** Street lamps along a main road, every [LAMP_SPACING] metres, on alternate sides. */
+        private fun addLamps(road: CityMap.Road, half: Float) {
+            val p = road.pts
+            var carry = LAMP_SPACING / 2f
+            var side = 1f
+            var i = 0
+            while (i + 3 < p.size) {
+                val ax = p[i]; val az = p[i + 1]; val bx = p[i + 2]; val bz = p[i + 3]
+                i += 2
+                val len = hypot(bx - ax, bz - az)
+                if (len < 1e-3f) continue
+                val dx = (bx - ax) / len; val dz = (bz - az) / len
+                var t = carry
+                while (t < len) {
+                    // On the sidewalk just behind the curb, the arm reaching out over the road.
+                    val nx = -dz * side; val nz = dx * side
+                    val x = ax + dx * t + nx * (half + 0.6f); val z = az + dz * t + nz * (half + 0.6f)
+                    if (!network.nearJunction(x, z, 6f) && !map.isInsideBuilding(x, 1f, z, 0.5f)) lamp(x, z, -nx, -nz)
+                    side = -side
+                    t += LAMP_SPACING
+                }
+                carry = t - len
+            }
+        }
+
+        /** A lamp post at (x, z), its arm and lamp reaching towards (fx, fz). */
+        private fun lamp(x: Float, z: Float, fx: Float, fz: Float) {
+            val o = out(x, z, Surface.POLE)
+            limb(o, x, 0f, z, x, 0.7f, z, 0.13f, 0.11f, 6)
+            limb(o, x, 0f, z, x, LAMP_HEIGHT, z, 0.08f, 0.055f, 6)
+            limb(o, x, LAMP_HEIGHT - 0.25f, z, x + fx * 1.7f, LAMP_HEIGHT + 0.05f, z + fz * 1.7f, 0.045f, 0.04f, 4)
+            limb(out(x, z, Surface.LAMP), x + fx * 1.35f, LAMP_HEIGHT, z + fz * 1.35f, x + fx * 2f, LAMP_HEIGHT - 0.02f, z + fz * 2f, 0.15f, 0.11f, 6)
+        }
+
+        private fun strip(o: Floats, ax: Float, az: Float, bx: Float, bz: Float, half: Float, y: Float, span: Float) {
             val len = hypot(bx - ax, bz - az)
             if (len < 1e-3f) return
             val nx = -(bz - az) / len * half
             val nz = (bx - ax) / len * half
-            val u = 0.02f
             // Two triangles, wound to face up.
-            o.vertex(ax + nx, y, az + nz, 0f, 1f, 0f, u, u)
-            o.vertex(bx - nx, y, bz - nz, 0f, 1f, 0f, u, u)
-            o.vertex(ax - nx, y, az - nz, 0f, 1f, 0f, u, u)
-            o.vertex(ax + nx, y, az + nz, 0f, 1f, 0f, u, u)
-            o.vertex(bx + nx, y, bz + nz, 0f, 1f, 0f, u, u)
-            o.vertex(bx - nx, y, bz - nz, 0f, 1f, 0f, u, u)
+            flat(o, ax + nx, y, az + nz, span)
+            flat(o, bx - nx, y, bz - nz, span)
+            flat(o, ax - nx, y, az - nz, span)
+            flat(o, ax + nx, y, az + nz, span)
+            flat(o, bx + nx, y, bz + nz, span)
+            flat(o, bx - nx, y, bz - nz, span)
         }
 
         /** A round join so road segments meet without gaps at bends. */
-        private fun disc(o: Floats, cx: Float, cz: Float, r: Float, y: Float) {
+        private fun disc(o: Floats, cx: Float, cz: Float, r: Float, y: Float, span: Float) {
             val n = 8
             for (k in 0 until n) {
                 val a0 = 2 * PI * k / n
                 val a1 = 2 * PI * (k + 1) / n
-                o.vertex(cx, y, cz, 0f, 1f, 0f, 0.02f, 0.02f)
-                o.vertex(cx + (cos(a1) * r).toFloat(), y, cz + (sin(a1) * r).toFloat(), 0f, 1f, 0f, 0.02f, 0.02f)
-                o.vertex(cx + (cos(a0) * r).toFloat(), y, cz + (sin(a0) * r).toFloat(), 0f, 1f, 0f, 0.02f, 0.02f)
+                flat(o, cx, y, cz, span)
+                flat(o, cx + (cos(a1) * r).toFloat(), y, cz + (sin(a1) * r).toFloat(), span)
+                flat(o, cx + (cos(a0) * r).toFloat(), y, cz + (sin(a0) * r).toFloat(), span)
             }
         }
 
@@ -217,9 +433,30 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             }
             val cx = b.centerX
             val cz = b.centerZ
-            walls(out(cx, cz, wall), b.pts, b.minHeight, b.height)
+            // Most ordinary buildings standing on the street have shops along the ground floor.
+            val shopChance = when (wall) {
+                Surface.WALL_CREAM -> 0.8f
+                Surface.WALL_CONCRETE -> 0.7f
+                Surface.WALL_SANDSTONE -> 0.55f
+                Surface.WALL_WHITE -> 0.45f
+                else -> 0f
+            }
+            val shops = b.kind == CityMap.BUILDING_GENERIC && b.minHeight < 0.5f &&
+                b.height >= CityTextures.SHOP_HEIGHT + 3f && rnd.nextFloat() < shopChance
+            var wallBottom = b.minHeight
+            if (shops) {
+                walls(out(cx, cz, Surface.SHOPFRONT), b.pts, b.minHeight, CityTextures.SHOP_HEIGHT, CityTextures.SHOP_SPAN, CityTextures.SHOP_HEIGHT)
+                wallBottom = CityTextures.SHOP_HEIGHT
+            }
+            val facade = if (wall.texture >= 0) CityTextures.FACADE_SPAN else 0f
+            walls(out(cx, cz, wall), b.pts, wallBottom, b.height, facade, facade)
+            if (wall != Surface.WALL_GLASS && wall != Surface.ROCK && b.area > 15f &&
+                b.height - b.minHeight > 3f && b !in withLadder
+            ) {
+                cornice(out(cx, cz, Surface.CORNICE), b.pts, b.height)
+            }
             val roof = when (wall) { Surface.WALL_GLASS -> Surface.ROOF_TOWER; Surface.ROCK -> Surface.ROCK; else -> Surface.ROOF }
-            flatRoof(out(cx, cz, roof), b.pts, b.height)
+            flatPolygon(out(cx, cz, roof), b.pts, b.height, span(roof))
 
             when (b.kind) {
                 CityMap.BUILDING_MOSQUE -> addMosque(b)
@@ -227,11 +464,18 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             }
         }
 
-        /** Extruded walls; the window texture runs continuously round the building. */
-        private fun walls(o: Floats, ring: FloatArray, y0: Float, y1: Float) {
+        /**
+         * Extruded walls from [y0] to [y1], textured every [spanU] metres across and [spanV] up
+         * (0 = untextured). The texture is two windows wide, so each wall is fitted with a whole
+         * number of windows (stretched a little) rather than cutting one at a corner; vertically
+         * whole repeats start at [y0], so floors line up from the bottom.
+         */
+        private fun walls(o: Floats, ring: FloatArray, y0: Float, y1: Float, spanU: Float = 0f, spanV: Float = 0f) {
             val n = ring.size / 2
-            var u = 0f
-            val v = (y1 - y0) / WINDOW_CELL
+            val textured = spanU > 0f
+            // v grows down the texture: a whole number at y0.
+            val vBottom = if (textured) ceil((y1 - y0) / spanV) else 0.02f
+            val vTop = if (textured) vBottom - (y1 - y0) / spanV else 0.02f
             for (i in 0 until n) {
                 val j = (i + 1) % n
                 val ax = ring[2 * i]; val az = ring[2 * i + 1]
@@ -241,19 +485,65 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 // Counter-clockwise ring: the outside is to the right of a → b.
                 val nx = (bz - az) / len
                 val nz = -(bx - ax) / len
-                val u1 = u + len / WINDOW_CELL
-                // Seen from outside, b is on the left and a on the right.
-                o.vertex(bx, y0, bz, nx, 0f, nz, u, v)
-                o.vertex(ax, y0, az, nx, 0f, nz, u1, v)
-                o.vertex(ax, y1, az, nx, 0f, nz, u1, 0f)
-                o.vertex(bx, y0, bz, nx, 0f, nz, u, v)
-                o.vertex(ax, y1, az, nx, 0f, nz, u1, 0f)
-                o.vertex(bx, y1, bz, nx, 0f, nz, u, 0f)
-                u = u1
+                // Seen from outside, b is on the left (u = 0) and a on the right.
+                val ub = if (textured) 0f else 0.02f
+                val ua = if (!textured) 0.02f else {
+                    val cells = (len / (spanU / 2f)).roundToInt()
+                    if (cells == 0) len / spanU else cells / 2f
+                }
+                o.vertex(bx, y0, bz, nx, 0f, nz, ub, vBottom)
+                o.vertex(ax, y0, az, nx, 0f, nz, ua, vBottom)
+                o.vertex(ax, y1, az, nx, 0f, nz, ua, vTop)
+                o.vertex(bx, y0, bz, nx, 0f, nz, ub, vBottom)
+                o.vertex(ax, y1, az, nx, 0f, nz, ua, vTop)
+                o.vertex(bx, y1, bz, nx, 0f, nz, ub, vTop)
             }
         }
 
-        private fun flatRoof(o: Floats, ring: FloatArray, y: Float) = flatPolygon(o, ring, y)
+        /**
+         * A moulding round the top of the walls: a band [CORNICE_DEPTH] proud of them, shaded
+         * underneath, level with the roof on top.
+         */
+        private fun cornice(o: Floats, ring: FloatArray, top: Float) {
+            val outer = pushedOut(ring, CORNICE_DEPTH)
+            val bottom = top - CORNICE_HEIGHT
+            walls(o, outer, bottom, top)
+            val n = ring.size / 2
+            val u = 0.02f
+            for (i in 0 until n) {
+                val j = (i + 1) % n
+                for ((y, ny) in arrayOf(bottom to -1f, top to 1f)) {
+                    o.vertex(ring[2 * i], y, ring[2 * i + 1], 0f, ny, 0f, u, u)
+                    o.vertex(outer[2 * i], y, outer[2 * i + 1], 0f, ny, 0f, u, u)
+                    o.vertex(outer[2 * j], y, outer[2 * j + 1], 0f, ny, 0f, u, u)
+                    o.vertex(ring[2 * i], y, ring[2 * i + 1], 0f, ny, 0f, u, u)
+                    o.vertex(outer[2 * j], y, outer[2 * j + 1], 0f, ny, 0f, u, u)
+                    o.vertex(ring[2 * j], y, ring[2 * j + 1], 0f, ny, 0f, u, u)
+                }
+            }
+        }
+
+        /** [ring] (counter-clockwise) moved [d] outwards, its corners mitred (at most twice as far). */
+        private fun pushedOut(ring: FloatArray, d: Float): FloatArray {
+            val n = ring.size / 2
+            fun normal(a: Int, b: Int): Pair<Float, Float> {
+                val dx = ring[2 * b] - ring[2 * a]; val dz = ring[2 * b + 1] - ring[2 * a + 1]
+                val len = hypot(dx, dz)
+                return if (len < 1e-4f) 0f to 0f else dz / len to -dx / len
+            }
+            val out = FloatArray(ring.size)
+            for (i in 0 until n) {
+                val (n0x, n0z) = normal((i + n - 1) % n, i)
+                val (n1x, n1z) = normal(i, (i + 1) % n)
+                var mx = n0x + n1x; var mz = n0z + n1z
+                val ml = hypot(mx, mz)
+                if (ml < 1e-4f) { mx = n1x; mz = n1z } else { mx /= ml; mz /= ml }
+                val k = d / max(mx * n1x + mz * n1z, 0.5f)
+                out[2 * i] = ring[2 * i] + mx * k
+                out[2 * i + 1] = ring[2 * i + 1] + mz * k
+            }
+            return out
+        }
 
         /** A blue dome with a gold tip on the roof, and minarets (four on big mosques like Al-Amin). */
         private fun addMosque(b: CityMap.Building) {
@@ -289,45 +579,179 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
 
         // ---- Trees ---------------------------------------------------------------------------
 
+        /**
+         * A date palm: a ringed trunk curving gently to one side, a dark crown, and a dozen
+         * fronds arching out and drooping, the young ones near upright and the old ones hanging.
+         */
         private fun addPalm(t: CityMap.Tree) {
-            val h = 7.5f * t.size
-            prism(out(t.x, t.z, Surface.PALM_TRUNK), t.x, t.z, 0.24f * t.size, 0.16f * t.size, 0f, h, 7)
-            val o = out(t.x, t.z, Surface.PALM_LEAVES)
-            val fronds = 8
+            val s = t.size
             val rnd = Random((t.x * 31 + t.z * 17).toInt())
+            val h = (6.5f + rnd.nextFloat() * 2.5f) * s
+            val lean = (0.3f + rnd.nextFloat() * 0.9f) * s
+            val leanAngle = rnd.nextFloat() * 2f * PI.toFloat()
+            val ldx = cos(leanAngle); val ldz = sin(leanAngle)
+            val trunk = out(t.x, t.z, Surface.PALM_TRUNK)
+            var px = t.x; var py = 0f; var pz = t.z
+            var v = 0f
+            for (k in 1..PALM_SEGMENTS) {
+                val f = k / PALM_SEGMENTS.toFloat()
+                val nx = t.x + ldx * lean * f * f; val ny = h * f; val nz = t.z + ldz * lean * f * f
+                val r0 = (0.25f - 0.08f * (k - 1) / PALM_SEGMENTS) * s
+                val r1 = (0.25f - 0.08f * f) * s
+                v = limb(trunk, px, py, pz, nx, ny, nz, r0, r1, 6, uRepeat = 2f, vSpan = 2f, v0 = v)
+                px = nx; py = ny; pz = nz
+            }
+            // The crown: the bulge of old frond bases the fronds spring from.
+            limb(out(px, pz, Surface.PALM_CROWN), px, py - 0.5f * s, pz, px, py + 0.25f * s, pz, 0.3f * s, 0.12f * s, 5)
+            val o = out(px, pz, Surface.PALM_LEAVES)
+            val fronds = 9 + rnd.nextInt(3)
             val twist = rnd.nextFloat() * 2f * PI.toFloat()
             for (k in 0 until fronds) {
-                val a = twist + 2f * PI.toFloat() * k / fronds
-                val dx = cos(a); val dz = sin(a)
-                val len = (2.6f + rnd.nextFloat() * 0.8f) * t.size
-                // Each frond rises a little, then droops: two leaf panels.
-                leaf(o, t.x, h, t.z, dx, dz, len * 0.5f, 0.55f * t.size, 0.35f * t.size, 0.5f * t.size)
-                leaf(o, t.x + dx * len * 0.5f, h + 0.35f * t.size, t.z + dz * len * 0.5f, dx, dz, len * 0.5f, 0.5f * t.size, -1.3f * t.size, 0.25f * t.size)
+                val a = twist + 2f * PI.toFloat() * (k + rnd.nextFloat() * 0.4f) / fronds
+                val up = 0.85f - 1.15f * rnd.nextFloat()
+                frond(o, px, py, pz, a, up, (2.8f + rnd.nextFloat() * 1.3f) * s, 1.15f * s)
             }
         }
 
-        /** A flat leaf panel from (x, y, z) outwards along (dx, dz), rising by [rise]; tapers from w0 to w1. */
-        private fun leaf(o: Floats, x: Float, y: Float, z: Float, dx: Float, dz: Float, len: Float, w0: Float, rise: Float, w1: Float) {
-            val sx = -dz; val sz = dx // sideways
-            val ex = x + dx * len; val ey = y + rise; val ez = z + dz * len
-            // Normal: roughly up, tilted by the slope.
-            val nl = hypot(rise, len)
-            val nx = -dx * rise / nl; val ny = len / nl; val nz = -dz * rise / nl
-            val u = 0.02f
-            o.vertex(x - sx * w0 / 2, y, z - sz * w0 / 2, nx, ny, nz, u, u)
-            o.vertex(x + sx * w0 / 2, y, z + sz * w0 / 2, nx, ny, nz, u, u)
-            o.vertex(ex + sx * w1 / 2, ey, ez + sz * w1 / 2, nx, ny, nz, u, u)
-            o.vertex(x - sx * w0 / 2, y, z - sz * w0 / 2, nx, ny, nz, u, u)
-            o.vertex(ex + sx * w1 / 2, ey, ez + sz * w1 / 2, nx, ny, nz, u, u)
-            o.vertex(ex - sx * w1 / 2, ey, ez - sz * w1 / 2, nx, ny, nz, u, u)
+        /**
+         * One frond from (x, y, z) towards [angle], leaving at [elevation] radians above level and
+         * drooping more along its [length]: a strip of panels folded along the rib, so the
+         * leaflets (the cut-out [CityTextures.FROND] texture) hang down to either side.
+         */
+        private fun frond(o: Floats, x: Float, y: Float, z: Float, angle: Float, elevation: Float, length: Float, width: Float) {
+            val dx = cos(angle); val dz = sin(angle)
+            val sx = -dz; val sz = dx
+            val step = length / FROND_PANELS
+            val half = width / 2f
+            val fold = half * 0.35f
+            var cx = x; var cy = y; var cz = z
+            var e = elevation
+            for (k in 0 until FROND_PANELS) {
+                val ce = cos(e); val se = sin(e)
+                val nx = cx + dx * ce * step; val ny = cy + se * step; val nz = cz + dz * ce * step
+                val u0 = k / FROND_PANELS.toFloat(); val u1 = (k + 1) / FROND_PANELS.toFloat()
+                for (side in intArrayOf(-1, 1)) {
+                    val v = if (side < 0) 0f else 1f
+                    val ax = cx + sx * half * side; val az = cz + sz * half * side
+                    val bx = nx + sx * half * side; val bz = nz + sz * half * side
+                    upTri(o, cx, cy, cz, u0, 0.5f, ax, cy - fold, az, u0, v, bx, ny - fold, bz, u1, v)
+                    upTri(o, cx, cy, cz, u0, 0.5f, bx, ny - fold, bz, u1, v, nx, ny, nz, u1, 0.5f)
+                }
+                cx = nx; cy = ny; cz = nz
+                e -= 0.3f
+            }
         }
 
+        /** A triangle with its normal worked out from its corners, turned to face upwards. */
+        private fun upTri(
+            o: Floats,
+            ax: Float, ay: Float, az: Float, au: Float, av: Float,
+            bx: Float, by: Float, bz: Float, bu: Float, bv: Float,
+            cx: Float, cy: Float, cz: Float, cu: Float, cv: Float,
+        ) {
+            val ux = bx - ax; val uy = by - ay; val uz = bz - az
+            val wx = cx - ax; val wy = cy - ay; val wz = cz - az
+            var nx = uy * wz - uz * wy; var ny = uz * wx - ux * wz; var nz = ux * wy - uy * wx
+            val l = sqrt(nx * nx + ny * ny + nz * nz)
+            if (l < 1e-6f) return
+            nx /= l; ny /= l; nz /= l
+            if (ny >= 0f) {
+                o.vertex(ax, ay, az, nx, ny, nz, au, av)
+                o.vertex(bx, by, bz, nx, ny, nz, bu, bv)
+                o.vertex(cx, cy, cz, nx, ny, nz, cu, cv)
+            } else {
+                // Wound the other way round, so the front face is the upper one.
+                o.vertex(ax, ay, az, -nx, -ny, -nz, au, av)
+                o.vertex(cx, cy, cz, -nx, -ny, -nz, cu, cv)
+                o.vertex(bx, by, bz, -nx, -ny, -nz, bu, bv)
+            }
+        }
+
+        /**
+         * A broadleaf street tree (ficus, plane): a bark trunk forking into a couple of branches,
+         * under a lumpy canopy of overlapping clumps in one of three greens.
+         */
         private fun addLeafyTree(t: CityMap.Tree) {
             val s = t.size
-            prism(out(t.x, t.z, Surface.TRUNK), t.x, t.z, 0.2f * s, 0.14f * s, 0f, 2.6f * s, 6)
-            val o = out(t.x, t.z, Surface.LEAVES)
-            sphere(o, t.x, 3.6f * s, t.z, 1.9f * s, 5, 8, hemisphere = false)
-            sphere(o, t.x + 0.7f * s, 4.4f * s, t.z - 0.4f * s, 1.2f * s, 4, 7, hemisphere = false)
+            val rnd = Random((t.x * 13 + t.z * 29).toInt())
+            val trunkTop = (2.2f + rnd.nextFloat() * 0.8f) * s
+            val bark = out(t.x, t.z, Surface.TRUNK)
+            limb(bark, t.x, 0f, t.z, t.x, trunkTop, t.z, 0.2f * s, 0.14f * s, 6, uRepeat = 1f, vSpan = 2f)
+            val green = when (rnd.nextInt(3)) { 0 -> Surface.LEAVES; 1 -> Surface.LEAVES_DARK; else -> Surface.LEAVES_OLIVE }
+            val o = out(t.x, t.z, green)
+            val r = (1.7f + rnd.nextFloat() * 0.5f) * s
+            val cy = trunkTop + r * 0.75f
+            clump(o, t.x, cy, t.z, r, 4, 7, rnd.nextInt())
+            val turn = rnd.nextFloat() * 2f * PI.toFloat()
+            for (k in 0 until 3) {
+                val a = turn + 2f * PI.toFloat() * k / 3
+                val d = r * (0.5f + rnd.nextFloat() * 0.2f)
+                val bx = t.x + cos(a) * d; val bz = t.z + sin(a) * d
+                val by = cy + (rnd.nextFloat() - 0.35f) * r * 0.7f
+                clump(o, bx, by, bz, r * (0.55f + rnd.nextFloat() * 0.2f), 3, 6, rnd.nextInt())
+                if (k < 2) limb(bark, t.x, trunkTop * 0.9f, t.z, bx, by - r * 0.3f, bz, 0.1f * s, 0.05f * s, 5, uRepeat = 1f, vSpan = 2f)
+            }
+        }
+
+        /**
+         * A clump of leaves: a slightly squashed sphere with its surface pushed in and out at
+         * random (the same at shared points, so it stays closed), leaf-textured, smooth-shaded.
+         */
+        private fun clump(o: Floats, cx: Float, cy: Float, cz: Float, r: Float, stacks: Int, slices: Int, seed: Int) {
+            fun bump(i: Int, j: Int): Float {
+                if (i == 0 || i == stacks) return 1f
+                val h = ((i * 73856093) xor ((j % slices) * 19349663) xor seed) and 0xFFFF
+                return 0.82f + 0.36f * h / 65535f
+            }
+            fun v(i: Int, j: Int) {
+                val lat = -PI / 2 + PI * i / stacks
+                val lon = 2 * PI * j / slices
+                val x = (cos(lat) * cos(lon)).toFloat(); val y = sin(lat).toFloat(); val z = (cos(lat) * sin(lon)).toFloat()
+                val k = r * bump(i, j)
+                o.vertex(cx + x * k, cy + y * k * 0.82f, cz + z * k, x, y, z, 2f * j / slices, 1.5f * i / stacks)
+            }
+            for (i in 0 until stacks) for (j in 0 until slices) {
+                v(i, j); v(i + 1, j); v(i + 1, j + 1)
+                v(i, j); v(i + 1, j + 1); v(i, j + 1)
+            }
+        }
+
+        /**
+         * A tapering round branch (or trunk, or pole) from (ax, ay, az) to (bx, by, bz). Textured
+         * [uRepeat] times round and once every [vSpan] metres along, from [v0]; returns the v at
+         * its far end, so the next piece can carry on from there. Untextured when [vSpan] is 0.
+         */
+        private fun limb(
+            o: Floats, ax: Float, ay: Float, az: Float, bx: Float, by: Float, bz: Float,
+            r0: Float, r1: Float, sides: Int, uRepeat: Float = 1f, vSpan: Float = 0f, v0: Float = 0f,
+        ): Float {
+            var wx = bx - ax; var wy = by - ay; var wz = bz - az
+            val len = sqrt(wx * wx + wy * wy + wz * wz)
+            if (len < 1e-4f) return v0
+            wx /= len; wy /= len; wz /= len
+            // Two directions across the limb, at right angles to it and each other.
+            val helperY = if (abs(wy) < 0.9f) 1f else 0f
+            val helperX = 1f - helperY
+            var e1x = wy * 0f - wz * helperY; var e1y = wz * helperX - wx * 0f; var e1z = wx * helperY - wy * helperX
+            val el = sqrt(e1x * e1x + e1y * e1y + e1z * e1z)
+            e1x /= el; e1y /= el; e1z /= el
+            val e2x = wy * e1z - wz * e1y; val e2y = wz * e1x - wx * e1z; val e2z = wx * e1y - wy * e1x
+            val textured = vSpan > 0f
+            val va = if (textured) v0 else 0.02f
+            val vb = if (textured) v0 + len / vSpan else 0.02f
+            fun point(k: Int, end: Boolean) {
+                val a = 2f * PI.toFloat() * k / sides
+                val c = cos(a); val s = sin(a)
+                val nx = e1x * c + e2x * s; val ny = e1y * c + e2y * s; val nz = e1z * c + e2z * s
+                val u = if (textured) uRepeat * k / sides else 0.02f
+                if (end) o.vertex(bx + nx * r1, by + ny * r1, bz + nz * r1, nx, ny, nz, u, vb)
+                else o.vertex(ax + nx * r0, ay + ny * r0, az + nz * r0, nx, ny, nz, u, va)
+            }
+            for (k in 0 until sides) {
+                point(k, false); point(k + 1, false); point(k + 1, true)
+                point(k, false); point(k + 1, true); point(k, true)
+            }
+            return if (textured) vb else v0
         }
 
         // ---- Solids --------------------------------------------------------------------------
