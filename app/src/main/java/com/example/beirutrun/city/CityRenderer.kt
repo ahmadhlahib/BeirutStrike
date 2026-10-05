@@ -54,6 +54,8 @@ class CityRenderer(
     private val playerCharacter: String,
     /** The detailed gun models (see GunMeshes), read on a background thread; guns without one are drawn from boxes. */
     private val gunMeshSource: java.util.concurrent.Future<GunMeshes.Library>? = null,
+    /** Car models for the traffic (assets/models/cars/, see CarModels), read on a background thread; until then cars are the built-in shapes. */
+    private val carModelSource: java.util.concurrent.Future<List<CarModel>>? = null,
     start: Triple<Float, Float, Float>?,
     private val streetPhotos: List<File>,
     /** Face photo file for the player, a drop's author, or another player (may not exist). */
@@ -294,6 +296,11 @@ class CityRenderer(
     private val life = CityLife(city, RoadNetwork(city.roads))
     private var lifeMesh: StreamMesh? = null
     private var paletteTexture = 0
+    /** The car models on the GPU (see carModelSource), once read and uploaded. */
+    private class CarGl(val body: Mesh, val wheels: List<Mesh>, val texture: Int, val model: CarModel)
+    private var carGl: List<CarGl>? = null
+    private val carMatrix = FloatArray(16)
+    private val wheelMatrix = FloatArray(16)
     private var lifePeople = FloatArray(2)
     /** The nearest people in the street drawn with a character model (see pedestrianRigs), by id. */
     private val passersby = HashMap<Int, SoldierAnimator>()
@@ -598,6 +605,7 @@ class CityRenderer(
         puffTexture = uploadAndRecycle(puffBitmap())
         paletteTexture = uploadAndRecycle(CityTextures.palette(CityLife.PALETTE))
         lifeMesh = StreamMesh()
+        carGl = null
         lastFrame = SystemClock.uptimeMillis()
     }
 
@@ -2238,6 +2246,61 @@ class CityRenderer(
         draw(mesh, identity, WHITE, paletteTexture, shine = CAR_SHINE)
         mesh.range(cars, -1)
         draw(mesh, identity, WHITE, paletteTexture)
+        drawCarModels(CAR_DRAW_DISTANCE * scale)
+    }
+
+    /** The car models once read (see [carModelSource]), uploaded the first time; null until then. */
+    private fun carModels(): List<CarGl>? {
+        carGl?.let { return it }
+        val source = carModelSource?.takeIf { it.isDone } ?: return null
+        val models = runCatching { source.get() }.getOrNull().orEmpty()
+        // Kits share one colour map: uploaded once.
+        val textures = HashMap<Int, Int>()
+        val uploaded = models.map { m ->
+            val texture = m.image?.let { bytes ->
+                textures.getOrPut(bytes.contentHashCode()) {
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let(::uploadAndRecycle) ?: 0
+                }
+            } ?: 0
+            CarGl(Mesh(m.body), m.wheels.map { Mesh(it.vertices) }, texture, m)
+        }
+        carGl = uploaded
+        life.useCarModels(models.map { CityLife.CarFit(it.halfLength, it.halfWidth, it.wheelRadius, it.wheelbase, CarModels.weight(it.name)) })
+        return uploaded
+    }
+
+    /**
+     * Cars drawn with a model: a soft shadow on the road, the body, and each wheel rolled by how
+     * far the car has gone and, at the front, steered into its turn.
+     */
+    private fun drawCarModels(range: Float) {
+        val models = carModels()?.takeIf { it.isNotEmpty() } ?: return
+        val views = life.modelledCars(eyeX, eyeZ, range)
+        for (car in views) {
+            val gl = models.getOrNull(car.fit) ?: continue
+            // Model +z forward along (fx, fz), +x to its left, (fz, -fx).
+            val m = carMatrix
+            m[0] = car.fz; m[1] = 0f; m[2] = -car.fx; m[3] = 0f
+            m[4] = 0f; m[5] = 1f; m[6] = 0f; m[7] = 0f
+            m[8] = car.fx; m[9] = 0f; m[10] = car.fz; m[11] = 0f
+            m[12] = car.x; m[13] = 0f; m[14] = car.z; m[15] = 1f
+            // The shadow: drawn without writing depth, a little above the road.
+            System.arraycopy(m, 0, wheelMatrix, 0, 16)
+            Matrix.translateM(wheelMatrix, 0, 0f, CAR_SHADOW_LIFT, 0f)
+            Matrix.rotateM(wheelMatrix, 0, -90f, 1f, 0f, 0f)
+            Matrix.scaleM(wheelMatrix, 0, gl.model.halfWidth * 2.5f, gl.model.halfLength * 2.3f, 1f)
+            GLES20.glDepthMask(false)
+            draw(quad, wheelMatrix, CAR_SHADOW_COLOR, puffTexture, lit = false)
+            GLES20.glDepthMask(true)
+            draw(gl.body, m, WHITE, gl.texture, shine = CAR_SHINE)
+            gl.model.wheels.forEachIndexed { i, w ->
+                System.arraycopy(m, 0, wheelMatrix, 0, 16)
+                Matrix.translateM(wheelMatrix, 0, w.x, w.y, w.z)
+                if (w.front) Matrix.rotateM(wheelMatrix, 0, deg(car.steer), 0f, 1f, 0f)
+                Matrix.rotateM(wheelMatrix, 0, deg(car.spin), 1f, 0f, 0f)
+                draw(gl.wheels[i], wheelMatrix, WHITE, gl.texture)
+            }
+        }
     }
 
     /**
@@ -2696,6 +2759,9 @@ class CityRenderer(
         private const val CAR_DRAW_DISTANCE = 200f
         private const val WALKER_DRAW_DISTANCE = 90f
         private const val CAR_SHINE = 0.3f
+        /** The soft dark patch under a car model, and how far above the road it is drawn. */
+        private const val CAR_SHADOW_COLOR = 0x8C000000.toInt()
+        private const val CAR_SHADOW_LIFT = 0.04f
         /** How many of the nearest people in the street get a character model, and how near they must be. */
         private const val MODELLED_PEOPLE = 8
         private const val MODELLED_PEOPLE_RANGE = 35f

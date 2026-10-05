@@ -29,6 +29,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.example.beirutrun.city.CarModels
 import com.example.beirutrun.city.CityMap
 import com.example.beirutrun.city.CityMapInfo
 import com.example.beirutrun.city.CityMaps
@@ -270,6 +271,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val gunMeshes = sceneBuilder.submit(Callable {
             GunMeshes.loadAll { path -> runCatching { assets.open(path).use { it.readBytes() } }.getOrNull() }
         })
+        // Car models for the traffic (assets/models/cars/), in the background; until then the built-in shapes.
+        val carModels = sceneBuilder.submit(Callable {
+            val files = runCatching { assets.list(CarModels.DIR)?.toList() }.getOrNull().orEmpty().filter { it.endsWith(".glb") }.sorted()
+            CarModels.loadAll(files) { path -> runCatching { assets.open("${CarModels.DIR}/$path").use { it.readBytes() } }.getOrNull() }
+        })
         val character = Characters.byId(this, Session.character(this))
         myCharacter = character
         // My face photo goes on my character only if I chose it and the character has no face of its own.
@@ -288,6 +294,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             pedestrianRigs = pedestrianRigs,
             playerCharacter = character.id,
             gunMeshSource = gunMeshes,
+            carModelSource = carModels,
             // Where you last stood on this map, or its start point facing its view.
             start = Session.position(this, mapInfo.id) ?: Triple(city.spawnX, city.spawnZ, mapInfo.startYaw),
             streetPhotos = repo.streets(),

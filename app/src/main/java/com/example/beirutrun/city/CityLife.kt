@@ -44,7 +44,51 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         /** Seconds spent waiting behind another car; after a while it edges on (no gridlock). */
         var waited = 0f
         var ignoreCarsFor = 0f
+        /** Which loaded car model draws it (see [useCarModels]), or -1 for the built-in shapes. */
+        var fit = -1
+        /** Wheel turn (radians, as rolled so far) and the front wheels' steering angle (+ left). */
+        var spin = 0f
+        var steer = 0f
     }
+
+    /** Half the length and width of [c]'s model, for keeping gaps and blocking the way. */
+    private val Car.halfLength get() = if (fit >= 0) fits[fit].halfLength else CAR_MODELS[model].halfLength
+    private val Car.halfWidth get() = if (fit >= 0) fits[fit].halfWidth else CAR_MODELS[model].halfWidth
+
+    /**
+     * The size and wheels of a loaded car model (see [useCarModels]), and how often it's picked
+     * ([weight], against the others').
+     */
+    class CarFit(val halfLength: Float, val halfWidth: Float, val wheelRadius: Float, val wheelbase: Float, val weight: Int = 1)
+
+    private var fits: List<CarFit> = emptyList()
+
+    /**
+     * From now on every car is drawn by one of these models (see [modelledCars]) instead of the
+     * built-in shapes; cars already on the road change over too.
+     */
+    fun useCarModels(models: List<CarFit>) {
+        fits = models.filter { it.weight > 0 }
+        for (c in cars) c.fit = pickFit()
+    }
+
+    private fun pickFit(): Int {
+        if (fits.isEmpty()) return -1
+        var n = rnd.nextInt(fits.sumOf { it.weight })
+        for ((i, f) in fits.withIndex()) { n -= f.weight; if (n < 0) return i }
+        return fits.size - 1
+    }
+
+    /**
+     * A car drawn with a loaded model: which one ([fit], see [useCarModels]), where, facing which
+     * way (unit, along the ground), and how far its wheels have turned and its front ones steer.
+     */
+    class CarView(val fit: Int, val x: Float, val z: Float, val fx: Float, val fz: Float, val spin: Float, val steer: Float)
+
+    /** The cars within [range] of (ex, ez) drawn with a loaded model. */
+    fun modelledCars(ex: Float, ez: Float, range: Float): List<CarView> =
+        cars.filter { it.fit >= 0 && hypot(it.drawX - ex, it.drawZ - ez) <= range }
+            .map { CarView(it.fit, it.drawX, it.drawZ, it.drawFx, it.drawFz, it.spin, it.steer) }
 
     private class Walker(
         road: Int, from: Int, to: Int, t: Float,
@@ -212,8 +256,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
             val dx = x - c.x; val dz = z - c.z
             val along = dx * c.fx + dz * c.fz
             val across = -dx * c.fz + dz * c.fx
-            val m = CAR_MODELS[c.model]
-            if (abs(along) < m.halfLength + r && abs(across) < m.halfWidth + r) return true
+            if (abs(along) < c.halfLength + r && abs(across) < c.halfWidth + r) return true
         }
         return false
     }
@@ -232,6 +275,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         if (cars.any { hypot(it.x - car.x, it.z - car.z) < 12f }) return
         if (city.isInsideBuilding(car.x, 1f, car.z, 1f)) return
         car.speed = car.cruise * 0.7f
+        car.fit = pickFit()
         cars += car
     }
 
@@ -285,16 +329,16 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         var blockedByCar = false
         if (c.ignoreCarsFor <= 0f) for (o in cars) {
             if (o === c) continue
-            val gap = gapAhead(c, o.x, o.z, 2f) - CAR_MODELS[o.model].halfLength - CAR_MODELS[c.model].halfLength
+            val gap = gapAhead(c, o.x, o.z, 2f) - o.halfLength - c.halfLength
             if (gap < Float.MAX_VALUE / 2) {
                 val allowed = max(0f, (gap - 2f) * 1.1f)
                 if (allowed < target) { target = allowed; blockedByCar = allowed < 0.5f }
             }
         }
-        for (w in walkers) if (w.death == 0) target = min(target, max(0f, (gapAhead(c, w.x, w.z, 1.4f) - CAR_MODELS[c.model].halfLength - 2f) * 1.2f))
+        for (w in walkers) if (w.death == 0) target = min(target, max(0f, (gapAhead(c, w.x, w.z, 1.4f) - c.halfLength - 2f) * 1.2f))
         var i = 0
         while (i + 1 < people.size) {
-            target = min(target, max(0f, (gapAhead(c, people[i], people[i + 1], 1.6f) - CAR_MODELS[c.model].halfLength - 2.5f) * 1.2f))
+            target = min(target, max(0f, (gapAhead(c, people[i], people[i + 1], 1.6f) - c.halfLength - 2.5f) * 1.2f))
             i += 2
         }
         if (blockedByCar && c.speed < 0.3f) {
@@ -305,7 +349,25 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         c.speed = if (target > c.speed) min(target, c.speed + 3f * dt) else max(target, c.speed - 9f * dt)
         advance(c, c.speed * dt) { r -> drivable(r) }
         place(c, laneOffset(c))
+        val oldFx = c.drawFx; val oldFz = c.drawFz
         ease(c, dt, 5f)
+        turnWheels(c, dt, oldFx, oldFz)
+    }
+
+    /**
+     * Rolls [c]'s wheels on by the distance it went, and steers the front ones into the turn it
+     * is making (it faced (oldFx, oldFz) before this step): the angle that would drive its
+     * wheelbase round the curve at this speed, eased so the wheel doesn't flick.
+     */
+    private fun turnWheels(c: Car, dt: Float, oldFx: Float, oldFz: Float) {
+        if (dt <= 0f) return
+        val radius = if (c.fit >= 0) fits[c.fit].wheelRadius else 0.32f
+        val wheelbase = if (c.fit >= 0) fits[c.fit].wheelbase else 2.8f
+        c.spin = (c.spin + c.speed * dt / radius) % (2f * PI.toFloat())
+        // How far it turned towards its left, (oldFz, -oldFx): + is a left turn.
+        val turn = kotlin.math.asin((c.drawFx * oldFz - c.drawFz * oldFx).coerceIn(-1f, 1f))
+        val target = if (c.speed > 0.5f) kotlin.math.atan(wheelbase * (turn / dt) / c.speed).coerceIn(-MAX_STEER, MAX_STEER) else c.steer
+        c.steer += (target - c.steer) * min(1f, dt * 6f)
     }
 
     /** How far ahead of [c] the point (x, z) is, if it's in its way (within [width] of its path); else huge. */
@@ -442,7 +504,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         size = 0
         for (c in cars) {
             val d = hypot(c.drawX - ex, c.drawZ - ez)
-            if (d > carRange) continue
+            if (d > carRange || c.fit >= 0) continue
             val m = if (d < CAR_DETAIL_RANGE) CAR_MODELS[c.model] else CAR_MODELS_FAR[c.model]
             emit(m.floats, m.roles, c.drawX, 0f, c.drawZ, c.drawFx, c.drawFz) { role -> if (role == PAINT) c.paint else role }
         }
@@ -937,6 +999,8 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
 
         /** Cars with full detail this close to the camera; further off, the lighter model. */
         private const val CAR_DETAIL_RANGE = 60f
+        /** The furthest the front wheels steer, radians. */
+        private const val MAX_STEER = 0.6f
 
         /**
          * A car: its [body] and [cabin] as cross-sections from the front (+z) to the back, its
