@@ -139,6 +139,22 @@
               "damage": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5" }
             }
           }
+        },
+        "voice": {
+          "$to": {
+            ".write": "auth != null && auth.uid === $to && !newData.exists()",
+            "$msg": {
+              ".write": "auth != null && ((auth.uid === $to && !newData.exists()) || (root.child('rooms/' + $room + '/members/' + auth.uid).exists() && !data.exists() && newData.child('from').val() === auth.uid && $to !== auth.uid && root.child('rooms/' + $room + '/players/' + auth.uid + '/team').exists() && root.child('rooms/' + $room + '/players/' + $to + '/team').val() === root.child('rooms/' + $room + '/players/' + auth.uid + '/team').val()))",
+              ".validate": "newData.hasChildren(['from', 'type', 'session'])",
+              "from": { ".validate": "newData.isString()" },
+              "type": { ".validate": "newData.val() === 'offer' || newData.val() === 'answer' || newData.val() === 'ice'" },
+              "session": { ".validate": "newData.isString() && newData.val().length <= 40" },
+              "sdp": { ".validate": "newData.isString() && newData.val().length <= 20000" },
+              "mid": { ".validate": "newData.isString() && newData.val().length <= 20" },
+              "index": { ".validate": "newData.isNumber()" },
+              "$other": { ".validate": false }
+            }
+          }
         }
       }
     },

@@ -116,7 +116,7 @@ Expect roughly **PEGI 16 / ESRB Teen–Mature 17+ / USK 16**.
 ## Data safety form
 
 **Does your app collect or share any of the required user data types?** Yes.
-**Is all of the user data encrypted in transit?** Yes (Firebase uses TLS).
+**Is all of the user data encrypted in transit?** Yes (Firebase uses TLS; voice chat uses WebRTC's DTLS-SRTP).
 **Do you provide a way for users to request that their data be deleted?** Yes (in the app, and by email). Deletion URL: <https://ahmadhlahib.github.io/BeirutStrike/delete-data/>.
 
 | Data type | Collected | Shared* | Optional | Purpose |
@@ -125,15 +125,16 @@ Expect roughly **PEGI 16 / ESRB Teen–Mature 17+ / USK 16**.
 | Personal info → **User IDs** (Firebase anonymous ID) | Yes | No | No | App functionality, fraud prevention/security |
 | Photos and videos → **Photos** (face photo, dropped photos, team flags) | Yes | No | Yes | App functionality |
 | Messages → **Other in-app messages** (speech bubbles, captions) | Yes | No | Yes | App functionality |
+| Audio → **Voice or sound recordings** (team voice chat, live only while the mic is on; sent phone to phone, never stored) | Yes | No | Yes | App functionality |
 | App activity → **Other actions** (gameplay: game stats, scores, XP and rank) | Yes | No | No | App functionality |
 | App info and performance → **Diagnostics** (sent by Google ML Kit face detection: device model, OS version, performance, error codes) | Yes | No | Yes (only with the face photo) | Analytics |
 | Device or other IDs → **Device or other IDs** (ML Kit's per-install ID for those diagnostics) | Yes | No | Yes (only with the face photo) | Analytics |
 
 ML Kit's part comes from [its data disclosure](https://developers.google.com/ml-kit/android-data-disclosure).
-None of these is processed ephemerally.
+Only **Voice or sound recordings** is processed ephemerally (tick "Yes" for it); none of the others is.
 
 \* In Play's terms, showing content to other users of the same app is **not** "sharing", and
 Firebase acts as a service provider, which is not sharing either.
 
 Not collected: location, contacts, financial info, health, email, phone number, web browsing,
-audio, files, calendar, crash logs or other app performance data.
+music files, other audio files, files, calendar, crash logs or other app performance data.
