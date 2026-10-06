@@ -62,6 +62,15 @@ shots and scores sync live between phones, and teammates can talk over voice cha
 - Same scoreboard and results as online, with **Play again**. Solo games are practice: no XP,
   ranks or Ranking (`solo/SoloMatch.kt`, `solo/StreetGraph.kt`, `SoloMatchTest`).
 
+### Invite friends, earn cash
+- After signing in, a window offers in-game cash for bringing friends: **+$50** for every friend
+  who installs the game from your link and opens it. Friends joined and money earned count up
+  on screen; it can be turned off ("Don't show this again") and opened again from the start
+  screen's card (`InviteFriends.kt`).
+- The invite link is the Google Play page carrying your id; the Play Install Referrer tells the
+  friend's game who invited them, and the database records it once per player
+  (`referredBy`, `referrals` in the rules; `online/Referrals.kt`, `InviteRewardsTest`).
+
 ### Multiplayer
 - **Invites:** after creating a room (or from **Invite friends** in the menu), share it through
   the share menu, WhatsApp first. The link opens the website's join page (`docs/join/`), whose button opens the game

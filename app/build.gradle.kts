@@ -75,6 +75,7 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play)
     implementation(libs.google.id)
+    implementation(libs.install.referrer)
     testImplementation(libs.junit)
     // Real org.json for unit tests (Android's built-in one is only a stub off-device).
     testImplementation(libs.org.json)

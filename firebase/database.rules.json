@@ -12,6 +12,29 @@
         ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000"
       }
     },
+    "referredBy": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && !data.exists()",
+        ".validate": "newData.isString() && newData.val() !== $uid && root.child('career/' + newData.val()).exists()"
+      }
+    },
+    "referrals": {
+      "$inviter": {
+        ".read": "auth != null && auth.uid === $inviter",
+        "$friend": {
+          ".write": "auth != null && auth.uid === $friend && !data.exists() && newData.parent().parent().parent().child('referredBy/' + $friend).val() === $inviter",
+          ".validate": "newData.hasChildren(['at'])",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "at": { ".validate": "newData.val() === now" },
+          "paid": {
+            ".write": "auth != null && auth.uid === $inviter",
+            ".validate": "newData.val() === true"
+          },
+          "$other": { ".validate": false }
+        }
+      }
+    },
     "roomList": {
       ".read": "auth != null",
       "$room": {

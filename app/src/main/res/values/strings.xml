@@ -425,6 +425,26 @@
     <string name="room_enemy_areas">Show enemy areas on the map</string>
     <string name="room_enemy_areas_helper">Everyone in the room sees enemies as red circles they\'re somewhere inside, never their exact spot.</string>
     <string name="invite_failed">Couldn\'t open sharing (%1$s)</string>
+    <!-- Invite friends and earn (InviteFriends, Referrals). Money here is in-game cash. -->
+    <string name="invite_promo_chip">REWARDS</string>
+    <string name="invite_promo_title">Invite friends, earn cash</string>
+    <string name="invite_promo_friends">Friends joined</string>
+    <string name="invite_promo_earned">Earned</string>
+    <string name="invite_promo_prize_friend">👥  +%1$s for every friend who installs Beirut Strike from your link</string>
+    <string name="invite_promo_prize_spend">🛒  Spend it on guns, scopes, ammo and medkits at the arms stores</string>
+    <string name="invite_promo_invite">Invite friends</string>
+    <string name="invite_promo_fine_print">Cash is Beirut Strike money, to spend in the game. A friend counts once, when they install the game from your link for the first time and open it.</string>
+    <string name="invite_promo_dont_show">Don\'t show this again</string>
+    <string name="invite_promo_not_now">Not now</string>
+    <string name="invite_promo_card">Invite friends · earn cash</string>
+    <string name="invite_promo_card_info">+%1$s for every friend who joins</string>
+    <string name="invite_friend_message">Play Beirut Strike with me! 🎯 Team battles on the real streets of Beirut, with real guns, ranks and voice chat. Free on Google Play: %1$s</string>
+    <string name="invite_friends_joined_title">Your friends joined! 🎉</string>
+    <plurals name="invite_friends_joined">
+        <item quantity="one">%1$d friend installed Beirut Strike from your link: +%2$s</item>
+        <item quantity="other">%1$d friends installed Beirut Strike from your link: +%2$s</item>
+    </plurals>
+    <string name="invite_offline">Connect to the internet to invite friends</string>
     <!-- Bots in an online room (RoomBots). -->
     <string name="room_bots_none">Bots: none</string>
     <plurals name="room_bots">
