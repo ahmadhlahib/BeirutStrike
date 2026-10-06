@@ -27,7 +27,8 @@ object RoomInvite {
             .appendQueryParameter("r", roomId)
             .appendQueryParameter("n", name.take(40))
             .apply { if (!password.isNullOrEmpty()) appendQueryParameter("p", password) }
-            .build().toString()
+            // An apostrophe ("Ahmad's room") can end a link in chat apps: always escaped.
+            .build().toString().replace("'", "%27")
 
     /** The invite in a link that opened the app (from the join page, or the page's own address), or null. */
     fun parse(uri: Uri?): Invite? {
