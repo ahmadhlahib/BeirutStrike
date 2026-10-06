@@ -422,6 +422,11 @@
     <string name="invite_later">Not now</string>
     <string name="invite_room_gone">That room has closed. Pick another one, or create your own.</string>
     <string name="menu_invite">Invite friends</string>
+    <!-- Forced updates (AppVersion). -->
+    <string name="update_title">Update required</string>
+    <string name="update_message">A new version of Beirut Strike is out. Update it on Google Play to keep playing: older versions can\'t join rooms any more.</string>
+    <string name="update_button">Update</string>
+    <string name="update_close">Close</string>
     <string name="menu_enemy_areas_hide">Hide enemy areas on map</string>
     <string name="menu_enemy_areas_show">Show enemy areas on map</string>
     <string name="enemy_areas_on">Enemy areas shown on the map</string>

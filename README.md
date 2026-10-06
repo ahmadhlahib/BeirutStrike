@@ -532,6 +532,14 @@ least 12 testers opted in for 14 days in a row). Raise `versionCode` before ever
   answers.
 - **[PRIVACY_POLICY.md](PRIVACY_POLICY.md):** the privacy policy linked from the store.
 
+**Forcing an update:** set `config/minVersion` in the Realtime Database (Firebase console →
+Realtime Database → Data) to the oldest versionCode still allowed. Versions from 1.3.1 on show
+"Update required" and only let the player open Google Play; every version records its
+versionCode at `versions/{uid}`, and the rules only let versions at or above the minimum create
+or join rooms, so versions older than the check (1.3.0 and before) are kept out of online games
+too. Raise it only once the new version is live on every track its players use. Delete
+`config/minVersion` to lift it (`online/AppVersion.kt`).
+
 Release builds are signed with an upload key described in a local, git-ignored
 `keystore.properties`:
 
