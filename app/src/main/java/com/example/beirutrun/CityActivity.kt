@@ -13,6 +13,7 @@ import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -56,6 +57,8 @@ import com.example.beirutrun.online.VoiceChat
 import com.example.beirutrun.progression.PlayerProgress
 import com.example.beirutrun.progression.XpGain
 import com.example.beirutrun.progression.XpReward
+import com.example.beirutrun.solo.BotDifficulty
+import com.example.beirutrun.solo.SoloMatch
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
@@ -167,6 +170,38 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
     }
 
+    /** A solo game against bots (see ModeActivity), or null online. */
+    private var solo: SoloMatch? = null
+    private var soloTicks = 0
+    private var soloLast = 0L
+
+    /** Solo: moves the bots on, shows their shots, takes their hits, and keeps the score. */
+    private val soloTick = object : Runnable {
+        override fun run() {
+            val game = solo ?: return
+            val now = SystemClock.uptimeMillis()
+            val dt = if (soloLast == 0L) 0f else ((now - soloLast) / 1000f).coerceAtMost(0.25f)
+            soloLast = now
+            if (!gameOver) {
+                val me = SoloMatch.Player(
+                    playerName, playerTeam.id, renderer.playerX, renderer.playerY, renderer.playerZ, renderer.prone, dead,
+                )
+                for (e in game.update(dt, me)) when (e) {
+                    is SoloMatch.Event.Shot -> {
+                        renderer.addRemoteShot(e.uid, e.x, e.y, e.z, e.dx, e.dy, e.dz, e.gun)
+                        shotSound(e.x, e.z, e.gun)
+                    }
+                    is SoloMatch.Event.PlayerHit ->
+                        takeHit(e.fromUid, getString(R.string.killed_by, e.fromName), e.damage)
+                }
+            }
+            // The bots are drawn like other players; the scoreboard keeps up once a second.
+            if (++soloTicks % 2 == 0) onPlayers(game.players(System.currentTimeMillis()))
+            if (soloTicks % 20 == 0) onStats(game.stats())
+            ticker.postDelayed(this, SOLO_TICK_MS)
+        }
+    }
+
     private val takePhoto = registerForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
         if (taken) importAndShowDropDialog()
     }
@@ -214,11 +249,13 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
         // Online play needs a room, and everyone needs a team; send the player back to choose.
         val roomId = Session.roomId(this)
+        // A solo game against bots has no room (see ModeActivity).
+        val soloSettings = Session.solo(this)
         // Teams added to this room (their flags and colours), usually already loaded by the team screen.
         RoomTeams.follow(if (FirebaseSession.configured(this)) roomId else null)
         val team = Teams.byId(Session.teamId(this))
         val missing = when {
-            FirebaseSession.configured(this) && roomId == null -> RoomsActivity::class.java
+            FirebaseSession.configured(this) && roomId == null && soloSettings == null -> ModeActivity::class.java
             team == null -> TeamSelectActivity::class.java
             else -> null
         }
@@ -247,6 +284,19 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // The room's map size: players stay in a square that big around the start point.
         mapSize = CityMaps.sizeOf(Session.roomMap(this))
         mapSize?.let { city.limitTo(it.toFloat()) }
+        // Solo: the bots, on the other teams (and half on mine if chosen), and a game clock of our own.
+        val start = Session.position(this, mapInfo.id) ?: Triple(city.spawnX, city.spawnZ, mapInfo.startYaw)
+        solo = soloSettings?.let { s ->
+            SoloMatch(
+                city, s, playerTeam.id, Teams.builtIn.map { it.id }.filter { it != playerTeam.id },
+                label = { getString(R.string.bot_name, it) }, startX = start.first, startZ = start.second,
+            )
+        }
+        soloSettings?.let {
+            gameDurationMs = it.durationMs
+            gameEndsAt = System.currentTimeMillis() + it.durationMs
+        }
+        online.onStat = { key -> solo?.count(key) }
         val scene = sceneBuilder.submit(Callable { CityScene.build(city, mapInfo.look) })
         // Each character's animated model (see Characters), loaded in the background the first
         // time a player uses it: mine, and whichever other players choose.
@@ -296,7 +346,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             gunMeshSource = gunMeshes,
             carModelSource = carModels,
             // Where you last stood on this map, or its start point facing its view.
-            start = Session.position(this, mapInfo.id) ?: Triple(city.spawnX, city.spawnZ, mapInfo.startYaw),
+            start = start,
             streetPhotos = repo.streets(),
             playerFace = { if (showMyFace) myFace else NO_FACE },
             dropFace = ::faceFileFor,
@@ -309,12 +359,20 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 sounds.shoot(weapon = renderer.weapon)
                 online.sendShot(x, y, z, dx, dy, dz)
                 if (!gameOver) online.countShot()
+                // Bots within earshot turn to look.
+                solo?.heardShot(x, z)
             },
             onHitPlayer = { uid, damage, headshot ->
                 sounds.ouch()
-                online.sendHit(uid, damage)
                 if (!gameOver) online.countHit()
                 lastHitHeadshot[uid] = headshot
+                val bots = solo
+                if (bots != null && bots.isBot(uid)) {
+                    // A bot is hit on this phone, where it lives; its last heart is my kill.
+                    if (!gameOver) bots.hitByPlayer(uid, damage)?.let { name -> onKilled(uid, name) }
+                } else {
+                    online.sendHit(uid, damage)
+                }
             },
             playerTeam = playerTeam.id,
             teamFlag = { id -> Teams.byId(id)?.let { TeamFlags.load(applicationContext, it) } },
@@ -421,10 +479,12 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         gameTimer.setOnClickListener { showScoreboard() }
         scoreboard = Scoreboard(
             this,
-            myUid = { online.uid },
-            onLeave = { leaveRoom() },
-            onNewRoom = { leaveRoom(createNext = true) },
+            myUid = ::myUid,
+            onLeave = { if (solo != null) leaveSolo() else leaveRoom() },
+            // Solo: the same game again, from the start.
+            onNewRoom = { if (solo != null) recreate() else leaveRoom(createNext = true) },
             onRanking = ::showRanking,
+            nextLabel = if (soloSettings != null) R.string.score_play_again else R.string.score_new_room,
         )
         crosshair = findViewById(R.id.crosshair)
         findViewById<MaterialButton>(R.id.jumpButton).setOnClickListener { if (!dead) renderer.jump() }
@@ -447,6 +507,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         glView.onResume()
         online.resume()
         ticker.post(tick)
+        soloLast = 0L
+        ticker.post(soloTick)
         inForeground = true
         startVoice()
     }
@@ -455,6 +517,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         super.onPause()
         if (!::glView.isInitialized) return
         ticker.removeCallbacks(tick)
+        ticker.removeCallbacks(soloTick)
         glView.onPause()
         online.pause()
         // In the background nobody hears me and I don't record: the mic goes off.
@@ -616,10 +679,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     override fun onRemoteShot(player: RemotePlayer) {
         val gun = Weapon.byId(player.weapon)
         renderer.addRemoteShot(player.uid, player.shotX, player.shotY, player.shotZ, player.shotDX, player.shotDY, player.shotDZ, gun)
-        // Other players' shots are quieter the further away they are: silent beyond ~60 m, or
-        // three times that for a sniper rifle's boom.
+        shotSound(player.shotX, player.shotZ, gun)
+    }
+
+    /**
+     * Another soldier's shot from (x, z): quieter the further away it is, silent beyond ~60 m, or
+     * three times that for a sniper rifle's boom.
+     */
+    private fun shotSound(x: Float, z: Float, gun: Weapon) {
         val hearing = HEARING_RANGE * if (gun.slot == GunSlot.SNIPER) 3f else 1f
-        val distance = hypot(player.shotX - renderer.playerX, player.shotZ - renderer.playerZ)
+        val distance = hypot(x - renderer.playerX, z - renderer.playerZ)
         sounds.shoot(volume = 0.8f * (1f - distance / hearing), weapon = gun)
     }
 
@@ -658,6 +727,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // Fifth hit: down for a few seconds, then back at a random crossroads.
         dead = true
         online.countDeath()
+        solo?.playerKilledBy(fromUid)
         renderer.down = true
         renderer.triggerHeld = false
         sounds.cancelReload()
@@ -984,7 +1054,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val ranked = Scoreboard.ranked(stats)
         val best = ranked.firstOrNull() ?: return false
         val second = ranked.getOrNull(1)
-        return best.uid == online.uid && best.score > 0 && (second == null || second.score < best.score)
+        return best.uid == myUid() && best.score > 0 && (second == null || second.score < best.score)
     }
 
     /**
@@ -1118,7 +1188,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     private fun updateStatusLabel() {
         val text = when (status) {
-            OnlineWorld.Status.NOT_CONFIGURED -> getString(R.string.status_offline)
+            OnlineWorld.Status.NOT_CONFIGURED -> solo?.let { soloStatus(it) } ?: getString(R.string.status_offline)
             OnlineWorld.Status.CONNECTING -> getString(R.string.status_connecting)
             OnlineWorld.Status.FAILED -> getString(R.string.status_failed)
             OnlineWorld.Status.ONLINE ->
@@ -1483,7 +1553,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             repo.removeAllStreets()
             recreate()
         }
-        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to { leaveRoom() }
+        if (solo != null) actions += R.string.menu_leave_solo to { leaveSolo() }
+        else if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to { leaveRoom() }
         actions += R.string.menu_logout to {
             leavingRoom = true
             Session.logout(this)
@@ -1501,6 +1572,27 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     }
 
     /** Back to the room list; with [createNext], it opens the create-room dialog straight away. */
+    /** My id on the scoreboard: my online uid, or the solo game's "me". */
+    private fun myUid(): String? = if (solo != null) SoloMatch.ME else online.uid
+
+    /** Ends a solo game: back to choosing solo or multiplayer. */
+    private fun leaveSolo() {
+        Session.setSolo(this, null)
+        startActivity(Intent(this, ModeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    /** "Solo · 4 bots, Hard". */
+    private fun soloStatus(game: SoloMatch): String {
+        val s = game.settings
+        val level = getString(when (s.difficulty) {
+            BotDifficulty.EASY -> R.string.solo_easy
+            BotDifficulty.MEDIUM -> R.string.solo_medium
+            BotDifficulty.HARD -> R.string.solo_hard
+        })
+        return getString(R.string.status_solo, resources.getQuantityString(R.plurals.solo_bots, s.bots, s.bots) + ", " + level)
+    }
+
     private fun leaveRoom(createNext: Boolean = false) {
         leavingRoom = true
         Session.setRoom(this, null, null)
@@ -1522,6 +1614,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val FINAL_SECONDS_MS = 30_000L
         private const val MAX_STREETS = 16
         private const val POSE_INTERVAL_MS = 200L
+        /** How often a solo game moves its bots on, ms. */
+        private const val SOLO_TICK_MS = 50L
         private const val RESPAWN_MS = 4_000L
         private const val BANNER_MS = 2_500L
         /** HUD button background (as in the HudButton style), and the mic button's while it's on. */

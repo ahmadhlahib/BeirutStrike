@@ -29,7 +29,7 @@ class LoginActivity : AppCompatActivity() {
                 return
             }
             Session.setName(this, name)
-            startActivity(Intent(this, RoomsActivity::class.java))
+            startActivity(Intent(this, ModeActivity::class.java))
         }
 
         enter.setOnClickListener { submit() }

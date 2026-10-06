@@ -635,7 +635,11 @@ class OnlineWorld(
     /** I won the game outright. */
     fun countWin() = addCareer("wins", 1)
 
+    /** Told each of my own counts as it happens (a solo game keeps its own score, see SoloMatch). */
+    var onStat: ((String) -> Unit)? = null
+
     private fun addStat(key: String) {
+        onStat?.invoke(key)
         pendingStats[key] = (pendingStats[key] ?: 0L) + 1
         statsDirty = true
     }

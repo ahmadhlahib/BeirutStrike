@@ -38,6 +38,7 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".ModeActivity" />
         <activity android:name=".RoomsActivity" />
         <activity android:name=".TeamSelectActivity" />
         <activity android:name=".CharacterActivity" />

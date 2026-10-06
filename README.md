@@ -48,6 +48,18 @@ shots and scores sync live between phones, and teammates can talk over voice cha
 - **Minimap** with a full-screen map view, showing only your teammates, and a gun view (first
   person) or 3D person (third person) camera.
 
+### Solo
+- **Play against bots:** after choosing a name, pick **Solo** or **Multiplayer**. A solo game
+  runs on the phone alone (no internet): choose the map, play area and length, 1 to 8 bots, their
+  difficulty, and whether some bots fight on your team (**Bots on my team**: half of them).
+- **Bots** walk the streets, find their way to you over the street network, spot you when
+  nothing blocks their view, react and shoot with real guns. **Easy** bots see you up close,
+  react slowly and miss a lot; **Medium** ones hunt you down and sidestep; **Hard** ones spot you
+  from 110 m, react fast and lie down to shoot from afar. Moving and running make you harder
+  to hit. Bots on different teams fight each other too. They don't throw grenades.
+- Same scoreboard and results as online, with **Play again**. Solo games are practice: no XP,
+  ranks or Ranking (`solo/SoloMatch.kt`, `solo/StreetGraph.kt`, `SoloMatchTest`).
+
 ### Multiplayer
 - **Rooms:** public or password-protected. The password is checked by the database's security
   rules, not by the app.

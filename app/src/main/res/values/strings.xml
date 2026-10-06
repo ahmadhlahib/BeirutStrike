@@ -360,4 +360,33 @@
     <string name="xp_gain">+%1$d XP</string>
     <!-- A kill with its XP: "You killed Ali! · +75 XP" -->
     <string name="kill_with_xp">%1$s · %2$s</string>
+
+    <!-- Solo or multiplayer (ModeActivity), and the solo setup. -->
+    <string name="mode_greeting">Hi %1$s! How do you want to play?</string>
+    <string name="mode_solo">Solo</string>
+    <string name="mode_solo_info">Fight bots on your own. No internet needed.</string>
+    <string name="mode_multiplayer">Multiplayer</string>
+    <string name="mode_multiplayer_info">Join or create a room and play online with others.</string>
+    <string name="mode_multiplayer_unavailable">Not available in this version.</string>
+    <string name="solo_title">Solo game</string>
+    <string name="solo_start">Next</string>
+    <plurals name="solo_bots">
+        <item quantity="one">%d bot</item>
+        <item quantity="other">%d bots</item>
+    </plurals>
+    <string name="solo_difficulty">Difficulty</string>
+    <string name="solo_easy">Easy</string>
+    <string name="solo_medium">Medium</string>
+    <string name="solo_hard">Hard</string>
+    <string name="solo_easy_info">They see you up close, react slowly and miss a lot.</string>
+    <string name="solo_medium_info">They hunt you down, sidestep and shoot straighter.</string>
+    <string name="solo_hard_info">They spot you from afar, react fast, take cover lying down and rarely miss.</string>
+    <string name="solo_allies">Bots on my team</string>
+    <string name="solo_allies_on">Half the bots fight with you, the rest against you.</string>
+    <string name="solo_allies_off">Every bot is against you.</string>
+    <string name="solo_no_xp">Solo games are practice: they don\'t give XP or count toward ranks.</string>
+    <string name="bot_name">%1$s · bot</string>
+    <string name="status_solo">Solo · %1$s</string>
+    <string name="menu_leave_solo">Leave the game</string>
+    <string name="score_play_again">Play again</string>
 </resources>

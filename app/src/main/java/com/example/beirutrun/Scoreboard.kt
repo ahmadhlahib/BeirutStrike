@@ -23,6 +23,8 @@ class Scoreboard(
     /** Game over: leave, and go straight to creating the next room. */
     private val onNewRoom: () -> Unit,
     private val onRanking: () -> Unit,
+    /** What the next-game button says (a solo game says "Play again"). */
+    private val nextLabel: Int = R.string.score_new_room,
 ) {
     private var dialog: Dialog? = null
     private var view: View? = null
@@ -44,6 +46,7 @@ class Scoreboard(
                 d.dismiss()
                 onLeave()
             }
+            v.findViewById<android.widget.TextView>(R.id.scoreNewRoom).setText(nextLabel)
             v.findViewById<View>(R.id.scoreNewRoom).setOnClickListener {
                 d.dismiss()
                 onNewRoom()
