@@ -425,6 +425,16 @@
     <string name="room_enemy_areas">Show enemy areas on the map</string>
     <string name="room_enemy_areas_helper">Everyone in the room sees enemies as red circles they\'re somewhere inside, never their exact spot.</string>
     <string name="invite_failed">Couldn\'t open sharing (%1$s)</string>
+    <!-- Bots in an online room (RoomBots). -->
+    <string name="room_bots_none">Bots: none</string>
+    <plurals name="room_bots">
+        <item quantity="one">Bots: %d</item>
+        <item quantity="other">Bots: %d</item>
+    </plurals>
+    <string name="room_bots_team">Bots play for</string>
+    <string name="room_bots_every_team">Every team (some with you, some against)</string>
+    <string name="room_bots_helper">Bots fight like players: killing one counts the same (kills, XP and money), and their bullets hurt the same.</string>
+    <string name="room_bots_tag">BOT</string>
     <!-- Forced updates (AppVersion). -->
     <string name="update_title">Update required</string>
     <string name="update_message">A new version of Beirut Strike is out. Update it on Google Play to keep playing: older versions can\'t join rooms any more.</string>

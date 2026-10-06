@@ -92,6 +92,89 @@
         android:layout_marginBottom="12dp"
         android:text="@string/room_enemy_areas_helper" />
 
+    <!-- Bots in the room (see RoomBots): how many, how good, and which team they play for. -->
+    <TextView
+        android:id="@+id/roomBotsLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/roomBots"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stepSize="1"
+        android:value="0"
+        android:valueFrom="0"
+        android:valueTo="8" />
+
+    <LinearLayout
+        android:id="@+id/roomBotsOptions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/solo_difficulty"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/roomBotsDifficulty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/roomBotsEasy"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/solo_easy" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/roomBotsMedium"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/solo_medium" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/roomBotsHard"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/solo_hard" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/room_bots_team"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/roomBotsTeam"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="@string/room_bots_helper"
+            android:textSize="12sp" />
+    </LinearLayout>
+
     <!-- Just for fun: cheat codes work, and scores don't count toward the ranking. -->
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/roomCheatsSwitch"

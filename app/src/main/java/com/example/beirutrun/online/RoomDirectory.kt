@@ -28,6 +28,8 @@ data class RoomInfo(
     val cheats: Boolean = false,
     /** The maps show no enemy areas in this room (set once by its creator, see EnemyAreas). */
     val noEnemyAreas: Boolean = false,
+    /** Bots in this room (see RoomBots), or null without any; set once by its creator. */
+    val bots: RoomBotsConfig? = null,
     /**
      * Career XP needed to join: the XP of the lowest rank allowed in (see progression/Rank);
      * 0 = anyone. Checked by the security rules too.
@@ -98,6 +100,7 @@ class RoomDirectory(private val userId: String) {
                         startedAt = (s.child("startedAt").value as? Number)?.toLong() ?: 0L,
                         cheats = s.child("cheats").getValue(Boolean::class.java) == true,
                         noEnemyAreas = s.child("noEnemyAreas").getValue(Boolean::class.java) == true,
+                        bots = RoomBotsConfig.from(s.child("bots")),
                         minXp = (s.child("minXp").value as? Number)?.toLong() ?: 0L,
                     )
                 }
@@ -135,6 +138,7 @@ class RoomDirectory(private val userId: String) {
      */
     fun create(
         name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long, enemyAreas: Boolean,
+        bots: RoomBotsConfig?,
         onDone: (String?) -> Unit,
     ) {
         val database = db ?: return onDone(null)
@@ -156,6 +160,8 @@ class RoomDirectory(private val userId: String) {
         if (cheats) updates["roomList/$id/cheats"] = true
         // Only rooms without enemy areas carry the flag.
         if (!enemyAreas) updates["roomList/$id/noEnemyAreas"] = true
+        // Only rooms with bots carry their settings.
+        bots?.let { updates["roomList/$id/bots"] = it.toMap() }
         // Likewise only rooms with a minimum rank carry one.
         if (minXp > 0) updates["roomList/$id/minXp"] = minXp
         database.reference.updateChildren(updates).addOnCompleteListener { task ->

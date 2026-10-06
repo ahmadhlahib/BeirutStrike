@@ -13,6 +13,8 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -21,12 +23,16 @@ import com.example.beirutrun.city.CityMaps
 import com.example.beirutrun.online.AppVersion
 import com.example.beirutrun.online.CareerWallet
 import com.example.beirutrun.online.FirebaseSession
+import com.example.beirutrun.online.RoomBotsConfig
 import com.example.beirutrun.online.RoomDirectory
 import com.example.beirutrun.online.RoomInfo
 import com.example.beirutrun.progression.PlayerProgress
 import com.example.beirutrun.progression.ProgressState
 import com.example.beirutrun.progression.Progression
 import com.example.beirutrun.progression.Rank
+import com.example.beirutrun.solo.BotDifficulty
+import com.example.beirutrun.solo.SoloSettings
+import com.google.android.material.slider.Slider
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.card.MaterialCardView
@@ -197,7 +203,7 @@ class RoomsActivity : AppCompatActivity() {
         dir.join(room, password) { ok ->
             if (ok) {
                 Session.setRoomPassword(this, password)
-                enter(room.id, room.name, room.map, !room.noEnemyAreas)
+                enter(room.id, room.name, room.map, !room.noEnemyAreas, room.bots)
             } else {
                 status.text = ""
                 Toast.makeText(
@@ -262,6 +268,31 @@ class RoomsActivity : AppCompatActivity() {
             button.setOnClickListener { duration = d }
         }
 
+        // Bots: none by default; with some, how good they are and which team they play for.
+        val botsLabel = view.findViewById<TextView>(R.id.roomBotsLabel)
+        val bots = view.findViewById<Slider>(R.id.roomBots)
+        bots.valueTo = SoloSettings.MAX_BOTS.toFloat()
+        val botsOptions = view.findViewById<View>(R.id.roomBotsOptions)
+        fun showBots() {
+            val n = bots.value.toInt()
+            botsLabel.text = if (n == 0) getString(R.string.room_bots_none) else resources.getQuantityString(R.plurals.room_bots, n, n)
+            botsOptions.visibility = if (n == 0) View.GONE else View.VISIBLE
+        }
+        bots.addOnChangeListener { _, _, _ -> showBots() }
+        showBots()
+        var botDifficulty = BotDifficulty.MEDIUM
+        val difficultyButtons = mapOf(BotDifficulty.EASY to R.id.roomBotsEasy, BotDifficulty.MEDIUM to R.id.roomBotsMedium, BotDifficulty.HARD to R.id.roomBotsHard)
+        view.findViewById<MaterialButtonToggleGroup>(R.id.roomBotsDifficulty).check(difficultyButtons.getValue(botDifficulty))
+        for ((d, id) in difficultyButtons) view.findViewById<MaterialButton>(id).setOnClickListener { botDifficulty = d }
+        var botTeam = ""
+        val teamGroup = view.findViewById<RadioGroup>(R.id.roomBotsTeam)
+        for ((id, label) in listOf("" to getString(R.string.room_bots_every_team)) + Teams.builtIn.map { it.id to it.name }) {
+            val radio = RadioButton(this).apply { this.id = View.generateViewId(); text = label }
+            teamGroup.addView(radio)
+            if (id == botTeam) teamGroup.check(radio.id)
+            radio.setOnClickListener { botTeam = id }
+        }
+
         // Cheats: off by default. Turning them on says straight away that scores won't count.
         val enemyAreasSwitch = view.findViewById<SwitchMaterial>(R.id.roomEnemyAreasSwitch)
         val cheatsSwitch = view.findViewById<SwitchMaterial>(R.id.roomCheatsSwitch)
@@ -295,7 +326,8 @@ class RoomsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.room_create) { _, _ ->
                 val name = nameInput.text.toString().trim().ifEmpty { getString(R.string.room_untitled) }
                 create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size), duration,
-                    cheatsSwitch.isChecked, minRank.xpRequired.toLong(), enemyAreasSwitch.isChecked)
+                    cheatsSwitch.isChecked, minRank.xpRequired.toLong(), enemyAreasSwitch.isChecked,
+                    bots.value.toInt().takeIf { it > 0 }?.let { RoomBotsConfig(it, botDifficulty, botTeam) })
             }
             .show()
     }
@@ -366,13 +398,13 @@ class RoomsActivity : AppCompatActivity() {
     private fun isOver(room: RoomInfo) = room.endsAt > 0 && (directory?.serverNow() ?: 0L) >= room.endsAt
 
     /** Creates a room; [map] is its map value (see CityMaps.roomValue). */
-    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long, enemyAreas: Boolean) {
+    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long, enemyAreas: Boolean, bots: RoomBotsConfig?) {
         val dir = directory ?: return
         status.setText(R.string.room_creating)
-        dir.create(name, password, map, durationMs, cheats, minXp, enemyAreas) { id ->
+        dir.create(name, password, map, durationMs, cheats, minXp, enemyAreas, bots) { id ->
             if (id != null) {
                 Session.setRoomPassword(this, password)
-                offerInvite(id, name, password) { enter(id, name, map, enemyAreas) }
+                offerInvite(id, name, password) { enter(id, name, map, enemyAreas, bots) }
             } else Toast.makeText(
                 this,
                 // The server checks a minimum rank against my online career, which may lag behind.
@@ -413,9 +445,10 @@ class RoomsActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Into room [id]; [enemyAreas]: whether its maps show enemy areas (the creator's choice). */
-    private fun enter(id: String, name: String, map: String, enemyAreas: Boolean) {
+    /** Into room [id]; [enemyAreas]: whether its maps show enemy areas, and its [bots] (the creator's choices). */
+    private fun enter(id: String, name: String, map: String, enemyAreas: Boolean, bots: RoomBotsConfig?) {
         Session.setRoomEnemyAreas(this, enemyAreas)
+        Session.setRoomBots(this, bots)
         Session.setRoom(this, id, name, map)
         startActivity(Intent(this, TeamSelectActivity::class.java))
     }
@@ -450,7 +483,10 @@ class RoomsActivity : AppCompatActivity() {
             val details = getString(
                 R.string.room_map_and_players, mapLabel(room.map),
                 resources.getQuantityString(R.plurals.room_players, room.online, room.online),
-            )
+            ).let { d ->
+                // A room with bots says how many.
+                room.bots?.let { getString(R.string.room_map_and_players, d, resources.getQuantityString(R.plurals.solo_bots, it.count, it.count)) } ?: d
+            }
             view.findViewById<TextView>(R.id.roomPlayers).text =
                 gameLabel(room)?.let { getString(R.string.room_map_and_players, details, it) } ?: details
             view.findViewById<TextView>(R.id.roomCheats).visibility = if (room.cheats) View.VISIBLE else View.GONE

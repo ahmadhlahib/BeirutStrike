@@ -88,6 +88,32 @@ class SoloMatchTest {
         assertEquals(5, stats.hitsTaken)
     }
 
+    /** An online room's bots: the given teams in turn, against every player there, hit by any of them. */
+    @Test
+    fun roomBotsFightEveryPlayer() {
+        val city = load(maps.first())
+        val game = SoloMatch(
+            city, SoloSettings(4, BotDifficulty.HARD, false, 0L), "el_lahib", listOf("corniche_sharks"),
+            seed = 3, teams = listOf("corniche_sharks"),
+        )
+        assertTrue(game.players(0L).all { it.team == "corniche_sharks" && it.bot })
+        val a = SoloMatch.Player("A", "el_lahib", city.spawnX, 0f, city.spawnZ, false, false, uid = "userA")
+        val b = SoloMatch.Player("B", "golden_lions", city.spawnX + 3f, 0f, city.spawnZ, false, false, uid = "userB")
+        val hit = HashSet<String>()
+        repeat(60 * 20 * 3) {
+            for (e in game.update(0.05f, listOf(a, b))) if (e is SoloMatch.Event.PlayerHit) hit += e.target
+        }
+        assertTrue("bots should hit both players, hit $hit", hit.containsAll(listOf("userA", "userB")))
+        // Player B's bullets kill a bot, and it's B's kill.
+        val bot = game.players(0L).first { !it.dead }
+        var killed: String? = null
+        repeat(5) { killed = game.hitByPlayer(bot.uid, 1, from = "userB") ?: killed }
+        assertNotNull(killed)
+        assertEquals("userB", game.players(0L).first { it.uid == bot.uid }.killedBy)
+        // The room's scoreboard gets the bots' rows only (players keep their own).
+        assertEquals(4, game.stats(includeMe = false).size)
+    }
+
     @Test
     fun alliesSplitTheBotsAndTheScoreIsKept() {
         val city = load(maps.first())

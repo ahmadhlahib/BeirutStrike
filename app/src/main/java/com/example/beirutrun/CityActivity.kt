@@ -55,6 +55,7 @@ import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.OnlineWorld
 import com.example.beirutrun.online.PlayerStats
 import com.example.beirutrun.online.RemotePlayer
+import com.example.beirutrun.online.RoomBots
 import com.example.beirutrun.online.RoomTeams
 import com.example.beirutrun.online.VoiceChat
 import com.example.beirutrun.progression.PlayerProgress
@@ -184,15 +185,27 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     /** A solo game against bots (see ModeActivity), or null online. */
     private var solo: SoloMatch? = null
+    /** An online room's bots (see RoomBots), or null when it has none. */
+    private var roomBots: RoomBots? = null
     private var soloTicks = 0
     private var soloLast = 0L
 
     /** Solo: moves the bots on, shows their shots, takes their hits, and keeps the score. */
     private val soloTick = object : Runnable {
         override fun run() {
-            val game = solo ?: return
             val now = SystemClock.uptimeMillis()
             val dt = if (soloLast == 0L) 0f else ((now - soloLast) / 1000f).coerceAtMost(0.25f)
+            // An online room's bots: run here if this phone is their host (see RoomBots).
+            roomBots?.let { bots ->
+                soloLast = now
+                val me = online.uid?.let {
+                    SoloMatch.Player(playerName, playerTeam.id, renderer.playerX, renderer.playerY, renderer.playerZ, renderer.prone, dead, it)
+                }
+                bots.tick(dt, me, gameOver)
+                ticker.postDelayed(this, SOLO_TICK_MS)
+                return
+            }
+            val game = solo ?: return
             soloLast = now
             if (!gameOver) {
                 val me = SoloMatch.Player(
@@ -308,6 +321,13 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             gameDurationMs = it.durationMs
             gameEndsAt = System.currentTimeMillis() + it.durationMs
         }
+        // An online room's bots, as its creator chose: run by one phone, seen and shot by all.
+        if (solo == null && online.configured && roomId != null) roomBots = Session.roomBots(this)?.let { config ->
+            RoomBots(
+                city, config, online, Teams.builtIn.map { it.id }, label = { getString(R.string.bot_name, it) },
+                onHitMe = { botId, botName, damage -> takeHit(botId, getString(R.string.killed_by, botName), damage) },
+            )
+        }
         online.onStat = { key -> solo?.count(key) }
         // Enemy areas on the maps: the room's setting online (its creator chose), the solo setup's in solo.
         showEnemyAreas = if (roomId != null && soloSettings == null) Session.roomEnemyAreas(this) else Session.enemyAreas(this)
@@ -375,6 +395,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 if (!gameOver) online.countShot()
                 // Bots within earshot turn to look.
                 solo?.heardShot(x, z)
+                roomBots?.heardShot(x, z, playerTeam.id)
             },
             onHitPlayer = { uid, damage, headshot ->
                 sounds.ouch()
@@ -384,6 +405,14 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 if (bots != null && bots.isBot(uid)) {
                     // A bot is hit on this phone, where it lives; its last heart is my kill.
                     if (!gameOver) bots.hitByPlayer(uid, damage)?.let { name -> onKilled(uid, name) }
+                } else if (remotePlayers.any { it.uid == uid && it.bot }) {
+                    // An online room's bot: its host takes the hit (me, if I run them), and when
+                    // it's down, marks me as the killer, so the kill counts here like a player's.
+                    val host = roomBots?.takeIf { it.hosting }
+                    if (!gameOver) {
+                        if (host != null) host.onBotHit(uid, online.uid.orEmpty(), damage)
+                        else online.sendHitOnBot(uid, damage)
+                    }
                 } else {
                     online.sendHit(uid, damage)
                 }
@@ -560,6 +589,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         if (::scoreboard.isInitialized) scoreboard.dismiss()
         // Only "Leave room" and "Log out" delete an empty room here; if the app is just closed,
         // the room list cleans it up after a few minutes.
+        // My last bot scores go out; another phone takes the bots over.
+        roomBots?.stop()
         if (::online.isInitialized) online.stop(leavingRoom)
         voice?.stop()
         if (::sounds.isInitialized) sounds.release()
@@ -696,7 +727,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         fullMap?.enemyAreas = areas
         updateStatusLabel()
         startVoice()
-        voice?.setTeammates(teammates.mapTo(HashSet()) { it.uid })
+        voice?.setTeammates(teammates.filter { !it.bot }.mapTo(HashSet()) { it.uid })
     }
 
     /** The latest drops and players from the server, before blocked players are filtered out. */
@@ -713,6 +744,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val gun = Weapon.byId(player.weapon)
         renderer.addRemoteShot(player.uid, player.shotX, player.shotY, player.shotZ, player.shotDX, player.shotDY, player.shotDZ, gun)
         shotSound(player.shotX, player.shotZ, gun)
+        // A player's shot: the room's bots (if I run them) turn to look.
+        if (!player.bot) roomBots?.heardShot(player.shotX, player.shotZ, player.team)
     }
 
     /**
@@ -734,6 +767,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         )
         val distance = hypot(player.grenadeX - renderer.playerX, player.grenadeZ - renderer.playerZ)
         sounds.grenadeThrow(0.7f * (1f - distance / HEARING_RANGE))
+    }
+
+    /** (The bots' host) Player [fromUid] hit bot [botId]. */
+    override fun onBotHit(botId: String, fromUid: String, damage: Int) {
+        roomBots?.onBotHit(botId, fromUid, damage)
+    }
+
+    /** Someone died: a player killed by a bot is that bot's kill (bots killing bots count already). */
+    override fun onPlayerKilled(victimUid: String, killerUid: String) {
+        if (remotePlayers.none { it.uid == victimUid && it.bot }) roomBots?.onPlayerKilled(killerUid)
     }
 
     override fun onHitBy(fromUid: String, fromName: String, damage: Int) =
@@ -761,6 +804,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         dead = true
         online.countDeath()
         solo?.playerKilledBy(fromUid)
+        // (Other phones see my death online; the bots' host, if that's me, counts it here.)
+        roomBots?.onPlayerKilled(fromUid)
         renderer.down = true
         renderer.triggerHeld = false
         sounds.cancelReload()
@@ -1643,7 +1688,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     /** The other players in the room, to report or block one of them. */
     private fun showPlayersDialog() {
-        val others = remotePlayers.sortedBy { it.name.lowercase() }
+        val others = remotePlayers.filter { !it.bot }.sortedBy { it.name.lowercase() }
         if (others.isEmpty()) {
             Toast.makeText(this, R.string.players_none, Toast.LENGTH_SHORT).show()
             return

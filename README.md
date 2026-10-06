@@ -69,6 +69,12 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   Play without the game.
 - **Rooms:** public or password-protected. The password is checked by the database's security
   rules, not by the app.
+- **Bots in rooms:** a room's creator can add up to 8 bots (Easy, Medium or Hard) that play
+  for every team in turn, some with each player and some against, or all for one team. One phone
+  (the lowest player id in the room) runs them with the solo bots' brain and writes them to the
+  room; if it leaves, the next one takes over after 16 s. Bots fight like players: killing one
+  counts the same (kills, XP, money, scoreboard), and their bullets hurt the same
+  (`online/RoomBots.kt`, `bots` and `botHits` in the rules).
 - **Minimum rank:** a room's creator can let in only players of a chosen rank or higher, up to
   their own rank. The room list shows it, and the security rules enforce it against each
   player's career XP.
