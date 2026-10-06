@@ -123,6 +123,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private var gameOver = false
     private lateinit var gameTimer: TextView
     private lateinit var shootButton: View
+    /** The second Shoot button, above the joystick for the left thumb. */
+    private lateinit var shootButtonLeft: View
+    /** The Shoot buttons being held: firing goes on while either is. */
+    private val shootHeld = HashSet<View>()
     private lateinit var scoreboard: Scoreboard
     private var stats: List<PlayerStats> = emptyList()
     /** Whether my last bullet to hit each player (by uid) hit the head: a kill by it is a headshot. */
@@ -446,7 +450,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             }
         }
         shootButton = findViewById(R.id.shootButton)
+        shootButtonLeft = findViewById(R.id.shootButtonLeft)
         bindShootButton(shootButton)
+        bindShootButton(shootButtonLeft)
         weaponButton = findViewById(R.id.weaponButton)
         weaponButton.setOnClickListener { switchWeapon() }
         reloadButton = findViewById(R.id.reloadButton)
@@ -1025,6 +1031,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         renderer.triggerHeld = false
         setScoped(false)
         shootButton.alpha = 0.4f
+        shootButtonLeft.alpha = 0.4f
         gameTimer.visibility = View.VISIBLE
         gameTimer.setText(R.string.score_game_over)
         gameTimer.setTextColor(0xFFFFC107.toInt())
@@ -1080,8 +1087,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     // ---- Shooting -----------------------------------------------------------------------------
 
     /**
-     * Press to fire, hold to keep firing. Sliding the finger while it's down aims, just like
-     * dragging on the city, so you can follow a target without letting go of the trigger.
+     * Press to fire, hold to keep firing (with either Shoot button). Sliding the finger while it's
+     * down aims, just like dragging on the city, so you can follow a target without letting go of
+     * the trigger.
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun bindShootButton(button: View) {
@@ -1091,6 +1099,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     v.isPressed = true
+                    shootHeld += v
                     lastX = event.rawX
                     lastY = event.rawY
                     if (!dead && !gameOver) {
@@ -1105,7 +1114,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
-                    renderer.triggerHeld = false
+                    shootHeld -= v
+                    if (shootHeld.isEmpty()) renderer.triggerHeld = false
                 }
             }
             true

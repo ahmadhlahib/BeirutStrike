@@ -128,7 +128,8 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Grenade kind (round, beside Grenade) | Change grenade: frag, flashbang, smoke, molotov (shows how many are left) |
 | Mic / Speaker (small, beside the grenades; online) | Team voice chat: my mic on or off, and mute all teammates |
 | Gun button (under the grenades) | Switch between your pistol, primary and sniper rifle (shows rounds in the magazine / spare) |
-| Say / Drop photo (round, above the joystick) | Opens **Say** (speech bubble, or a cheat code, see below) and **Drop photo** (leave a photo in the street) |
+| Say / Drop photo (round, above the joystick) | Opens **Say** (speech bubble, or a cheat code, see below) and **Drop photo** (leave a photo in the street) above it |
+| Left Shoot (red, right of Say / Drop photo) | A second Shoot button for the left thumb: works like the big one |
 | Climb up / Climb down (above View photo) | Shows at the foot of a ladder, or beside its top on a roof: climbs it |
 | Timer (top centre) | Open the scoreboard |
 | Name button (top left) | Menu: scoreboard, players (report / block), change team, change guns, retake face photo, street photos, leave room, log out, delete my data |

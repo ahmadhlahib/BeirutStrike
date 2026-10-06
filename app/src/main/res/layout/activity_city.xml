@@ -263,7 +263,8 @@
 
     <!--
         Just above the joystick, centred over it: one button that opens Say and Drop photo
-        to its right; picking one (or tapping it again) closes them.
+        above it; picking one (or tapping it again) closes them. To its right, a second Shoot
+        button for the left thumb.
     -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/sayOrDropButton"
@@ -281,8 +282,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
-        android:layout_marginStart="126dp"
-        android:layout_marginBottom="182dp"
+        android:layout_marginStart="66dp"
+        android:layout_marginBottom="252dp"
         android:orientation="horizontal"
         android:visibility="gone">
 
@@ -303,6 +304,20 @@
             android:text="@string/drop_photo"
             app:icon="@drawable/ic_camera" />
     </LinearLayout>
+
+    <!-- Shoot for the left thumb: right of the chat button; works like the big one (hold, slide to aim). -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/shootButtonLeft"
+        style="@style/HudRoundButton"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="132dp"
+        android:layout_marginBottom="172dp"
+        android:contentDescription="@string/shoot"
+        app:backgroundTint="#DDD32F2F"
+        app:icon="@drawable/ic_target"
+        app:iconSize="34dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/viewPhotoButton"
