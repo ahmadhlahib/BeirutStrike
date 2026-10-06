@@ -45,7 +45,8 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   people; their wheels roll and steer. Passers-by walk the sidewalks, stop to chat or talk on
   the phone, and run from gunfire. They're scenery: shooting them counts for no one.
 - **Adjustable play area:** from 200 m to 800 m square, or the whole map.
-- **Minimap** with a full-screen map view, showing only your teammates, and a gun view (first
+- **Minimap** with a full-screen map view: teammates where they are, enemies only as pulsing red
+  circles they are somewhere inside (never their exact spot), and a gun view (first
   person) or 3D person (third person) camera.
 
 ### Solo

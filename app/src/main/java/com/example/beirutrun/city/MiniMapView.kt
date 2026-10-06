@@ -37,6 +37,8 @@ class MiniMapView @JvmOverloads constructor(
     var renderer: CityRenderer? = null
     var drops: List<PhotoDrop> = emptyList()
     var players: List<RemotePlayer> = emptyList()
+    /** Where enemies roughly are (see [EnemyAreas]): pulsing red circles, never their exact spot. */
+    var enemyAreas: List<EnemyAreas.Area> = emptyList()
     /** Dot colour for a team id (null = default blue). */
     var teamColor: (String) -> Int? = { null }
 
@@ -244,6 +246,19 @@ class MiniMapView @JvmOverloads constructor(
             paint.color = 0xFFE5A823.toInt()
             canvas.drawRect(sx(l.footX) - s, sz(l.footZ) - s, sx(l.footX) + s, sz(l.footZ) + s, paint)
         }
+        // Enemy areas, pulsing like an alarm: a soft red fill and a brighter ring.
+        val pulse = 0.5f + 0.5f * kotlin.math.sin(android.os.SystemClock.uptimeMillis() / 1000f * PULSE_SPEED)
+        for (a in enemyAreas) {
+            val cx = sx(a.x); val cz = sz(a.z); val rad = a.radius * scale
+            paint.color = ((0x30 + (0x30 * pulse).toInt()) shl 24) or ENEMY_RED
+            canvas.drawCircle(cx, cz, rad, paint)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 1.8f * density
+            paint.color = ((0x90 + (0x6F * pulse).toInt()) shl 24) or ENEMY_RED
+            canvas.drawCircle(cx, cz, rad * (0.92f + 0.08f * pulse), paint)
+            paint.style = Paint.Style.FILL
+        }
+
         for (p in players) {
             paint.color = 0xFFFFFFFF.toInt()
             canvas.drawCircle(sx(p.x), sz(p.z), 5f * density * dot, paint)
@@ -286,6 +301,9 @@ class MiniMapView @JvmOverloads constructor(
         private const val VIEW_UNITS = 160f
         private const val LAND = 0xFFECE7DE.toInt()
         private const val SEA = 0xFF8EC1E3.toInt()
+        /** Enemy areas: red (alpha added as it pulses), and pulses per second × 2π. */
+        private const val ENEMY_RED = 0xFF1744
+        private const val PULSE_SPEED = 5f
 
         /** [a] blended towards [b] by [t] (0..1), channel by channel. */
         private fun blend(a: Int, b: Int, t: Float): Int {

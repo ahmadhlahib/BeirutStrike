@@ -37,6 +37,7 @@ import com.example.beirutrun.city.CityMaps
 import com.example.beirutrun.city.CityRenderer
 import com.example.beirutrun.city.CityScene
 import com.example.beirutrun.city.DepthConfigChooser
+import com.example.beirutrun.city.EnemyAreas
 import com.example.beirutrun.city.JoystickView
 import com.example.beirutrun.city.MiniMapView
 import com.example.beirutrun.city.Pickup
@@ -667,10 +668,17 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // Players I blocked still walk around (they're in the game), but their words don't show.
         val shown = players.map { if (Blocklist.isBlocked(this, it.uid)) it.copy(say = "") else it }
         renderer.setRemotePlayers(shown)
-        // The maps only show teammates: players on other teams have to be found in the city.
+        // The maps show teammates where they are; enemies only as a rough area (below).
         val teammates = shown.filter { it.team == playerTeam.id }
         miniMap.players = teammates
         fullMap?.players = teammates
+        // Enemies only as a rough area: a red circle they are somewhere inside.
+        val areas = enemyAreas.update(
+            shown.filter { it.team != playerTeam.id && !it.dead }.map { Triple(it.uid, it.x, it.z) },
+            SystemClock.uptimeMillis(),
+        )
+        miniMap.enemyAreas = areas
+        fullMap?.enemyAreas = areas
         updateStatusLabel()
         startVoice()
         voice?.setTeammates(teammates.mapTo(HashSet()) { it.uid })
@@ -679,6 +687,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     /** The latest drops and players from the server, before blocked players are filtered out. */
     private var sharedDrops: List<PhotoDrop> = emptyList()
     private var remotePlayers: List<RemotePlayer> = emptyList()
+    /** Where enemies roughly are, for the maps (see EnemyAreas). */
+    private val enemyAreas = EnemyAreas()
 
     override fun onFacesChanged() = renderer.reloadFaces()
 
@@ -1132,6 +1142,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             full = true
             renderer = this@CityActivity.renderer
             players = miniMap.players
+            enemyAreas = miniMap.enemyAreas
             drops = miniMap.drops
             teamColor = miniMap.teamColor
             city = this@CityActivity.city
