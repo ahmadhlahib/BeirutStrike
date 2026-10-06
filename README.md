@@ -132,7 +132,7 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | --- | --- |
 | Joystick (bottom left) | Walk; push further to run |
 | Medkits (beside the hearts, top left) | **+1** gives a heart back, **Full** fills them all; each shows how many you carry |
-| Store (at an arms store's counter) | Opens the shop: magazines, a scope, medkits and grenades |
+| Store (at an arms store's counter) | Opens the shop: magazines, a scope, medkits and grenades, and swapping to another gun you own |
 | Swipe on the city | Look and aim |
 | Big red button (under the minimap) | Shoot. Hold for the AK-47; tap for the pistol. Slide your finger on it to aim while firing |
 | Jump / Crawl (small, under Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
@@ -230,6 +230,7 @@ meanwhile):
 | Small medkit (+1 heart) | $150 | 5 carried |
 | Big medkit (all hearts) | $400 | 3 carried |
 | Frag / flashbang / smoke / molotov | $300 / $200 / $200 / $300 | as carried before |
+| Swap to another gun you own (for its slot) | free | |
 
 In solo games everything in the stores is free (solo games pay nothing either).
 

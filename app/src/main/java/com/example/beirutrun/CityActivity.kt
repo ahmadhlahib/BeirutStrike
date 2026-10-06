@@ -1364,6 +1364,67 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             row(item, kind.displayName, getString(R.string.store_carried, renderer.grenades(kind), kind.most),
                 full = !renderer.canCarry(kind)) { renderer.addGrenade(kind) }
         }
+
+        // Swap guns: any other gun I own, for the slot it fits (free: I bought it already).
+        rows.addView(TextView(this).apply {
+            setText(R.string.store_swap_title)
+            textSize = 16f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, (16 * resources.displayMetrics.density).toInt(), 0, 0)
+        })
+        var any = false
+        for (slot in GunSlot.entries) {
+            for (gun in Weapon.inSlot(slot).filter { it != guns.getValue(slot) && Wallet.owns(this, it) }) {
+                any = true
+                val line = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, (6 * resources.displayMetrics.density).toInt(), 0, 0)
+                }
+                line.addView(LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    addView(TextView(this@CityActivity).apply { text = gun.displayName; textSize = 15f; setTypeface(typeface, android.graphics.Typeface.BOLD) })
+                    addView(TextView(this@CityActivity).apply {
+                        text = getString(R.string.store_swap_instead, guns.getValue(slot).displayName)
+                        textSize = 12f
+                        alpha = 0.7f
+                    })
+                })
+                line.addView(MaterialButton(this).apply {
+                    setText(R.string.store_swap)
+                    isEnabled = !dead
+                    setOnClickListener { swapGun(gun) }
+                })
+                rows.addView(line)
+            }
+        }
+        if (!any) rows.addView(TextView(this).apply {
+            setText(R.string.store_swap_none)
+            textSize = 12f
+            alpha = 0.7f
+        })
+    }
+
+    /**
+     * Carries [gun] instead of the gun in its slot (one I own), from now on: in hand if that slot
+     * was, and kept as my choice for next time. Each gun keeps its own rounds.
+     */
+    private fun swapGun(gun: Weapon) {
+        if (dead || gameOver || !Wallet.owns(this, gun)) return
+        guns = guns + (gun.slot to gun)
+        Session.setGun(this, gun)
+        if (renderer.weapon.slot == gun.slot) {
+            renderer.weapon = gun
+            renderer.triggerHeld = false
+            sounds.cancelReload()
+            setScoped(false)
+            online.setWeapon(gun.id)
+        }
+        sounds.reload(gun)
+        showBanner(getString(R.string.store_swapped, gun.displayName))
+        updateWeaponButtons()
+        fillShop()
     }
 
     /** Pays for [item] (nothing in solo) and hands it over with [give]; then the shop shows what's changed. */
