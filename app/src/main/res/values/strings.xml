@@ -416,9 +416,9 @@
     <string name="invite_message">Join my room \"%1$s\" in Beirut Strike 🎯 Tap to play with me: %2$s</string>
     <string name="invite_share_title">Invite friends to the room</string>
     <string name="invite_created_title">Room created</string>
-    <string name="invite_created">Invite friends on WhatsApp? They tap the link and land right in your room.</string>
-    <string name="invite_created_password">Invite friends on WhatsApp? The link includes the password, so they get straight in. Anyone with the link can join.</string>
-    <string name="invite_whatsapp">Invite on WhatsApp</string>
+    <string name="invite_created">Invite friends? Send the link on WhatsApp or any other app: they tap it and land right in your room.</string>
+    <string name="invite_created_password">Invite friends? Send the link on WhatsApp or any other app. It includes the password, so they get straight in; anyone with the link can join.</string>
+    <string name="invite_whatsapp">Invite friends</string>
     <string name="invite_later">Not now</string>
     <string name="invite_room_gone">That room has closed. Pick another one, or create your own.</string>
     <string name="menu_invite">Invite friends</string>
