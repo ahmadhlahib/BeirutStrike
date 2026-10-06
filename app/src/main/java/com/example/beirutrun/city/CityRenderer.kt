@@ -1057,7 +1057,37 @@ class CityRenderer(
                     }
                     System.arraycopy(crate, 0, base, 0, 16)
                 }
+                PickupKind.MEDKIT_SMALL -> {
+                    // A white first-aid box with a red cross on its lid and front.
+                    partBox(0f, 0f, 0f, 0.3f, 0.14f, 0.2f, 0xFFF2F2F2.toInt())
+                    partBox(0f, 0.072f, 0f, 0.31f, 0.012f, 0.21f, 0xFFDADADA.toInt())
+                    medCross(0.079f, 0.11f, horizontal = true)
+                    medCross(0.102f, 0.1f, horizontal = false)
+                }
+                PickupKind.MEDKIT_BIG -> {
+                    // A red medical bag with a white cross, a handle and a darker zip.
+                    partBox(0f, 0f, 0f, 0.46f, 0.26f, 0.28f, 0xFFC62828.toInt())
+                    partBox(0f, 0.132f, 0f, 0.47f, 0.012f, 0.06f, 0xFF7F1717.toInt())
+                    partBox(0f, 0.17f, 0f, 0.2f, 0.03f, 0.04f, 0xFF2A2A2A.toInt())
+                    for (side in listOf(-0.09f, 0.09f)) partBox(side, 0.15f, 0f, 0.025f, 0.05f, 0.04f, 0xFF2A2A2A.toInt())
+                    medCross(0.142f, 0.16f, horizontal = false, color = 0xFFFFFFFF.toInt())
+                }
             }
+        }
+    }
+
+    /**
+     * A red (or [color]) cross [size] across: lying on a lid [at] metres up when [horizontal], else
+     * standing on the front face [at] metres forward.
+     */
+    private fun medCross(at: Float, size: Float, horizontal: Boolean, color: Int = 0xFFD32F2F.toInt()) {
+        val bar = size / 3f
+        if (horizontal) {
+            partBox(0f, at, 0f, size, 0.004f, bar, color)
+            partBox(0f, at, 0f, bar, 0.004f, size, color)
+        } else {
+            partBox(0f, 0f, at, size, bar, 0.004f, color)
+            partBox(0f, 0f, at, bar, size, 0.004f, color)
         }
     }
 

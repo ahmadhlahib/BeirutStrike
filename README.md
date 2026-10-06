@@ -119,6 +119,7 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Control | Action |
 | --- | --- |
 | Joystick (bottom left) | Walk; push further to run |
+| Medkits (beside the hearts, top left) | **+1** gives a heart back, **Full** fills them all; each shows how many you carry |
 | Swipe on the city | Look and aim |
 | Big red button (under the minimap) | Shoot. Hold for the AK-47; tap for the pistol. Slide your finger on it to aim while firing |
 | Jump / Crawl (small, under Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
@@ -206,6 +207,13 @@ sees the same throw. Tap the button below it to change kind. More lie in the str
 | Flashbang | 2 | +1 flashbang (up to 4 carried) | 40 s |
 | Smoke grenade | 1 | +1 smoke grenade (up to 2 carried) | 45 s |
 | Molotov | 1 | +1 molotov (up to 2 carried) | 45 s |
+| Medkit (white box) | 3 | +1 small medkit (up to 3 carried) | 30 s |
+| Medical bag (red) | 1 | +1 big medkit (1 carried) | 60 s |
+
+Medkits are used when you choose, with the buttons beside your hearts (top left): **+1** gives
+one heart back, **Full** fills all five. Every life starts with 2 small medkits; the ones
+carried are lost when you die. Pickup kinds must also be allowed in `firebase/database.rules.json`
+(`PickupKindsTest` checks it).
 
 ### Cheat codes
 

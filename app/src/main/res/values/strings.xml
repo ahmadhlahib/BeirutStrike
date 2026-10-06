@@ -393,4 +393,16 @@
     <string name="menu_enemy_areas_show">Show enemy areas on map</string>
     <string name="enemy_areas_on">Enemy areas shown on the map</string>
     <string name="enemy_areas_off">Enemy areas hidden from the map</string>
+    <!-- Medkits: picked up in the street, used with the buttons beside the hearts. -->
+    <string name="pickup_medkit_small">Medkit +1 ♥</string>
+    <string name="pickup_medkit_big">Medical bag · full ♥</string>
+    <string name="picked_medkit_small">Medkit (%1$d carried)</string>
+    <string name="picked_medkit_big">Medical bag (%1$d carried)</string>
+    <string name="medkit_small_button">+1 ×%1$d</string>
+    <string name="medkit_big_button">Full ×%1$d</string>
+    <string name="medkit_used_small">+1 ♥</string>
+    <string name="medkit_used_big">Health full ♥</string>
+    <string name="medkit_full_health">Your health is already full</string>
+    <string name="medkit_none_small">No small medkits left: find one in the streets</string>
+    <string name="medkit_none_big">No medical bag: find one in the streets</string>
 </resources>

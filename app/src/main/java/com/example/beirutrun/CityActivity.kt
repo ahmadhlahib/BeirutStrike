@@ -168,6 +168,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             updateGameTimer()
             updateWeaponButtons()
             updateGrenadeButtons()
+            updateMedkitButtons()
             checkPickups()
             // Now and then, re-check who is still around (hides players whose phone went quiet).
             if (++ticks % 25 == 0) online.publishPlayers()
@@ -499,6 +500,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         crawlButton = findViewById(R.id.crawlButton)
         crawlButton.setOnClickListener { if (!renderer.climbing) setProne(!renderer.prone) }
         heartsLabel = findViewById(R.id.hearts)
+        medkitSmallButton = findViewById(R.id.medkitSmallButton)
+        medkitBigButton = findViewById(R.id.medkitBigButton)
+        medkitSmallButton.setOnClickListener { useMedkit(big = false) }
+        medkitBigButton.setOnClickListener { useMedkit(big = true) }
         banner = findViewById(R.id.banner)
         damageFlash = findViewById(R.id.damageFlash)
         updateHearts()
@@ -883,10 +888,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         PickupKind.FLASH_GRENADE -> R.string.pickup_flashbang
         PickupKind.SMOKE_GRENADE -> R.string.pickup_smoke
         PickupKind.MOLOTOV -> R.string.pickup_molotov
+        PickupKind.MEDKIT_SMALL -> R.string.pickup_medkit_small
+        PickupKind.MEDKIT_BIG -> R.string.pickup_medkit_big
     })
 
     /** A grenade is only picked up with room for it (see GrenadeKind.most): otherwise it stays for someone else. */
-    private fun canTake(p: Pickup) = p.kind.grenade?.let { renderer.unlimitedAmmo || renderer.canCarry(it) } ?: true
+    private fun canTake(p: Pickup) = when (p.kind) {
+        PickupKind.MEDKIT_SMALL -> smallMedkits < MAX_SMALL_MEDKITS
+        PickupKind.MEDKIT_BIG -> bigMedkits < MAX_BIG_MEDKITS
+        else -> p.kind.grenade?.let { renderer.unlimitedAmmo || renderer.canCarry(it) } ?: true
+    }
 
     /** The next of the three guns carried: pistol → primary → sniper rifle → pistol. */
     private fun switchWeapon() {
@@ -989,7 +1000,15 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun collect(p: Pickup) {
         val slot = p.kind.slot
         val grenade = p.kind.grenade
-        if (grenade != null) {
+        if (p.kind.medkit) {
+            if (p.kind == PickupKind.MEDKIT_BIG) bigMedkits++ else smallMedkits++
+            sounds.grenadeThrow(0.5f)
+            showBanner(getString(
+                if (p.kind == PickupKind.MEDKIT_BIG) R.string.picked_medkit_big else R.string.picked_medkit_small,
+                if (p.kind == PickupKind.MEDKIT_BIG) bigMedkits else smallMedkits,
+            ))
+            updateMedkitButtons()
+        } else if (grenade != null) {
             renderer.addGrenade(grenade)
             sounds.grenadeThrow(0.5f)
             showBanner(getString(R.string.picked_grenade, grenade.displayName, renderer.grenades(grenade)))
@@ -1165,6 +1184,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val (x, z) = city.randomStreetPoint()
         renderer.respawn(x, z)
         renderer.refillToStart()
+        // A new life starts with the usual medkits; the ones carried were lost.
+        smallMedkits = START_SMALL_MEDKITS
+        bigMedkits = 0
         health = CityRenderer.MAX_HEALTH
         dead = false
         renderer.health = health
@@ -1200,6 +1222,42 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun updateHearts() {
         heartsLabel.text = "♥".repeat(health.coerceAtLeast(0)) +
             "♡".repeat((CityRenderer.MAX_HEALTH - health).coerceAtLeast(0))
+        updateMedkitButtons()
+    }
+
+    // ---- Medkits ------------------------------------------------------------------------------
+
+    /** Medkits carried: small ones give a heart back, big ones fill every heart. */
+    private var smallMedkits = START_SMALL_MEDKITS
+    private var bigMedkits = 0
+    private lateinit var medkitSmallButton: MaterialButton
+    private lateinit var medkitBigButton: MaterialButton
+
+    /** "+1 ×2" and "Full ×1"; dimmed with none left, or nothing to heal. */
+    private fun updateMedkitButtons() {
+        if (!::medkitSmallButton.isInitialized) return
+        val hurt = !dead && !gameOver && health < CityRenderer.MAX_HEALTH
+        medkitSmallButton.text = getString(R.string.medkit_small_button, smallMedkits)
+        medkitBigButton.text = getString(R.string.medkit_big_button, bigMedkits)
+        medkitSmallButton.alpha = if (hurt && smallMedkits > 0) 1f else 0.45f
+        medkitBigButton.alpha = if (hurt && bigMedkits > 0) 1f else 0.45f
+    }
+
+    /** Uses a small medkit (a heart back) or a big one (every heart), if I have one and I'm hurt. */
+    private fun useMedkit(big: Boolean) {
+        if (dead || gameOver) return
+        when {
+            health >= CityRenderer.MAX_HEALTH -> return showBanner(getString(R.string.medkit_full_health))
+            big && bigMedkits <= 0 -> return showBanner(getString(R.string.medkit_none_big))
+            !big && smallMedkits <= 0 -> return showBanner(getString(R.string.medkit_none_small))
+        }
+        if (big) bigMedkits-- else smallMedkits--
+        health = if (big) CityRenderer.MAX_HEALTH else (health + 1).coerceAtMost(CityRenderer.MAX_HEALTH)
+        renderer.health = health
+        online.setHealth(health, false, "")
+        sounds.grenadeThrow(0.6f)
+        updateHearts()
+        showBanner(getString(if (big) R.string.medkit_used_big else R.string.medkit_used_small))
     }
 
     private fun showBanner(text: String) {
@@ -1645,6 +1703,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val POSE_INTERVAL_MS = 200L
         /** How often a solo game moves its bots on, ms. */
         private const val SOLO_TICK_MS = 50L
+        /** Medkits: small ones each life starts with, and the most of each that can be carried. */
+        private const val START_SMALL_MEDKITS = 2
+        private const val MAX_SMALL_MEDKITS = 3
+        private const val MAX_BIG_MEDKITS = 1
         private const val RESPAWN_MS = 4_000L
         private const val BANNER_MS = 2_500L
         /** HUD button background (as in the HudButton style), and the mic button's while it's on. */

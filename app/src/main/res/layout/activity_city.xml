@@ -92,18 +92,59 @@
             android:textSize="13sp"
             android:textStyle="bold" />
 
-        <!-- My health: one heart per hit I can still take. -->
-        <TextView
-            android:id="@+id/hearts"
+        <!-- My health: one heart per hit I can still take, and beside it the medkits I carry. -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
             android:layout_marginTop="2dp"
-            android:letterSpacing="0.1"
-            android:shadowColor="#CC000000"
-            android:shadowRadius="4"
-            android:textColor="#FFFF5252"
-            android:textSize="20sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/hearts"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:letterSpacing="0.1"
+                android:shadowColor="#CC000000"
+                android:shadowRadius="4"
+                android:textColor="#FFFF5252"
+                android:textSize="20sp" />
+
+            <!-- A small medkit gives a heart back, a big one fills them all. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/medkitSmallButton"
+                style="@style/HudButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:fontFeatureSettings="tnum"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="12dp"
+                android:textSize="13sp"
+                app:backgroundTint="#B3000000"
+                app:icon="@drawable/ic_medkit"
+                app:iconPadding="4dp"
+                app:iconSize="18dp"
+                app:iconTint="#FFFF5252" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/medkitBigButton"
+                style="@style/HudButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginStart="6dp"
+                android:fontFeatureSettings="tnum"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="12dp"
+                android:textSize="13sp"
+                app:backgroundTint="#B3B71C1C"
+                app:icon="@drawable/ic_medkit"
+                app:iconPadding="4dp"
+                app:iconSize="18dp" />
+        </LinearLayout>
     </LinearLayout>
 
     <com.example.beirutrun.city.MiniMapView
