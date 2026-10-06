@@ -52,7 +52,7 @@ class ModeActivity : AppCompatActivity() {
         val inviteCard = findViewById<View>(R.id.inviteCard)
         if (FirebaseSession.configured(this)) {
             findViewById<TextView>(R.id.inviteCardInfo).text = getString(
-                R.string.invite_promo_card_info, Wallet.format(InviteRewards.FRIEND), Wallet.format(InviteRewards.STORY),
+                R.string.invite_promo_card_info, Wallet.format(InviteRewards.FRIEND),
             )
             inviteCard.setOnClickListener { InviteFriends.open(this) }
             if (savedInstanceState == null) InviteFriends.onStart(this)

@@ -33,10 +33,9 @@ class InviteRewardsTest {
 
     @Test
     fun theMoneyAddsUp() {
-        assertEquals(0L, InviteRewards.earned(0, 0))
-        assertEquals(300L, InviteRewards.earned(3, 0))
-        assertEquals(1_100L, InviteRewards.earned(2, 3))
-        // Friends pay up to the limit, and there are only three stories.
-        assertEquals(InviteRewards.MAX_PAID_FRIENDS * 100L + 900L, InviteRewards.earned(500, 7))
+        assertEquals(0L, InviteRewards.earned(0))
+        assertEquals(150L, InviteRewards.earned(3))
+        // Friends pay up to the limit.
+        assertEquals(InviteRewards.MAX_PAID_FRIENDS * 50L, InviteRewards.earned(500))
     }
 }

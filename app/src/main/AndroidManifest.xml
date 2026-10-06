@@ -21,9 +21,6 @@
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
-        <!-- Sharing the game to stories (InviteFriends). -->
-        <package android:name="com.facebook.katana" />
-        <package android:name="com.instagram.android" />
     </queries>
 
     <application

@@ -35,15 +35,6 @@
         }
       }
     },
-    "rewards": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        "$kind": {
-          ".write": "auth != null && auth.uid === $uid && !data.exists()",
-          ".validate": "($kind === 'whatsapp' || $kind === 'facebook' || $kind === 'instagram') && newData.val() === now"
-        }
-      }
-    },
     "roomList": {
       ".read": "auth != null",
       "$room": {

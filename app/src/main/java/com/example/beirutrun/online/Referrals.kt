@@ -13,22 +13,12 @@ import java.net.URLEncoder
 /** The money for inviting friends, and the sums shown for it. Plain Kotlin, so it can be unit tested. */
 object InviteRewards {
     /** For each friend who installs the game from my link and opens it. */
-    const val FRIEND = 100L
-    /** For sharing the game to my WhatsApp Status, Facebook or Instagram story, once each. */
-    const val STORY = 300L
+    const val FRIEND = 50L
     /** Friends paid for at most (beyond that they still count, but pay nothing). */
     const val MAX_PAID_FRIENDS = 100
 
-    /** Where a story goes: the app it's shared with, and its id in the database. */
-    enum class Story(val id: String, val packageName: String) {
-        WHATSAPP("whatsapp", "com.whatsapp"),
-        FACEBOOK("facebook", "com.facebook.katana"),
-        INSTAGRAM("instagram", "com.instagram.android"),
-    }
-
-    /** All I've earned: [friends] who joined (paid up to the limit) and [stories] shared. */
-    fun earned(friends: Int, stories: Int): Long =
-        friends.coerceIn(0, MAX_PAID_FRIENDS) * FRIEND + stories.coerceIn(0, Story.entries.size) * STORY
+    /** All I've earned from [friends] who joined (paid up to the limit). */
+    fun earned(friends: Int): Long = friends.coerceIn(0, MAX_PAID_FRIENDS) * FRIEND
 
     /** The Google Play link that installs the game and remembers [inviter] invited them. */
     fun playLink(packageName: String, inviter: String): String =
@@ -56,7 +46,6 @@ object InviteRewards {
  *   On a friend's first start, [register] reads it (Play's install referrer) and records the
  *   friend under my id: `referredBy/{friend}` once, and `referrals/{me}/{friend}`.
  * - My phone [collect]s friends not yet paid for, adds the money to my wallet, and marks them paid.
- * - Sharing the game to a story pays once per app ([claimStory], `rewards/{me}/{app}`).
  *
  * The database rules allow each step only for the right player, once.
  */
@@ -68,9 +57,9 @@ object Referrals {
     private const val KEY_REGISTERED = "registered"
     private const val KEY_PAID = "paid"
 
-    /** What I've got from inviting: friends who joined, and the stories I've shared. */
-    data class Progress(val friends: Int, val stories: Set<InviteRewards.Story>) {
-        val earned get() = InviteRewards.earned(friends, stories.size)
+    /** What I've got from inviting: the friends who joined. */
+    data class Progress(val friends: Int) {
+        val earned get() = InviteRewards.earned(friends)
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -146,49 +135,29 @@ object Referrals {
         val app = context.applicationContext
         val database = FirebaseSession.database() ?: return onFailed()
         database.getReference("referrals/$uid").get().addOnSuccessListener { friends ->
-            database.getReference("rewards/$uid").get().addOnSuccessListener { rewards ->
-                val stories = InviteRewards.Story.entries.filterTo(HashSet()) { rewards.hasChild(it.id) }
-                val p = prefs(app)
-                val paidHere = p.getStringSet(KEY_PAID, emptySet()).orEmpty().toMutableSet()
-                val all = friends.children.mapNotNull { it.key }
-                val alreadyPaid = friends.children.count { it.child("paid").getValue(Boolean::class.java) == true }
-                val toPay = friends.children
-                    .filter { it.child("paid").getValue(Boolean::class.java) != true && it.key !in paidHere }
-                    .mapNotNull { it.key }
-                    .take((InviteRewards.MAX_PAID_FRIENDS - alreadyPaid).coerceAtLeast(0))
-                var paid = 0L
-                if (toPay.isNotEmpty()) {
-                    paid = toPay.size * InviteRewards.FRIEND
-                    paidHere += toPay
-                    // Remembered here first, so a failed write can't pay twice on this phone.
-                    p.edit().putStringSet(KEY_PAID, paidHere).apply()
-                    Wallet.earn(app, paid)
-                    CareerWallet.upload(app)
-                    database.reference.updateChildren(toPay.associate { "referrals/$uid/$it/paid" to true })
-                        .addOnFailureListener { Log.w(TAG, "Couldn't mark friends paid: ${it.message}") }
-                }
-                onDone(Progress(all.size, stories), paid, toPay.size)
-            }.addOnFailureListener { onFailed() }
+            val p = prefs(app)
+            val paidHere = p.getStringSet(KEY_PAID, emptySet()).orEmpty().toMutableSet()
+            val all = friends.children.mapNotNull { it.key }
+            val alreadyPaid = friends.children.count { it.child("paid").getValue(Boolean::class.java) == true }
+            val toPay = friends.children
+                .filter { it.child("paid").getValue(Boolean::class.java) != true && it.key !in paidHere }
+                .mapNotNull { it.key }
+                .take((InviteRewards.MAX_PAID_FRIENDS - alreadyPaid).coerceAtLeast(0))
+            var paid = 0L
+            if (toPay.isNotEmpty()) {
+                paid = toPay.size * InviteRewards.FRIEND
+                paidHere += toPay
+                // Remembered here first, so a failed write can't pay twice on this phone.
+                p.edit().putStringSet(KEY_PAID, paidHere).apply()
+                Wallet.earn(app, paid)
+                CareerWallet.upload(app)
+                database.reference.updateChildren(toPay.associate { "referrals/$uid/$it/paid" to true })
+                    .addOnFailureListener { Log.w(TAG, "Couldn't mark friends paid: ${it.message}") }
+            }
+            onDone(Progress(all.size), paid, toPay.size)
         }.addOnFailureListener {
             Log.w(TAG, "Couldn't read invites: ${it.message}")
             onFailed()
         }
-    }
-
-    /**
-     * Shared the game to [story]: the first time for that app, adds [InviteRewards.STORY] to my
-     * wallet. [onDone] says whether it paid (false: already had it, or offline).
-     */
-    fun claimStory(context: Context, uid: String, story: InviteRewards.Story, onDone: (Boolean) -> Unit) {
-        val app = context.applicationContext
-        val database = FirebaseSession.database() ?: return onDone(false)
-        database.getReference("rewards/$uid/${story.id}").setValue(ServerValue.TIMESTAMP)
-            .addOnSuccessListener {
-                Wallet.earn(app, InviteRewards.STORY)
-                CareerWallet.upload(app)
-                onDone(true)
-            }
-            // Refused by the rules once it's been paid.
-            .addOnFailureListener { onDone(false) }
     }
 }
