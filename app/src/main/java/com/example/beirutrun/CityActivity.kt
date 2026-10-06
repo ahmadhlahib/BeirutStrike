@@ -302,6 +302,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             gameEndsAt = System.currentTimeMillis() + it.durationMs
         }
         online.onStat = { key -> solo?.count(key) }
+        showEnemyAreas = Session.enemyAreas(this)
         val scene = sceneBuilder.submit(Callable { CityScene.build(city, mapInfo.look) })
         // Each character's animated model (see Characters), loaded in the background the first
         // time a player uses it: mine, and whichever other players choose.
@@ -673,7 +674,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         miniMap.players = teammates
         fullMap?.players = teammates
         // Enemies only as a rough area: a red circle they are somewhere inside.
-        val areas = enemyAreas.update(
+        val areas = if (!showEnemyAreas) emptyList() else enemyAreas.update(
             shown.filter { it.team != playerTeam.id && !it.dead }.map { Triple(it.uid, it.x, it.z) },
             SystemClock.uptimeMillis(),
         )
@@ -689,6 +690,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private var remotePlayers: List<RemotePlayer> = emptyList()
     /** Where enemies roughly are, for the maps (see EnemyAreas). */
     private val enemyAreas = EnemyAreas()
+    /** Whether the maps show them (a choice kept on this phone, see the menu). */
+    private var showEnemyAreas = true
 
     override fun onFacesChanged() = renderer.reloadFaces()
 
@@ -1548,9 +1551,14 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun showPlayerMenu() {
         val hasStreets = repo.streets().isNotEmpty()
         val actions = mutableListOf<Pair<Int, () -> Unit>>()
-        if (online.configured) {
-            actions += R.string.menu_scoreboard to { showScoreboard() }
-            actions += R.string.menu_players to { showPlayersDialog() }
+        if (online.configured || solo != null) actions += R.string.menu_scoreboard to { showScoreboard() }
+        if (online.configured) actions += R.string.menu_players to { showPlayersDialog() }
+        // Enemies as rough red circles on the maps (see EnemyAreas): on or off, kept on this phone.
+        actions += (if (showEnemyAreas) R.string.menu_enemy_areas_hide else R.string.menu_enemy_areas_show) to {
+            showEnemyAreas = !showEnemyAreas
+            Session.setEnemyAreas(this, showEnemyAreas)
+            onPlayers(remotePlayers)
+            showBanner(getString(if (showEnemyAreas) R.string.enemy_areas_on else R.string.enemy_areas_off))
         }
         actions += listOf<Pair<Int, () -> Unit>>(
             R.string.menu_change_team to {

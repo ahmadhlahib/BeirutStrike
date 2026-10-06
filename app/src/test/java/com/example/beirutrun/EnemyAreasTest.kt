@@ -33,11 +33,11 @@ class EnemyAreasTest {
         // A few steps later, within the circle: the same circle.
         assertSame(first, areas.update(listOf(Triple("e", 3f, 2f)), 2_000L).single())
         // Walked out towards the edge: a new one, with them inside.
-        val moved = areas.update(listOf(Triple("e", first.x + 30f, first.z)), 2_500L).single()
+        val moved = areas.update(listOf(Triple("e", first.x + EnemyAreas.RADIUS, first.z)), 2_500L).single()
         assertNotSame(first, moved)
-        assertTrue(hypot(moved.x - (first.x + 30f), moved.z - first.z) <= moved.radius)
+        assertTrue(hypot(moved.x - (first.x + EnemyAreas.RADIUS), moved.z - first.z) <= moved.radius)
         // After a while, a new one even standing still.
-        val still = areas.update(listOf(Triple("e", first.x + 30f, first.z)), 2_500L + EnemyAreas.REFRESH_MS).single()
+        val still = areas.update(listOf(Triple("e", first.x + EnemyAreas.RADIUS, first.z)), 2_500L + EnemyAreas.REFRESH_MS).single()
         assertNotSame(moved, still)
         // Gone (left or dead): no circle.
         assertEquals(0, areas.update(emptyList(), 20_000L).size)

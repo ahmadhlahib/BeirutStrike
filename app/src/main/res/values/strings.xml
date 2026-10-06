@@ -389,4 +389,8 @@
     <string name="status_solo">Solo · %1$s</string>
     <string name="menu_leave_solo">Leave the game</string>
     <string name="score_play_again">Play again</string>
+    <string name="menu_enemy_areas_hide">Hide enemy areas on map</string>
+    <string name="menu_enemy_areas_show">Show enemy areas on map</string>
+    <string name="enemy_areas_on">Enemy areas shown on the map</string>
+    <string name="enemy_areas_off">Enemy areas hidden from the map</string>
 </resources>

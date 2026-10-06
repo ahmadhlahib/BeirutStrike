@@ -44,8 +44,11 @@ class EnemyAreas(private val random: Random = Random) {
     }
 
     companion object {
-        /** How big the circles are, metres (the corner map shows 160 m across). */
-        const val RADIUS = 25f
+        /**
+         * How big the circles are, metres: wide (120 m across, the corner map shows 160), so
+         * they only say "somewhere round here".
+         */
+        const val RADIUS = 60f
         /** How far off-centre an enemy can be, as a share of the radius. */
         const val OFFSET = 0.6f
         /** A circle is replaced once the enemy is this far out towards its edge. */

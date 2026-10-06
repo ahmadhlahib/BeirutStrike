@@ -76,6 +76,11 @@ object Session {
 
     fun setTeamId(context: Context, id: String) = prefs(context).edit().putString(KEY_TEAM, id).apply()
 
+    /** Whether the maps show roughly where enemies are (red circles, see EnemyAreas); on unless turned off. */
+    fun enemyAreas(context: Context): Boolean = prefs(context).getBoolean(KEY_ENEMY_AREAS, true)
+
+    fun setEnemyAreas(context: Context, on: Boolean) = prefs(context).edit().putBoolean(KEY_ENEMY_AREAS, on).apply()
+
     /** Whether the player last chose the first-person view (through the soldier's eyes). */
     fun firstPerson(context: Context): Boolean = prefs(context).getBoolean(KEY_FIRST_PERSON, false)
 
@@ -163,6 +168,7 @@ object Session {
     private const val KEY_CHARACTER = "character"
     private const val KEY_FACE_ON_CHARACTER = "face_on_character"
     private const val KEY_FIRST_PERSON = "first_person"
+    private const val KEY_ENEMY_AREAS = "enemy_areas"
     // "v2": maps got new start points; older saved positions are ignored.
     private const val KEY_X = "pos2_x"
     private const val KEY_Z = "pos2_z"
