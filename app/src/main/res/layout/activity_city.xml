@@ -283,8 +283,9 @@
         android:textColor="#DDFFFFFF"
         android:textSize="13sp" />
 
-    <!-- Required credit for the OpenStreetMap map data (ODbL). -->
+    <!-- Required credit for the OpenStreetMap map data (ODbL), and the elevation data on maps with hills. -->
     <TextView
+        android:id="@+id/mapAttribution"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"

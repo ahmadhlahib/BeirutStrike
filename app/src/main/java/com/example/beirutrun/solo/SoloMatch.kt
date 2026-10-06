@@ -192,6 +192,7 @@ class SoloMatch(
             shotSeq = b.shotSeq, shotX = b.shotX, shotY = b.shotY, shotZ = b.shotZ,
             shotDX = b.shotDX, shotDY = b.shotDY, shotDZ = b.shotDZ,
             prone = b.prone, weapon = b.gun.id, character = BOT_CHARACTER, showFace = false, bot = true,
+            floor = city.groundAt(b.x, b.z),
         )
     }
 
@@ -275,7 +276,7 @@ class SoloMatch(
     private fun targets(): List<Target> {
         val list = ArrayList<Target>(bots.size + people.size)
         for (p in people) if (!p.dead) list += Target(p.uid, p.name, p.team, p.x, p.y, p.z, p.prone, null)
-        for (b in bots) if (!b.dead) list += Target(b.uid, b.name, b.team, b.x, 0f, b.z, b.prone, b)
+        for (b in bots) if (!b.dead) list += Target(b.uid, b.name, b.team, b.x, city.groundAt(b.x, b.z), b.z, b.prone, b)
         return list
     }
 
@@ -342,12 +343,14 @@ class SoloMatch(
 
     /** Whether [b] can see [t] from where it stands: nothing solid between its eyes and their body. */
     private fun canSee(b: Bot, t: Target, dist: Float): Boolean {
-        val eye = if (b.prone) 0.35f else 1.5f
+        val eye = city.groundAt(b.x, b.z) + if (b.prone) 0.35f else 1.5f
         val ty = t.y + if (t.prone) 0.3f else 1.1f
         val steps = (dist / SIGHT_STEP).toInt()
         for (i in 1 until steps) {
             val k = i / steps.toFloat()
-            if (city.isInsideBuilding(b.x + (t.x - b.x) * k, eye + (ty - eye) * k, b.z + (t.z - b.z) * k, 0f)) return false
+            val x = b.x + (t.x - b.x) * k; val y = eye + (ty - eye) * k; val z = b.z + (t.z - b.z) * k
+            // A wall or a hill in the way.
+            if (city.isInsideBuilding(x, y, z, 0f) || city.underground(x, y, z)) return false
         }
         return true
     }
@@ -381,7 +384,7 @@ class SoloMatch(
         }
         val hit = rnd.nextFloat() < p
         // The bullet, from the muzzle towards their chest (or head), off to one side on a miss.
-        val eye = if (b.prone) 0.35f else 1.45f
+        val eye = city.groundAt(b.x, b.z) + if (b.prone) 0.35f else 1.45f
         val mx = b.x + sin(b.heading) * 0.6f
         val mz = b.z - cos(b.heading) * 0.6f
         val aimY = t.y + when {

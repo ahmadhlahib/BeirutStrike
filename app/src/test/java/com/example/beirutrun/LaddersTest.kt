@@ -24,14 +24,19 @@ class LaddersTest {
                 val ladders = Ladders.place(map)
                 println("$id (${size?.toInt() ?: "whole map"}): ${ladders.size} ladders, roofs " +
                     ladders.joinToString { "%.0f".format(it.height) } + " m")
-                // The seafront maps have few low buildings near the start, so a small room may only get two.
-                val least = if (size == null) 8 else 2
+                // The seafront maps have few low buildings near the start, so a small room may only get two;
+                // a mountain village (hills) has few buildings at all, and none near its start.
+                val least = when {
+                    !map.terrain.flat -> if (size == null) 3 else 0
+                    size == null -> 8
+                    else -> 2
+                }
                 assertTrue("$id: only ${ladders.size} ladders in a ${size ?: "whole"} map", ladders.size >= least)
                 for (l in ladders) {
                     assertTrue("$id: ladder foot outside the play area", map.inPlayArea(l.footX, l.footZ))
                     assertFalse("$id: ladder foot is blocked", map.isBlocked(l.footX, l.footZ, 0.35f))
                     assertTrue("$id: ladder top is off the roof", CityMap.inside(l.building.pts, l.topX, l.topZ))
-                    assertFalse("$id: ladder top is inside something", map.isInsideBuilding(l.topX, l.height + 1f, l.topZ, 0.35f))
+                    assertFalse("$id: ladder top is inside something", map.isInsideBuilding(l.topX, l.topY + 1f, l.topZ, 0.35f))
                 }
             }
         }

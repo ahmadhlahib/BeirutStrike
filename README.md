@@ -36,8 +36,13 @@ shots and scores sync live between phones, and teammates can talk over voice cha
 ## Features
 
 ### World
-- **Real Beirut maps:** Downtown, Beirut Souks, Hamra, Ain El Mreisseh and Raouche, built from
-  OpenStreetMap data (building footprints and heights, roads, parks, squares, the sea and trees).
+- **Real Lebanese maps:** Downtown, Beirut Souks, Hamra, Ain El Mreisseh and Raouche, and the
+  Chouf mountain village of Kfarnabrakh, built from OpenStreetMap data (building footprints and
+  heights, roads, parks, squares, the sea and trees).
+- **Real hills:** Kfarnabrakh has its true ground, from 160 m below the start to 73 m above it
+  (elevation data, every 4 m). Roads climb the slopes evenly and lie level across, houses stand on
+  the hillside, sand and dirt tracks run between the fields, and hills block sight and bullets.
+  The minimap is hill-shaded.
 - **A realistic city:** textured facades (sandstone, plaster, concrete, glass) with shop fronts,
   asphalt streets with sidewalks, lane markings, zebra crossings and street lamps, palm and leafy
   trees, warm sunlight and sky reflections on glass and sea.
@@ -372,8 +377,8 @@ The database layout, and what each part stores, is described in
 
 ## Maps
 
-Maps are defined in [`tools/maps.txt`](tools/maps.txt): a bounding box, a start point and an
-optional parent map to cut from. To add or rebuild a map:
+Maps are defined in [`tools/maps.txt`](tools/maps.txt): a bounding box, a start point, an
+optional parent map to cut from, and `terrain` for a map with real hills. To add or rebuild a map:
 
 1. Add a line to `tools/maps.txt`.
 2. Run the pipeline. It needs Java 17+, and Gson from the Gradle cache, so build the app once first:
@@ -383,7 +388,11 @@ optional parent map to cut from. To add or rebuild a map:
 3. Register the map in `city/CityMaps.kt`.
 
 The script downloads the area from OpenStreetMap and writes `assets/maps/<id>.bin` and a
-top-down preview image.
+top-down preview image. With `terrain`, it also downloads the ground's height (the free
+Terrarium elevation tiles from AWS Open Data, `tools/fetch_elevation.sh`). It smooths the heights
+and levels them along the roads, busier roads first so junctions meet, and stores them in the map
+(version 2, see `city/Terrain.kt`). Flat maps are unchanged. Elevation data: Mapzen Terrain
+Tiles on AWS Open Data, from SRTM (NASA) and other public sources.
 
 ## Characters
 

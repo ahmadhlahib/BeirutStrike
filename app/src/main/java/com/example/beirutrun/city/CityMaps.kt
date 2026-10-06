@@ -42,6 +42,8 @@ enum class CityLook(val sandstone: Float, val cream: Float, val concrete: Float,
     /** Raouche and Ain El Mreisseh: white residential towers facing the sea. */
     SEAFRONT(0.1f, 0.25f, 0.15f, 0.5f, 60f),
     MIXED(0.4f, 0.3f, 0.2f, 0.1f, 35f),
+    /** A mountain village (Kfarnabrakh): stone and cream houses, some bare concrete, no towers. */
+    VILLAGE(0.55f, 0.3f, 0.15f, 0f, 80f),
 }
 
 /**
@@ -59,6 +61,8 @@ object CityMaps {
         CityMapInfo("ain_el_mreisseh", "Ain El Mreisseh", 0f, CityLook.SEAFRONT),
         // On the Corniche, facing Pigeon Rocks.
         CityMapInfo("raouche", "Raouche", -104f, CityLook.SEAFRONT),
+        // A village in the Chouf mountains, with its real hills; facing north over the valley.
+        CityMapInfo("kfarnabrakh", "Kfarnabrakh", 0f, CityLook.VILLAGE),
     )
 
     val default = all.first()

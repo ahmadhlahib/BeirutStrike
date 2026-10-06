@@ -174,7 +174,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
             .toList()
 
     private fun drivable(r: Int) = roads[r].kind <= CityMap.ROAD_MINOR && roads[r].width >= 4f
-    private fun walkable(r: Int) = roads[r].kind <= CityMap.ROAD_PATH
+    private fun walkable(r: Int) = roads[r].kind <= CityMap.ROAD_PATH || roads[r].kind == CityMap.ROAD_TRACK
 
     // ---- Simulation ----------------------------------------------------------------------------
 
@@ -204,7 +204,8 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
      */
     fun shoot(x: Float, y: Float, z: Float, dx: Float, dz: Float): Boolean {
         for (w in walkers) {
-            if (w.death > 0 || y < 0f || y > PERSON_HEIGHT * w.scale) continue
+            val feet = city.groundAt(w.drawX, w.drawZ)
+            if (w.death > 0 || y < feet || y > feet + PERSON_HEIGHT * w.scale) continue
             if (hypot(x - w.drawX, z - w.drawZ) > HIT_RADIUS) continue
             val fromFront = dx * w.drawFx + dz * w.drawFz < 0f
             kill(w, if (fromFront) (if (rnd.nextBoolean()) FALL_BACK else THROWN_BACK) else FALL_FORWARD)
@@ -273,7 +274,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         car.t = rnd.nextFloat() * segLength(car)
         place(car, laneOffset(car))
         if (cars.any { hypot(it.x - car.x, it.z - car.z) < 12f }) return
-        if (city.isInsideBuilding(car.x, 1f, car.z, 1f)) return
+        if (city.isInsideBuilding(car.x, city.groundAt(car.x, car.z) + 1f, car.z, 1f)) return
         car.speed = car.cruise * 0.7f
         car.fit = pickFit()
         cars += car
@@ -410,7 +411,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
         ease(w, dt, 6f)
     }
 
-    private fun clear(x: Float, z: Float) = city.inPlayArea(x, z) && !city.isInsideBuilding(x, 1f, z, 0.3f)
+    private fun clear(x: Float, z: Float) = city.inPlayArea(x, z) && !city.isInsideBuilding(x, city.groundAt(x, z) + 1f, z, 0.3f)
 
     /**
      * Moves [m] [distance] metres along its road; at the end of a segment it carries on along
@@ -506,7 +507,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
             val d = hypot(c.drawX - ex, c.drawZ - ez)
             if (d > carRange || c.fit >= 0) continue
             val m = if (d < CAR_DETAIL_RANGE) CAR_MODELS[c.model] else CAR_MODELS_FAR[c.model]
-            emit(m.floats, m.roles, c.drawX, 0f, c.drawZ, c.drawFx, c.drawFz) { role -> if (role == PAINT) c.paint else role }
+            emit(m.floats, m.roles, c.drawX, city.groundAt(c.drawX, c.drawZ), c.drawZ, c.drawFx, c.drawFz) { role -> if (role == PAINT) c.paint else role }
         }
         carFloats = size
         for (w in walkers) {
@@ -615,7 +616,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
                     else -> role
                 }
                 put(
-                    w.drawX + lx * ax + lz * w.drawFx, ly, w.drawZ + lx * az + lz * w.drawFz,
+                    w.drawX + lx * ax + lz * w.drawFx, ly + city.groundAt(w.drawX, w.drawZ), w.drawZ + lx * az + lz * w.drawFz,
                     nx * ax + nz * w.drawFx, ny, nx * az + nz * w.drawFz, color,
                 )
             }

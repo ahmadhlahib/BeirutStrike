@@ -306,6 +306,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             mapInfo = CityMaps.default
             mapInfo.load(this)
         }
+        // Maps with hills also credit their elevation data.
+        if (!city.terrain.flat) findViewById<TextView>(R.id.mapAttribution).setText(R.string.osm_elevation_attribution)
         // The room's map size: players stay in a square that big around the start point.
         mapSize = CityMaps.sizeOf(Session.roomMap(this))
         mapSize?.let { city.limitTo(it.toFloat()) }
