@@ -41,15 +41,18 @@ object RoomInvite {
     }
 
     /**
-     * Shares an invite to room [roomId] called [name] through the share sheet (WhatsApp is in it,
-     * each copy of it on phones with a second WhatsApp or a Secure Folder). Returns whether the
-     * sheet opened; if not, says why on screen.
+     * Shares an invite to room [roomId] called [name] through the share menu, with WhatsApp (and
+     * WhatsApp Business) pinned first when installed, and every other app after them. Returns
+     * whether the menu opened; if not, says why on screen.
      */
     fun share(activity: Activity, roomId: String, name: String, password: String?): Boolean {
         val text = activity.getString(R.string.invite_message, name, link(roomId, name, password))
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+        val chooser = Intent.createChooser(send, activity.getString(R.string.invite_share_title))
+        val whatsapp = WHATSAPP.filter { installed(activity, it) }.map { Intent(send).setPackage(it) }
+        if (whatsapp.isNotEmpty()) chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, whatsapp.toTypedArray())
         return try {
-            activity.startActivity(Intent.createChooser(send, activity.getString(R.string.invite_share_title)))
+            activity.startActivity(chooser)
             true
         } catch (e: Exception) {
             Log.w(TAG, "Couldn't open the share sheet", e)
@@ -58,6 +61,11 @@ object RoomInvite {
         }
     }
 
+    /** Whether [pkg] is installed (WhatsApp is declared in the manifest's queries, so it can be seen). */
+    private fun installed(activity: Activity, pkg: String) =
+        runCatching { activity.packageManager.getPackageInfo(pkg, 0) }.isSuccess
+
+    private val WHATSAPP = listOf("com.whatsapp", "com.whatsapp.w4b")
     private const val TAG = "RoomInvite"
     /** Firebase push keys: letters, digits, '-' and '_'. */
     private val ROOM_ID = Regex("[A-Za-z0-9_-]{1,40}")

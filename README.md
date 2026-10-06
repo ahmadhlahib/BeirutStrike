@@ -63,8 +63,8 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   ranks or Ranking (`solo/SoloMatch.kt`, `solo/StreetGraph.kt`, `SoloMatchTest`).
 
 ### Multiplayer
-- **Invites:** after creating a room (or from **Invite friends** in the menu), share it on
-  WhatsApp: the link opens the website's join page (`docs/join/`), whose button opens the game
+- **Invites:** after creating a room (or from **Invite friends** in the menu), share it through
+  the share menu, WhatsApp first. The link opens the website's join page (`docs/join/`), whose button opens the game
   on the room, password included (`RoomInvite.kt`, the `beirutstrike://join` link), or Google
   Play without the game.
 - **Rooms:** public or password-protected. The password is checked by the database's security
