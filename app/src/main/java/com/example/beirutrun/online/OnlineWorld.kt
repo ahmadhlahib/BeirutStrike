@@ -82,6 +82,8 @@ data class RemotePlayer(
     val grenadeHold: String = "",
     /** The height they stand at, metres: 0 in the street, a roof's height, or partway up a ladder. */
     val floor: Float = 0f,
+    /** A bot (see RoomBots), run by one of the room's phones rather than a player. */
+    val bot: Boolean = false,
     /** On a ladder, going up or down it. */
     val climbing: Boolean = false,
 )
@@ -195,6 +197,10 @@ class OnlineWorld(
         fun onPickups(pickups: List<Pickup>) = Unit
         /** Whether this room allows cheat codes (then scores don't count toward the ranking). */
         fun onCheatsAllowed(allowed: Boolean) = Unit
+        /** Someone in the room (player or bot) has just died, killed by [killerUid] (a player or a bot). */
+        fun onPlayerKilled(victimUid: String, killerUid: String) = Unit
+        /** (The bots' host only) [fromUid] hit [botId] for [damage] hearts. */
+        fun onBotHit(botId: String, fromUid: String, damage: Int) = Unit
     }
 
     var listener: Listener? = null
@@ -362,7 +368,10 @@ class OnlineWorld(
             }
             listener?.onStatus(if (connected) Status.ONLINE else Status.CONNECTING)
         }
-        listenPlayers(database)
+        listenPlayers(database, "players")
+        // Bots (see RoomBots) are drawn and shot like players; their host listens for the hits.
+        listenPlayers(database, "bots")
+        listenBotHits(database)
         listenHits(database, userId)
         listenValue(database.getReference("${room}drops")) { snap -> onDropsSnapshot(snap) }
         listenGameClock(database)
@@ -559,6 +568,94 @@ class OnlineWorld(
         dead = isDead
         killedBy = killer
         me?.updateChildren(mapOf("health" to health, "dead" to dead, "killedBy" to killedBy))
+    }
+
+    // ---- Bots (see RoomBots) ------------------------------------------------------------------
+
+    /** Each bot's host (the phone running it) and when it last wrote, by bot id. */
+    private val botHosts = HashMap<String, Pair<String, Long>>()
+
+    /** The phone running this room's bots, if any has written in the last [BOT_HOST_STALE_MS]. */
+    fun botsHost(): String? {
+        val now = serverNow()
+        return botHosts.values.filter { now - it.second < BOT_HOST_STALE_MS }.maxByOrNull { it.second }?.first
+    }
+
+    /** The other players here now (not bots), for choosing who runs the bots and for them to see. */
+    fun humans(): List<RemotePlayer> {
+        val now = serverNow()
+        return players.values.filter { !it.bot && it.uid != uid && now - it.updated < STALE_MS }
+    }
+
+    /** (The bots' host) Writes [bots]' positions, health and last shots, as their host. */
+    fun publishBots(bots: List<RemotePlayer>) {
+        val database = db ?: return
+        val host = uid ?: return
+        if (!active) return
+        val update = HashMap<String, Any>()
+        for (b in bots) update["${room}bots/${b.uid}"] = mapOf(
+            "name" to b.name, "team" to b.team, "host" to host, "bot" to true,
+            "x" to b.x.toDouble(), "z" to b.z.toDouble(), "heading" to b.heading.toDouble(),
+            "walking" to b.walking, "prone" to b.prone, "health" to b.health, "dead" to b.dead,
+            "killedBy" to b.killedBy, "weapon" to b.weapon, "character" to b.character, "showFace" to false,
+            "shotSeq" to b.shotSeq, "shotX" to b.shotX.toDouble(), "shotY" to b.shotY.toDouble(),
+            "shotZ" to b.shotZ.toDouble(), "shotDX" to b.shotDX.toDouble(), "shotDY" to b.shotDY.toDouble(),
+            "shotDZ" to b.shotDZ.toDouble(), "updated" to ServerValue.TIMESTAMP,
+        )
+        if (update.isNotEmpty()) database.reference.updateChildren(update)
+            .addOnFailureListener { Log.i(TAG, "Bots not written (another phone runs them?): ${it.message}") }
+    }
+
+    /** (The bots' host) Bot [botId], called [botName], hit player [victimUid] for [damage] hearts. */
+    fun sendBotHit(botId: String, botName: String, victimUid: String, damage: Int) {
+        val database = db ?: return
+        database.getReference("${room}hits/$victimUid").push().setValue(mapOf(
+            "from" to botId, "fromName" to botName, "damage" to damage, "at" to ServerValue.TIMESTAMP,
+        ))
+    }
+
+    /** One of my bullets or grenades hit [botId] for [damage] hearts; the bots' host takes it from here. */
+    fun sendHitOnBot(botId: String, damage: Int) {
+        val database = db ?: return
+        val from = uid ?: return
+        database.getReference("${room}botHits").push().setValue(mapOf(
+            "bot" to botId, "from" to from, "fromName" to name, "damage" to damage, "at" to ServerValue.TIMESTAMP,
+        ))
+    }
+
+    /** (The bots' host) Adds to bot [botId]'s scoreboard row (named [botName], on [botTeam]). */
+    fun addBotStats(botId: String, botName: String, botTeam: String, counts: Map<String, Int>) {
+        val database = db ?: return
+        if (counts.values.all { it == 0 }) return
+        val update = HashMap<String, Any>()
+        update["${room}stats/$botId/name"] = botName
+        update["${room}stats/$botId/team"] = botTeam
+        for ((key, n) in counts) if (n > 0) update["${room}stats/$botId/$key"] = ServerValue.increment(n.toLong())
+        database.reference.updateChildren(update)
+            .addOnFailureListener { Log.i(TAG, "Bot stats not written: ${it.message}") }
+    }
+
+    /** Hits on the bots, for whichever phone runs them (each is taken by the host and removed). */
+    private fun listenBotHits(database: FirebaseDatabase) {
+        val ref = database.getReference("${room}botHits")
+        val l = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                val bot = snapshot.child("bot").getValue(String::class.java) ?: return
+                // Only the bots' host takes them (and may remove them).
+                if (botHosts[bot]?.first != uid) return
+                val at = snapshot.num("at").toLong()
+                val from = snapshot.child("from").getValue(String::class.java).orEmpty()
+                val damage = (snapshot.child("damage").value as? Number)?.toInt()?.coerceIn(1, MAX_DAMAGE) ?: 1
+                snapshot.ref.removeValue()
+                if (active && serverNow() - at < HIT_MAX_AGE_MS) listener?.onBotHit(bot, from, damage)
+            }
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) = Unit
+            override fun onChildRemoved(snapshot: DataSnapshot) = Unit
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) = Unit
+            override fun onCancelled(error: DatabaseError) = logCancelled(error)
+        }
+        ref.addChildEventListener(l)
+        attached += ref to l
     }
 
     private fun listenHits(database: FirebaseDatabase, userId: String) {
@@ -848,13 +945,13 @@ class OnlineWorld(
 
     // ---- Other players ------------------------------------------------------------------------
 
-    private fun listenPlayers(database: FirebaseDatabase) {
-        val ref = database.getReference("${room}players")
+    private fun listenPlayers(database: FirebaseDatabase, node: String) {
+        val ref = database.getReference("$room$node")
         val l = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) = put(snapshot)
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) = put(snapshot)
             override fun onChildRemoved(snapshot: DataSnapshot) {
-                snapshot.key?.let { players.remove(it) }
+                snapshot.key?.let { players.remove(it); botHosts.remove(it) }
                 publishPlayers()
             }
             override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) = Unit
@@ -902,13 +999,16 @@ class OnlineWorld(
                     grenadeHold = s.child("nadeHold").getValue(String::class.java).orEmpty(),
                     floor = s.num("floor").toFloat(),
                     climbing = s.child("climbing").getValue(Boolean::class.java) == true,
+                    bot = node == "bots",
                 )
                 players[id] = player
+                if (node == "bots") botHosts[id] = s.child("host").getValue(String::class.java).orEmpty() to player.updated
                 // Events only for changes seen live, not for the state found on joining.
                 if (before != null && id != uid) {
                     if (player.shotSeq != before.shotSeq) listener?.onRemoteShot(player)
                     if (player.grenadeSeq != before.grenadeSeq) listener?.onRemoteGrenade(player)
                     if (player.dead && !before.dead && player.killedBy == uid) listener?.onKilled(id, player.name)
+                    if (player.dead && !before.dead) listener?.onPlayerKilled(id, player.killedBy)
                 }
                 publishPlayers()
             }
@@ -921,7 +1021,7 @@ class OnlineWorld(
     fun publishPlayers() {
         val now = System.currentTimeMillis() + serverOffset
         val list = players.values.filter { it.uid != uid && now - it.updated < STALE_MS }
-        list.forEach { ensureFace(it.uid, it.faceVersion) }
+        list.filter { !it.bot }.forEach { ensureFace(it.uid, it.faceVersion) }
         listener?.onPlayers(list)
     }
 
@@ -1132,6 +1232,8 @@ class OnlineWorld(
         private const val ROOM_TOUCH_MS = 30_000L
         /** Players whose phone hasn't reported for this long are hidden. */
         private const val STALE_MS = 75_000L
+        /** A bots' host that hasn't written for this long has gone (the rules let another take over after 15 s). */
+        const val BOT_HOST_STALE_MS = 16_000L
         /** Hits older than this when they arrive are ignored. */
         private const val HIT_MAX_AGE_MS = 10_000L
         /** The most hearts one hit can take (a player has 5; see Weapon.damage). */

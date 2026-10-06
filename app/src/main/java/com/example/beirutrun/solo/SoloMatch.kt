@@ -82,6 +82,8 @@ class SoloMatch(
     /** A bot's name on screen, from its first name (e.g. "Karim · Bot"). */
     label: (String) -> String = { "$it (bot)" },
     seed: Int = Random.nextInt(),
+    /** Each bot's team, in turn (an online room's); null: worked out from [settings] as in a solo game. */
+    teams: List<String>? = null,
     /** Where the player starts (bots start a fair way from there). */
     startX: Float = city.spawnX,
     startZ: Float = city.spawnZ,
@@ -91,17 +93,20 @@ class SoloMatch(
     private val graph = StreetGraph(city)
     private var clock = 0f
 
-    /** Where the player is, as the bots see them. [y] is the height of their feet. */
+    /**
+     * Someone real the bots can see and shoot: [uid] ([ME] in a solo game, their player id in an
+     * online room). [y] is the height of their feet.
+     */
     data class Player(
         val name: String, val team: String, val x: Float, val y: Float, val z: Float,
-        val prone: Boolean, val dead: Boolean,
+        val prone: Boolean, val dead: Boolean, val uid: String = ME,
     )
 
     sealed class Event {
         /** A bot fired: show the bullet from (x, y, z) along (dx, dy, dz). */
         class Shot(val uid: String, val x: Float, val y: Float, val z: Float, val dx: Float, val dy: Float, val dz: Float, val gun: Weapon) : Event()
-        /** A bot's bullet reached the player. */
-        class PlayerHit(val fromUid: String, val fromName: String, val damage: Int) : Event()
+        /** A bot's bullet reached a player ([target]: [ME] in a solo game). */
+        class PlayerHit(val fromUid: String, val fromName: String, val damage: Int, val target: String = ME) : Event()
     }
 
     private class Bot(val uid: String, val name: String, val team: String, var gun: Weapon) {
@@ -134,12 +139,13 @@ class SoloMatch(
         /** Where they're heading when not fighting (null: anywhere), and when to think again. */
         var goalX = Float.NaN; var goalZ = 0f
         var nextGoal = 0f
-        // The last shot, for drawing.
+        // The last shot: how many so far, and where from and which way (for other phones to draw).
         var shotSeq = 0L
+        var shotX = 0f; var shotY = 0f; var shotZ = 0f; var shotDX = 0f; var shotDY = 0f; var shotDZ = 0f
         var kills = 0; var deaths = 0; var shots = 0; var hits = 0; var hitsTaken = 0
     }
 
-    /** Someone a bot can shoot at: the player or another bot. */
+    /** Someone a bot can shoot at: a player or another bot. */
     private class Target(val uid: String, val name: String, val team: String, val x: Float, val y: Float, val z: Float, val prone: Boolean, val bot: Bot?)
 
     /** A bullet on its way: it lands when it would have flown that far. */
@@ -147,10 +153,13 @@ class SoloMatch(
 
     private val bots: List<Bot>
     private val flying = ArrayList<Flying>()
-    private var player = Player("", playerTeam, startX, 0f, startZ, prone = false, dead = false)
+    /** The players the bots can see (in a solo game, just the one). */
+    private var people: List<Player> = listOf(Player("", playerTeam, startX, 0f, startZ, prone = false, dead = false))
+    /** The first player: in a solo game the only one; bots start a fair way from them. */
+    private val player get() = people.first()
     private val playerTeam = playerTeam
-    /** How fast the player is moving, m/s (smoothed). */
-    private var playerSpeed = 0f
+    /** How fast each player is moving, m/s (smoothed), by id. */
+    private val speeds = HashMap<String, Float>()
 
     // My own counts (the player's), added by the city screen as things happen (see [count]).
     private val mine = HashMap<String, Int>()
@@ -159,9 +168,11 @@ class SoloMatch(
         val names = NAMES.shuffled(rnd)
         val allies = if (settings.allies) settings.bots / 2 else 0
         bots = List(settings.bots.coerceIn(SoloSettings.MIN_BOTS, SoloSettings.MAX_BOTS)) { i ->
-            // With allies, half the bots (rounded down) join the player and the rest are one enemy
-            // team; without, every bot is an enemy, spread over the other teams.
+            // Given teams (an online room's), else: with allies, half the bots (rounded down) join
+            // the player and the rest are one enemy team; without, every bot is an enemy, spread
+            // over the other teams.
             val team = when {
+                teams != null && teams.isNotEmpty() -> teams[i % teams.size]
                 i < allies -> playerTeam
                 settings.allies -> enemyTeams.first()
                 else -> enemyTeams[(i - allies) % enemyTeams.size]
@@ -172,13 +183,15 @@ class SoloMatch(
 
     // ---- What the city screen asks -------------------------------------------------------------
 
-    /** The bots, to draw like other players. */
+    /** The bots, to draw like other players (and to send to an online room's other phones). */
     fun players(now: Long): List<RemotePlayer> = bots.map { b ->
         RemotePlayer(
             uid = b.uid, name = b.name, x = b.x, z = b.z, heading = b.heading,
             walking = b.speed > 0.2f, say = "", sayAt = 0L, faceVersion = 0L, updated = now,
             team = b.team, health = b.health.coerceAtLeast(0), dead = b.dead, killedBy = b.killedBy,
-            prone = b.prone, weapon = b.gun.id, character = BOT_CHARACTER, showFace = false,
+            shotSeq = b.shotSeq, shotX = b.shotX, shotY = b.shotY, shotZ = b.shotZ,
+            shotDX = b.shotDX, shotDY = b.shotDY, shotDZ = b.shotDZ,
+            prone = b.prone, weapon = b.gun.id, character = BOT_CHARACTER, showFace = false, bot = true,
         )
     }
 
@@ -186,55 +199,64 @@ class SoloMatch(
 
     fun nameOf(uid: String) = bots.firstOrNull { it.uid == uid }?.name
 
-    /** Everyone's score, the player as [ME]. */
-    fun stats(): List<PlayerStats> = bots.map { b ->
+    /** Everyone's score, the player as [ME] (a solo game; an online room asks for the bots' alone). */
+    fun stats(includeMe: Boolean = true): List<PlayerStats> = bots.map { b ->
         PlayerStats(b.uid, b.name, b.team, b.kills, b.deaths, b.shots, b.hits, b.hitsTaken)
-    } + PlayerStats(
+    } + if (!includeMe) emptyList() else listOf(PlayerStats(
         ME, player.name, playerTeam, mine["kills"] ?: 0, mine["deaths"] ?: 0,
         mine["shots"] ?: 0, mine["hits"] ?: 0, mine["hitsTaken"] ?: 0,
-    )
+    ))
 
     /** One more of the player's own [key] ("shots", "hits", "hitsTaken", "deaths" or "kills"). */
     fun count(key: String) { mine[key] = (mine[key] ?: 0) + 1 }
 
     /**
-     * The player hit bot [uid] for [damage] hearts. Returns its name if that killed it (the city
-     * screen counts the kill), else null.
+     * Player [from] hit bot [uid] for [damage] hearts. Returns its name if that killed it (the
+     * killer's phone counts the kill), else null.
      */
-    fun hitByPlayer(uid: String, damage: Int): String? {
+    fun hitByPlayer(uid: String, damage: Int, from: String = ME): String? {
         val bot = bots.firstOrNull { it.uid == uid } ?: return null
-        return if (hurt(bot, damage, ME, player.x, player.z)) bot.name else null
+        val shooter = people.firstOrNull { it.uid == from } ?: player
+        return if (hurt(bot, damage, from, shooter.x, shooter.z)) bot.name else null
     }
 
-    /** The player was killed by bot [uid] (its bullet took the last heart). */
+    /** A player was killed by bot [uid] (its bullet took the last heart). */
     fun playerKilledBy(uid: String) { bots.firstOrNull { it.uid == uid }?.let { it.kills++ } }
 
-    /** The player fired from (x, z): bots in earshot turn to look. */
-    fun heardShot(x: Float, z: Float) {
+    /** Someone fired from (x, z): bots in earshot not on [team] turn to look. */
+    fun heardShot(x: Float, z: Float, team: String = playerTeam) {
         for (b in bots) {
-            if (b.dead || b.team == playerTeam || hypot(b.x - x, b.z - z) > HEARING) continue
+            if (b.dead || b.team == team || hypot(b.x - x, b.z - z) > HEARING) continue
             if (b.target == null || clock - b.seenAt > 1f) b.heading = headingTo(b.x, b.z, x, z)
         }
     }
 
     // ---- The game ------------------------------------------------------------------------------
 
-    /** Moves the game on by [dt] seconds; returns what happened that the screen should show. */
-    fun update(dt: Float, now: Player): List<Event> {
+    /** Moves a solo game on by [dt] seconds; returns what happened that the screen should show. */
+    fun update(dt: Float, now: Player): List<Event> = update(dt, listOf(now))
+
+    /** Moves the game on by [dt] seconds with [now] the players; returns what happened. */
+    fun update(dt: Float, now: List<Player>): List<Event> {
         clock += dt
-        // (A jump of more than 15 m is a respawn, not running.)
-        val moved = hypot(now.x - player.x, now.z - player.z).let { if (it > 15f) 0f else it }
-        if (dt > 0f) playerSpeed += (moved / dt - playerSpeed) * (dt * 4f).coerceAtMost(1f)
-        player = now
+        for (p in now) {
+            val before = people.firstOrNull { it.uid == p.uid } ?: p
+            // (A jump of more than 15 m is a respawn, not running.)
+            val moved = hypot(p.x - before.x, p.z - before.z).let { if (it > 15f) 0f else it }
+            val speed = speeds[p.uid] ?: 0f
+            if (dt > 0f) speeds[p.uid] = speed + (moved / dt - speed) * (dt * 4f).coerceAtMost(1f)
+        }
+        if (now.isNotEmpty()) people = now
         val events = ArrayList<Event>()
         // Bullets reaching their targets.
         val landed = flying.filter { it.at <= clock }
         flying.removeAll(landed.toSet())
         for (f in landed) {
-            if (f.from.dead && f.target != ME) continue
-            if (f.target == ME) {
-                if (!player.dead) events += Event.PlayerHit(f.from.uid, f.from.name, f.damage)
+            val person = people.firstOrNull { it.uid == f.target }
+            if (person != null) {
+                if (!person.dead) events += Event.PlayerHit(f.from.uid, f.from.name, f.damage, person.uid)
             } else {
+                if (f.from.dead) continue
                 val victim = bots.firstOrNull { it.uid == f.target } ?: continue
                 hurt(victim, f.damage, f.from.uid, f.from.x, f.from.z)
             }
@@ -251,8 +273,8 @@ class SoloMatch(
     }
 
     private fun targets(): List<Target> {
-        val list = ArrayList<Target>(bots.size + 1)
-        if (!player.dead) list += Target(ME, player.name, player.team, player.x, player.y, player.z, player.prone, null)
+        val list = ArrayList<Target>(bots.size + people.size)
+        for (p in people) if (!p.dead) list += Target(p.uid, p.name, p.team, p.x, p.y, p.z, p.prone, null)
         for (b in bots) if (!b.dead) list += Target(b.uid, b.name, b.team, b.x, 0f, b.z, b.prone, b)
         return list
     }
@@ -353,7 +375,10 @@ class SoloMatch(
         var p = d.hitNear + (d.hitFar - d.hitNear) * (dist / b.gun.range).coerceIn(0f, 1f)
         if (t.prone) p *= 0.6f
         // A moving target is harder to hit, a running one much harder.
-        if (t.uid == ME) p *= when { playerSpeed > 5f -> 0.5f; playerSpeed > 1.5f -> 0.75f; else -> 1f }
+        if (t.bot == null) {
+            val speed = speeds[t.uid] ?: 0f
+            p *= when { speed > 5f -> 0.5f; speed > 1.5f -> 0.75f; else -> 1f }
+        }
         val hit = rnd.nextFloat() < p
         // The bullet, from the muzzle towards their chest (or head), off to one side on a miss.
         val eye = if (b.prone) 0.35f else 1.45f
@@ -375,6 +400,7 @@ class SoloMatch(
         val len = sqrt(dx * dx + dy * dy + dz * dz).coerceAtLeast(0.01f)
         events += Event.Shot(b.uid, mx, eye, mz, dx / len, dy / len, dz / len, b.gun)
         b.shotSeq++
+        b.shotX = mx; b.shotY = eye; b.shotZ = mz; b.shotDX = dx / len; b.shotDY = dy / len; b.shotDZ = dz / len
         if (hit) {
             b.hits++
             flying += Flying(clock + dist / b.gun.bulletSpeed, b, t.uid, b.gun.damage)

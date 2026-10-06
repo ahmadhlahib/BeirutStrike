@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
+import com.example.beirutrun.online.RoomBotsConfig
 import com.example.beirutrun.progression.PlayerProgress
 import com.example.beirutrun.progression.Wallet
 import com.example.beirutrun.solo.BotDifficulty
@@ -88,6 +89,19 @@ object Session {
     fun roomEnemyAreas(context: Context): Boolean = prefs(context).getBoolean(KEY_ROOM_ENEMY_AREAS, true)
 
     fun setRoomEnemyAreas(context: Context, on: Boolean) = prefs(context).edit().putBoolean(KEY_ROOM_ENEMY_AREAS, on).apply()
+
+    /** The current room's bots (see RoomBots), or null when it has none. */
+    fun roomBots(context: Context): RoomBotsConfig? {
+        val p = prefs(context)
+        val count = p.getInt(KEY_ROOM_BOTS, 0).takeIf { it > 0 } ?: return null
+        return RoomBotsConfig(count, BotDifficulty.byId(p.getString(KEY_ROOM_BOTS_DIFFICULTY, null)), p.getString(KEY_ROOM_BOTS_TEAM, "").orEmpty())
+    }
+
+    fun setRoomBots(context: Context, bots: RoomBotsConfig?) = prefs(context).edit()
+        .putInt(KEY_ROOM_BOTS, bots?.count ?: 0)
+        .putString(KEY_ROOM_BOTS_DIFFICULTY, bots?.difficulty?.id)
+        .putString(KEY_ROOM_BOTS_TEAM, bots?.team)
+        .apply()
 
     /** Whether the player last chose the first-person view (through the soldier's eyes). */
     fun firstPerson(context: Context): Boolean = prefs(context).getBoolean(KEY_FIRST_PERSON, false)
@@ -198,6 +212,9 @@ object Session {
     private const val KEY_FIRST_PERSON = "first_person"
     private const val KEY_ENEMY_AREAS = "enemy_areas"
     private const val KEY_ROOM_ENEMY_AREAS = "room_enemy_areas"
+    private const val KEY_ROOM_BOTS = "room_bots"
+    private const val KEY_ROOM_BOTS_DIFFICULTY = "room_bots_difficulty"
+    private const val KEY_ROOM_BOTS_TEAM = "room_bots_team"
     // "v2": maps got new start points; older saved positions are ignored.
     private const val KEY_X = "pos2_x"
     private const val KEY_Z = "pos2_z"
