@@ -21,23 +21,23 @@ import java.util.List;
  * whole frame.
  */
 public class MakeTrailer {
-    /** Kind ("card", "game" or "menu"), start, length, title, subtitle. */
+    /** Kind ("card", "game", "still": a game frame held still, or "menu"), start, length, title, subtitle. */
     static final Object[][] SCENES = {
         {"card", 0.0, 3.2, "BEIRUT STRIKE", "Multiplayer shooter in real Beirut streets"},
-        {"game", 145.0, 5.5, "FIGHT IN REAL BEIRUT STREETS", "Downtown, Hamra, the Corniche and more, built from real city maps"},
-        {"game", 161.8, 5.2, "SCOPE IN AND SNIPE", "Find a scope in the streets and hit targets from across the city"},
-        {"menu", 64.0, 6.0, "12 REAL GUNS", "Pistols, rifles, machine guns and sniper rifles"},
-        {"game", 156.0, 5.5, "ONLINE TEAM BATTLES", "Timed matches in first or third person"},
-        {"menu", 57.0, 6.5, "PICK YOUR CHARACTER", "Each with a victory dance for when you win"},
-        {"menu", 1.5, 6.0, "RISE THROUGH 20 MILITARY RANKS", "Earn XP from Private all the way to Beirut Legend"},
-        {"menu", 18.0, 5.0, "CREATE YOUR OWN MATCH", "Pick the map, size and length, add a password or a minimum rank"},
-        {"game", 80.0, 5.5, "PLAY WITH FRIENDS", "Create a room and invite them"},
-        {"card", 0.0, 4.5, "BEIRUT STRIKE", "FREE ON GOOGLE PLAY"},
+        {"game", 4.5, 5.0, "PLAY SOLO AGAINST BOTS", "Easy, Medium or Hard, with bots on your team if you like"},
+        {"game", 28.5, 4.5, "FIGHT IN REAL BEIRUT STREETS", "Downtown, Hamra, the Corniche and more, built from real city maps"},
+        {"game", 35.0, 3.5, "ARMS STORES IN EVERY MAP", "Walk up to the counter, wherever the fight takes you"},
+        {"game", 39.0, 6.0, "AMMO, MEDKITS, SCOPES, GRENADES", "Buy what you need, then straight back into the fight"},
+        {"game", 104.0, 5.5, "SCOPE IN AND SNIPE", "Hit targets from across the city"},
+        {"game", 121.9, 3.4, "CLIMB TO THE ROOFTOPS", "In army camouflage, in your team's colours"},
+        {"still", 135.2, 3.0, "KNOW WHERE THE ENEMY IS, ROUGHLY", "Red circles on the map, never their exact spot"},
+        {"game", 148.5, 4.5, "WIN THE MATCH", "Live scoreboard, ranks and money for every kill online"},
+        {"card", 0.0, 4.5, "BEIRUT STRIKE", "COMING SOON TO GOOGLE PLAY"},
     };
 
     static final int W = 1920, H = 1080, FPS = 30;
     /** The landscape game inside the portrait recording: width, height, x, y. */
-    static final int[] GAME_STRIP = {1080, 500, 0, 920};
+    static final int[] GAME_STRIP = {848, 392, 0, 0};
     /** Status bar and navigation bar cut off menu shots, in pixels of the recording. */
     static final int STATUS_BAR = 105, NAV_BAR = 133;
     static final Color GOLD = new Color(0xE8B64A), GOLD_LIGHT = new Color(0xFFE08A), SILVER = new Color(0xC9D1D9);
@@ -66,7 +66,7 @@ public class MakeTrailer {
             } else {
                 int[] hole;
                 String crop;
-                if (kind.equals("game")) {
+                if (kind.equals("game") || kind.equals("still")) {
                     int fw = 1760, fh = (int) Math.round(fw * GAME_STRIP[1] / (double) GAME_STRIP[0]);
                     hole = new int[]{(W - fw) / 2, 200, fw, fh};
                     crop = "crop=" + GAME_STRIP[0] + ":" + GAME_STRIP[1] + ":" + GAME_STRIP[2] + ":" + GAME_STRIP[3];
@@ -75,16 +75,19 @@ public class MakeTrailer {
                     hole = new int[]{W - 170 - fw, (H - fh) / 2, fw, fh};
                     crop = "crop=1080:" + cropH + ":0:" + STATUS_BAR;
                 }
-                ImageIO.write(frame(kind, hole, title, sub), "png", overlay);
+                // A still is one frame of the recording, held.
+                if (kind.equals("still")) crop = "trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/" + FPS + "/TB," + crop;
+                ImageIO.write(frame(kind.equals("still") ? "game" : kind, hole, title, sub), "png", overlay);
                 cmd.addAll(List.of("-ss", "" + start, "-t", "" + length, "-i", recording.getPath(),
                     "-loop", "1", "-framerate", "" + FPS, "-t", "" + length, "-i", overlay.getPath(),
                     "-f", "lavfi", "-i", impact(length)));
-                video = "[0:v]" + crop + ",scale=" + hole[2] + ":" + hole[3] + ":flags=lanczos,setsar=1,fps=" + FPS + "[shot];"
+                video = "[0:v]" + crop + ",scale=" + hole[2] + ":" + hole[3] + ":flags=lanczos,unsharp=5:5:0.6,setsar=1,fps=" + FPS + "[shot];"
                     + "color=c=black:s=" + W + "x" + H + ":r=" + FPS + ":d=" + length + "[base];"
                     + "[base][shot]overlay=" + hole[0] + ":" + hole[1] + ":shortest=1[b1];"
                     + "[b1][1:v]overlay=0:0:shortest=1,format=yuv420p[v0]";
                 // The game's own sound under gameplay; menus stay quiet.
-                String gameAudio = kind.equals("game") ? "[0:a]volume=0.9[ga]" : "[0:a]volume=0.15[ga]";
+                String gameAudio = kind.equals("game") ? "[0:a]volume=0.9[ga]"
+                    : kind.equals("still") ? "anullsrc=r=48000:cl=stereo,atrim=0:" + length + "[ga]" : "[0:a]volume=0.15[ga]";
                 cmd.addAll(List.of("-filter_complex", video + ";" + gameAudio + ";" + finish(length, "[ga]")));
             }
             cmd.addAll(List.of("-map", "[v]", "-map", "[a]", "-r", "" + FPS,
@@ -208,7 +211,7 @@ public class MakeTrailer {
         if (end) {
             // The middle dot is built from its code so this file stays plain ASCII.
             String dot = "  " + (char) 0xB7 + "  ";
-            String small = "No ads" + dot + "No sign-up" + dot + "Play online with friends";
+            String small = "No ads" + dot + "Play solo against bots" + dot + "Or online with friends";
             g.setFont(body(34f));
             g.setColor(SILVER);
             fm = g.getFontMetrics();
