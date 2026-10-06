@@ -45,8 +45,11 @@ object RoomInvite {
      * WhatsApp Business) pinned first when installed, and every other app after them. Returns
      * whether the menu opened; if not, says why on screen.
      */
-    fun share(activity: Activity, roomId: String, name: String, password: String?): Boolean {
-        val text = activity.getString(R.string.invite_message, name, link(roomId, name, password))
+    fun share(activity: Activity, roomId: String, name: String, password: String?): Boolean =
+        shareText(activity, activity.getString(R.string.invite_message, name, link(roomId, name, password)))
+
+    /** Shares [text] through the share menu, WhatsApp first (as [share]); returns whether it opened. */
+    fun shareText(activity: Activity, text: String): Boolean {
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
         val chooser = Intent.createChooser(send, activity.getString(R.string.invite_share_title))
         val whatsapp = WHATSAPP.filter { installed(activity, it) }.map { Intent(send).setPackage(it) }

@@ -2,4 +2,6 @@
 <paths>
     <!-- The camera app writes new drop photos here before they are imported. -->
     <cache-path name="capture" path="capture/" />
+    <!-- The picture shared to stories (StoryCard). -->
+    <cache-path name="share" path="share/" />
 </paths>

@@ -12,7 +12,9 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.beirutrun.city.CityMapInfo
 import com.example.beirutrun.city.CityMaps
 import com.example.beirutrun.online.FirebaseSession
+import com.example.beirutrun.online.InviteRewards
 import com.example.beirutrun.online.RoomDirectory
+import com.example.beirutrun.progression.Wallet
 import com.example.beirutrun.solo.BotDifficulty
 import com.example.beirutrun.solo.SoloSettings
 import com.google.android.material.button.MaterialButton
@@ -45,6 +47,17 @@ class ModeActivity : AppCompatActivity() {
             multiplayer.alpha = 0.5f
             findViewById<TextView>(R.id.multiplayerInfo).setText(R.string.mode_multiplayer_unavailable)
             multiplayer.isEnabled = false
+        }
+        // Invite friends and earn: a card here, and the window by itself when the game starts.
+        val inviteCard = findViewById<View>(R.id.inviteCard)
+        if (FirebaseSession.configured(this)) {
+            findViewById<TextView>(R.id.inviteCardInfo).text = getString(
+                R.string.invite_promo_card_info, Wallet.format(InviteRewards.FRIEND), Wallet.format(InviteRewards.STORY),
+            )
+            inviteCard.setOnClickListener { InviteFriends.open(this) }
+            if (savedInstanceState == null) InviteFriends.onStart(this)
+        } else {
+            inviteCard.visibility = View.GONE
         }
     }
 

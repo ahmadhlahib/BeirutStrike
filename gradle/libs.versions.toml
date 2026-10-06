@@ -15,6 +15,7 @@ orgJson = "20180813"
 webrtc = "1.3.10"
 credentials = "1.3.0"
 googleId = "1.1.1"
+installReferrer = "2.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,6 +39,8 @@ stream-webrtc = { group = "io.getstream", name = "stream-webrtc-android", versio
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 google-id = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleId" }
+# Play Install Referrer: which friend's invite link a new player installed from (see Referrals).
+install-referrer = { group = "com.android.installreferrer", name = "installreferrer", version.ref = "installReferrer" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -425,6 +425,44 @@
     <string name="room_enemy_areas">Show enemy areas on the map</string>
     <string name="room_enemy_areas_helper">Everyone in the room sees enemies as red circles they\'re somewhere inside, never their exact spot.</string>
     <string name="invite_failed">Couldn\'t open sharing (%1$s)</string>
+    <!-- Invite friends and earn (InviteFriends, Referrals). Money here is in-game cash. -->
+    <string name="invite_promo_chip">REWARDS</string>
+    <string name="invite_promo_title">Invite friends, earn cash</string>
+    <string name="invite_promo_friends">Friends joined</string>
+    <string name="invite_promo_earned">Earned</string>
+    <string name="invite_promo_prize_friend">👥  +%1$s for every friend who installs Beirut Strike from your link</string>
+    <string name="invite_promo_prize_story">📣  +%1$s for posting the game to your WhatsApp Status, Facebook or Instagram story (once for each)</string>
+    <string name="invite_promo_prize_spend">🛒  Spend it on guns, scopes, ammo and medkits at the arms stores</string>
+    <string name="invite_promo_invite">Invite friends</string>
+    <string name="invite_promo_story_title">Post to your story</string>
+    <string name="invite_story_whatsapp">WhatsApp Status</string>
+    <string name="invite_story_facebook">Facebook</string>
+    <string name="invite_story_instagram">Instagram</string>
+    <string name="invite_story_done">%1$s ✓</string>
+    <string name="invite_story_reward">%1$s · +%2$s</string>
+    <string name="invite_promo_fine_print">Cash is Beirut Strike money, to spend in the game. A friend counts once, when they install the game from your link for the first time and open it.</string>
+    <string name="invite_promo_dont_show">Don\'t show this again</string>
+    <string name="invite_promo_not_now">Not now</string>
+    <string name="invite_promo_card">Invite friends · earn cash</string>
+    <string name="invite_promo_card_info">+%1$s for every friend who joins, +%2$s for each story</string>
+    <string name="invite_friend_message">Play Beirut Strike with me! 🎯 Team battles on the real streets of Beirut, with real guns, ranks and voice chat. Free on Google Play: %1$s</string>
+    <string name="invite_story_caption">Beirut Strike: team battles on the real streets of Beirut 🎯 Free on Google Play: %1$s</string>
+    <string name="invite_story_not_installed">%1$s isn\'t installed on this phone</string>
+    <string name="invite_story_paid">Thanks for sharing! +%1$s</string>
+    <string name="invite_story_already">You already got the bonus for %1$s</string>
+    <string name="invite_story_failed">Couldn\'t open %1$s</string>
+    <string name="invite_friends_joined_title">Your friends joined! 🎉</string>
+    <plurals name="invite_friends_joined">
+        <item quantity="one">%1$d friend installed Beirut Strike from your link: +%2$s</item>
+        <item quantity="other">%1$d friends installed Beirut Strike from your link: +%2$s</item>
+    </plurals>
+    <string name="invite_offline">Connect to the internet to invite friends</string>
+    <!-- The picture shared to stories. -->
+    <string name="story_card_tagline">Team battles on the real streets of Beirut</string>
+    <string name="story_card_join">Join %1$s in the fight!</string>
+    <string name="story_card_join_anyone">Join me in the fight!</string>
+    <string name="story_card_free">FREE ON GOOGLE PLAY</string>
+    <string name="story_card_search">Search \"Beirut Strike\"</string>
     <!-- Bots in an online room (RoomBots). -->
     <string name="room_bots_none">Bots: none</string>
     <plurals name="room_bots">

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The invite window's "friends joined / earned" panel. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#FF1B2736" />
+    <stroke android:width="1dp" android:color="#66FFC83D" />
+    <corners android:radius="14dp" />
+</shape>
