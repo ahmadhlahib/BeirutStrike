@@ -87,7 +87,10 @@ class WeaponTest {
         // Older versions of the app know the first 11 slots: 5 rifle, 4 pistol, 2 scopes.
         assertEquals(List(5) { PickupKind.AK_AMMO } + List(4) { PickupKind.PISTOL_AMMO } + List(2) { PickupKind.SCOPE },
             slots.take(11))
-        assertEquals(2, slots.count { it == PickupKind.SNIPER_AMMO })
+        // Magazines lie in the streets (more spots since 1.2.x added the arms stores).
+        assertEquals(8, slots.count { it == PickupKind.AK_AMMO })
+        assertEquals(6, slots.count { it == PickupKind.PISTOL_AMMO })
+        assertEquals(3, slots.count { it == PickupKind.SNIPER_AMMO })
     }
 
     @Test

@@ -1,6 +1,6 @@
 # Beirut Strike Privacy Policy
 
-**Last updated:** 5 October 2026
+**Last updated:** 6 October 2026
 
 Beirut Strike ("the game", "we") is a multiplayer game for Android published by **Ahmad EL Lahib**.
 This policy explains what information the game collects, how it is used and shared, and how you
@@ -10,7 +10,9 @@ can delete it.
 
 ## Summary
 
-- There is no account, email or password. You choose a player name when you start.
+- You don't need an account: you choose a player name and play as a guest. If you choose to
+  sign in with Google (so your progress follows you to another phone), we receive your Google
+  account's email address and name. There is no password of ours.
 - What you share in the game (name, optional face photo, photos you drop, teams you create,
   messages, scores) is shown to other players. While your mic is on, your teammates hear your
   voice live. It is never recorded or stored.
@@ -28,8 +30,9 @@ can delete it.
 | **Teams you create** (optional): a team name, a flag picture you choose from your phone, and a colour | Offered as a team in the room, and shown on its players | Players in the same room |
 | **Messages** (speech bubbles and captions) | Shown above your character | Players in the same room |
 | **Voice** (optional, only while your mic is on) | Team voice chat. It goes straight from your phone to your teammates' phones, and is not recorded or stored | Your teammates in the same room (they hear it live) |
-| **Game activity:** team, position in the game's map, shots, hits, kills, deaths, wins, XP (military rank), match and career scores | To run the multiplayer game, scoreboards and ranking | Other players |
-| **A random user ID** created by Firebase Anonymous Authentication | To tell players apart and protect your data so only you can change it | Not shown |
+| **Game activity:** team, position in the game's map, shots, hits, kills, deaths, wins, XP (military rank), money and guns bought, match and career scores | To run the multiplayer game, scoreboards and ranking, and to keep your progress | Other players (money and guns: not shown) |
+| **A user ID** created by Firebase Authentication: a random one when you play as a guest | To tell players apart and protect your data so only you can change it | Not shown |
+| **Your Google account's email address and name** (optional, only if you sign in with Google), kept by Firebase Authentication | To sign you in, so your career (XP, rank, money and guns) follows you to another phone | Only us (not shown to players) |
 | **Reports** you send about other players | So we can review abusive content | Only us |
 | **Face detection diagnostics** (only when you take a face photo): device model and Android version, how well face detection ran (speed, settings, error codes) and a per-install ID | Sent by Google ML Kit to Google, to keep face detection working well | Google only |
 
@@ -78,8 +81,8 @@ We do not sell, rent or share your information with anyone else, except where th
 ## Deleting your data
 
 - **In the game:** open the menu (your name, top left, in the city) and choose **Delete my data**.
-  This deletes your face photo, career (score, XP and rank), match scores, dropped photos and your anonymous
-  account from our servers, and everything the game stored on your phone.
+  This deletes your face photo, career (score, XP, rank, money and guns), match scores, dropped photos and your
+  account (guest or Google sign-in) from our servers, and everything the game stored on your phone.
 - **By email:** write to [Ahmad.h.lahib@gmail.com](mailto:Ahmad.h.lahib@gmail.com) with your player name if you can't use the game (for
   example, if you uninstalled it). We will delete your data within 30 days.
 

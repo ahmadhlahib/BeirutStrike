@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.beirutrun.city.CityMapInfo
 import com.example.beirutrun.city.CityMaps
+import com.example.beirutrun.online.CareerWallet
 import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.RoomDirectory
 import com.example.beirutrun.online.RoomInfo
@@ -85,6 +86,8 @@ class RoomsActivity : AppCompatActivity() {
                 showRank()
                 adapter.notifyDataSetChanged()
             }
+            // My money and guns too (see Wallet).
+            CareerWallet.settle(this, uid) { if (!isFinishing) showRank() }
             // Came from "New room" on a finished game's scoreboard: go straight to creating one.
             if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_CREATE_ROOM, false)) showCreateDialog()
             dir.listen(

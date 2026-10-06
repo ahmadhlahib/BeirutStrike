@@ -123,7 +123,7 @@
           "$slot": {
             ".write": "auth != null && root.child('rooms/' + $room + '/members/' + auth.uid).exists()",
             ".validate": "newData.hasChildren(['kind', 'x', 'z', 'takenAt'])",
-            "kind": { ".validate": "newData.val() === 'ak_ammo' || newData.val() === 'pistol_ammo' || newData.val() === 'sniper_ammo' || newData.val() === 'scope' || newData.val() === 'frag_grenade' || newData.val() === 'flash_grenade' || newData.val() === 'smoke_grenade' || newData.val() === 'molotov'" },
+            "kind": { ".validate": "newData.val() === 'ak_ammo' || newData.val() === 'pistol_ammo' || newData.val() === 'sniper_ammo' || newData.val() === 'scope' || newData.val() === 'frag_grenade' || newData.val() === 'flash_grenade' || newData.val() === 'smoke_grenade' || newData.val() === 'molotov' || newData.val() === 'medkit_small' || newData.val() === 'medkit_big'" },
             "x": { ".validate": "newData.isNumber()" },
             "z": { ".validate": "newData.isNumber()" },
             "takenAt": { ".validate": "newData.isNumber()" },
@@ -187,6 +187,8 @@
         "hitsTaken": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "xp": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "cash": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000" },
+        "guns": { ".validate": "newData.isString() && newData.val().length <= 200" },
         "updated": { ".validate": "newData.isNumber() && newData.val() <= now" },
         "$other": { ".validate": false }
       }

@@ -45,8 +45,22 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   people; their wheels roll and steer. Passers-by walk the sidewalks, stop to chat or talk on
   the phone, and run from gunfire. They're scenery: shooting them counts for no one.
 - **Adjustable play area:** from 200 m to 800 m square, or the whole map.
-- **Minimap** with a full-screen map view, showing only your teammates, and a gun view (first
+- **Minimap** with a full-screen map view: teammates where they are, enemies only as wide pulsing red
+  circles (120 m across) they are somewhere inside, never their exact spot (**Hide / Show enemy
+  areas on map** in the menu), and a gun view (first
   person) or 3D person (third person) camera.
+
+### Solo
+- **Play against bots:** after choosing a name, pick **Solo** or **Multiplayer**. A solo game
+  runs on the phone alone (no internet): choose the map, play area and length, 1 to 8 bots, their
+  difficulty, and whether some bots fight on your team (**Bots on my team**: half of them).
+- **Bots** walk the streets, find their way to you over the street network, spot you when
+  nothing blocks their view, react and shoot with real guns. **Easy** bots see you up close,
+  react slowly and miss a lot; **Medium** ones hunt you down and sidestep; **Hard** ones spot you
+  from 110 m, react fast and lie down to shoot from afar. Moving and running make you harder
+  to hit. Bots on different teams fight each other too. They don't throw grenades.
+- Same scoreboard and results as online, with **Play again**. Solo games are practice: no XP,
+  ranks or Ranking (`solo/SoloMatch.kt`, `solo/StreetGraph.kt`, `SoloMatchTest`).
 
 ### Multiplayer
 - **Rooms:** public or password-protected. The password is checked by the database's security
@@ -78,6 +92,13 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   shoot down from above. Everyone sees you climb and stand up there, and can shoot you there too.
 
 ### Progression
+- **Money:** every player starts with $2,000 and earns $300 per kill, $100 more for a headshot
+  and $1,000 for winning, in online games that count toward careers (not solo or cheat rooms).
+  The balance shows on the rank card and the guns screen, and is copied to the online career
+  (`progression/Wallet.kt`, `online/CareerWallet.kt`).
+- **Guns cost money:** the Beretta M9, AK-47 and SVD are free; the others are bought once on the
+  guns screen (from $1,500 for the Glock 17 to $12,000 for the Barrett M82) and kept for good
+  (`GunPrices`).
 - **Live scoreboard** during the match and final results at the end: score, kills, deaths, K/D,
   shots, accuracy and hits taken, for players and teams.
 - **Career ranking** across all matches, with face photos.
@@ -93,6 +114,11 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   camera and ML Kit face detection put your photo on the character's head. It's off by default,
   and never used on characters with a real face of their own.
 - **Speech bubbles** and **photo drops** left in the city for other players to find.
+- **Accounts:** play as a guest, or **Sign in with Google** on the name screen so your XP, rank,
+  money and guns follow you to any phone. Signing in keeps a guest's progress; a Google account
+  that already plays elsewhere is switched to instead (`online/GoogleAccount.kt`). It needs the
+  Google provider enabled in Firebase Authentication and the app's SHA-1 fingerprints (debug,
+  upload and Play app signing keys) added to the Firebase Android app.
 - **Safety and privacy:** report or block other players, and delete all your data from the menu.
 
 ### Offline mode
@@ -105,6 +131,8 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Control | Action |
 | --- | --- |
 | Joystick (bottom left) | Walk; push further to run |
+| Medkits (beside the hearts, top left) | **+1** gives a heart back, **Full** fills them all; each shows how many you carry |
+| Store (at an arms store's counter) | Opens the shop: magazines, a scope, medkits and grenades |
 | Swipe on the city | Look and aim |
 | Big red button (under the minimap) | Shoot. Hold for the AK-47; tap for the pistol. Slide your finger on it to aim while firing |
 | Jump / Crawl (small, under Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
@@ -116,7 +144,8 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | Grenade kind (round, beside Grenade) | Change grenade: frag, flashbang, smoke, molotov (shows how many are left) |
 | Mic / Speaker (small, beside the grenades; online) | Team voice chat: my mic on or off, and mute all teammates |
 | Gun button (under the grenades) | Switch between your pistol, primary and sniper rifle (shows rounds in the magazine / spare) |
-| Say / Drop photo (round, above the joystick) | Opens **Say** (speech bubble, or a cheat code, see below) and **Drop photo** (leave a photo in the street) |
+| Say / Drop photo (round, above the joystick) | Opens **Say** (speech bubble, or a cheat code, see below) and **Drop photo** (leave a photo in the street) above it |
+| Left Shoot (red, right of Say / Drop photo) | A second Shoot button for the left thumb: works like the big one |
 | Climb up / Climb down (above View photo) | Shows at the foot of a ladder, or beside its top on a roof: climbs it |
 | Timer (top centre) | Open the scoreboard |
 | Name button (top left) | Menu: scoreboard, players (report / block), change team, change guns, retake face photo, street photos, leave room, log out, delete my data |
@@ -179,18 +208,36 @@ sees the same throw. Tap the button below it to change kind. More lie in the str
 | Smoke | 1 | after 1.8 s | A grey cloud 5.5 m across for 20 s: hides players and their name tags, and the crosshair can't pick out enemies through it |
 | Molotov | 1 | on impact | Fire 3.2 m across for 8 s, taking a heart a second from anyone standing in it (you too) |
 
-### Pickups
+### Pickups and arms stores
+
+Only magazines lie in the streets:
 
 | Pickup | Per room | Effect | Respawns after |
 | --- | --- | --- | --- |
-| Rifle magazine | 5 | +1 magazine for the primary carried | 20 s |
-| Pistol magazine | 4 | +1 magazine for the pistol carried | 20 s |
-| Sniper rounds | 2 | +1 magazine for the sniper rifle carried | 40 s |
-| Scope | 2 | A 4× scope for a primary without one, until death | 60 s |
-| Frag grenade | 2 | +1 frag (up to 4 carried) | 40 s |
-| Flashbang | 2 | +1 flashbang (up to 4 carried) | 40 s |
-| Smoke grenade | 1 | +1 smoke grenade (up to 2 carried) | 45 s |
-| Molotov | 1 | +1 molotov (up to 2 carried) | 45 s |
+| Rifle magazine | 8 | +1 magazine for the primary carried | 20 s |
+| Pistol magazine | 6 | +1 magazine for the pistol carried | 20 s |
+| Sniper rounds | 3 | +1 magazine for the sniper rifle carried | 40 s |
+
+Every map has 4 **arms stores**: kiosks with a striped awning and a gold sign beside the streets,
+the first one near the start, marked with a green **$** on the maps (`city/Stores.kt`, the same
+spots on every phone). At a store's counter a **Store** button opens the shop (the game goes on
+meanwhile):
+
+| Item | Price | Limit |
+| --- | --- | --- |
+| Pistol / primary / sniper magazine | $100 / $200 / $300 | a magazine above the starting rounds |
+| Scope (for a primary without one, until death) | $500 | 1 |
+| Small medkit (+1 heart) | $150 | 5 carried |
+| Big medkit (all hearts) | $400 | 3 carried |
+| Frag / flashbang / smoke / molotov | $300 / $200 / $200 / $300 | as carried before |
+
+In solo games everything in the stores is free (solo games pay nothing either).
+
+Medkits are used when you choose, with the buttons beside your hearts (top left): **+1** gives
+one heart back, **Full** fills all five. Every life starts with 3 small and 2 big medkits; the
+ones carried are lost when you die. Scope, grenade and medkit pickup spots are still in
+`PickupKind.SLOTS` so older versions agree on them, but they aren't shown in the streets. Pickup
+kinds must also be allowed in `firebase/database.rules.json` (`PickupKindsTest` checks it).
 
 ### Cheat codes
 
@@ -249,7 +296,7 @@ career screen for +500 XP to try a rank-up; tapping it replays your last promoti
 | Platform | Android 8.0+ (min SDK 26), target SDK 36 (Android 16) |
 | Rendering | Custom OpenGL ES 2.0 renderer; skinned glTF (`.glb`) characters and street people, glTF car models |
 | Camera | CameraX 1.3, ML Kit face detection |
-| Backend | Firebase Realtime Database and Anonymous Authentication (fits the free Spark plan) |
+| Backend | Firebase Realtime Database and Authentication: guests (anonymous) or Sign in with Google via Credential Manager (fits the free Spark plan) |
 | Audio | Gunshot and reload recordings plus effects synthesized at runtime |
 | Voice chat | WebRTC (stream-webrtc-android 1.3), peer-to-peer between teammates, signalled through Firebase |
 | Map data | OpenStreetMap, converted offline by a Java tool in `tools/` |

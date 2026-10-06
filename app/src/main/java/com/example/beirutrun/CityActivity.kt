@@ -13,12 +13,14 @@ import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
@@ -36,6 +38,7 @@ import com.example.beirutrun.city.CityMaps
 import com.example.beirutrun.city.CityRenderer
 import com.example.beirutrun.city.CityScene
 import com.example.beirutrun.city.DepthConfigChooser
+import com.example.beirutrun.city.EnemyAreas
 import com.example.beirutrun.city.JoystickView
 import com.example.beirutrun.city.MiniMapView
 import com.example.beirutrun.city.Pickup
@@ -47,6 +50,7 @@ import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.city.SoundEffects
 import com.example.beirutrun.city.SoldierRig
+import com.example.beirutrun.online.CareerWallet
 import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.OnlineWorld
 import com.example.beirutrun.online.PlayerStats
@@ -54,8 +58,13 @@ import com.example.beirutrun.online.RemotePlayer
 import com.example.beirutrun.online.RoomTeams
 import com.example.beirutrun.online.VoiceChat
 import com.example.beirutrun.progression.PlayerProgress
+import com.example.beirutrun.progression.StoreItem
 import com.example.beirutrun.progression.XpGain
+import com.example.beirutrun.progression.CashReward
+import com.example.beirutrun.progression.Wallet
 import com.example.beirutrun.progression.XpReward
+import com.example.beirutrun.solo.BotDifficulty
+import com.example.beirutrun.solo.SoloMatch
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
@@ -120,6 +129,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private var gameOver = false
     private lateinit var gameTimer: TextView
     private lateinit var shootButton: View
+    /** The second Shoot button, above the joystick for the left thumb. */
+    private lateinit var shootButtonLeft: View
+    /** The Shoot buttons being held: firing goes on while either is. */
+    private val shootHeld = HashSet<View>()
     private lateinit var scoreboard: Scoreboard
     private var stats: List<PlayerStats> = emptyList()
     /** Whether my last bullet to hit each player (by uid) hit the head: a kill by it is a headshot. */
@@ -160,10 +173,44 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             updateGameTimer()
             updateWeaponButtons()
             updateGrenadeButtons()
+            updateMedkitButtons()
+            updateStoreButton()
             checkPickups()
             // Now and then, re-check who is still around (hides players whose phone went quiet).
             if (++ticks % 25 == 0) online.publishPlayers()
             ticker.postDelayed(this, POSE_INTERVAL_MS)
+        }
+    }
+
+    /** A solo game against bots (see ModeActivity), or null online. */
+    private var solo: SoloMatch? = null
+    private var soloTicks = 0
+    private var soloLast = 0L
+
+    /** Solo: moves the bots on, shows their shots, takes their hits, and keeps the score. */
+    private val soloTick = object : Runnable {
+        override fun run() {
+            val game = solo ?: return
+            val now = SystemClock.uptimeMillis()
+            val dt = if (soloLast == 0L) 0f else ((now - soloLast) / 1000f).coerceAtMost(0.25f)
+            soloLast = now
+            if (!gameOver) {
+                val me = SoloMatch.Player(
+                    playerName, playerTeam.id, renderer.playerX, renderer.playerY, renderer.playerZ, renderer.prone, dead,
+                )
+                for (e in game.update(dt, me)) when (e) {
+                    is SoloMatch.Event.Shot -> {
+                        renderer.addRemoteShot(e.uid, e.x, e.y, e.z, e.dx, e.dy, e.dz, e.gun)
+                        shotSound(e.x, e.z, e.gun)
+                    }
+                    is SoloMatch.Event.PlayerHit ->
+                        takeHit(e.fromUid, getString(R.string.killed_by, e.fromName), e.damage)
+                }
+            }
+            // The bots are drawn like other players; the scoreboard keeps up once a second.
+            if (++soloTicks % 2 == 0) onPlayers(game.players(System.currentTimeMillis()))
+            if (soloTicks % 20 == 0) onStats(game.stats())
+            ticker.postDelayed(this, SOLO_TICK_MS)
         }
     }
 
@@ -214,11 +261,13 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
         // Online play needs a room, and everyone needs a team; send the player back to choose.
         val roomId = Session.roomId(this)
+        // A solo game against bots has no room (see ModeActivity).
+        val soloSettings = Session.solo(this)
         // Teams added to this room (their flags and colours), usually already loaded by the team screen.
         RoomTeams.follow(if (FirebaseSession.configured(this)) roomId else null)
         val team = Teams.byId(Session.teamId(this))
         val missing = when {
-            FirebaseSession.configured(this) && roomId == null -> RoomsActivity::class.java
+            FirebaseSession.configured(this) && roomId == null && soloSettings == null -> ModeActivity::class.java
             team == null -> TeamSelectActivity::class.java
             else -> null
         }
@@ -247,6 +296,20 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // The room's map size: players stay in a square that big around the start point.
         mapSize = CityMaps.sizeOf(Session.roomMap(this))
         mapSize?.let { city.limitTo(it.toFloat()) }
+        // Solo: the bots, on the other teams (and half on mine if chosen), and a game clock of our own.
+        val start = Session.position(this, mapInfo.id) ?: Triple(city.spawnX, city.spawnZ, mapInfo.startYaw)
+        solo = soloSettings?.let { s ->
+            SoloMatch(
+                city, s, playerTeam.id, Teams.builtIn.map { it.id }.filter { it != playerTeam.id },
+                label = { getString(R.string.bot_name, it) }, startX = start.first, startZ = start.second,
+            )
+        }
+        soloSettings?.let {
+            gameDurationMs = it.durationMs
+            gameEndsAt = System.currentTimeMillis() + it.durationMs
+        }
+        online.onStat = { key -> solo?.count(key) }
+        showEnemyAreas = Session.enemyAreas(this)
         val scene = sceneBuilder.submit(Callable { CityScene.build(city, mapInfo.look) })
         // Each character's animated model (see Characters), loaded in the background the first
         // time a player uses it: mine, and whichever other players choose.
@@ -296,7 +359,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             gunMeshSource = gunMeshes,
             carModelSource = carModels,
             // Where you last stood on this map, or its start point facing its view.
-            start = Session.position(this, mapInfo.id) ?: Triple(city.spawnX, city.spawnZ, mapInfo.startYaw),
+            start = start,
             streetPhotos = repo.streets(),
             playerFace = { if (showMyFace) myFace else NO_FACE },
             dropFace = ::faceFileFor,
@@ -309,12 +372,20 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 sounds.shoot(weapon = renderer.weapon)
                 online.sendShot(x, y, z, dx, dy, dz)
                 if (!gameOver) online.countShot()
+                // Bots within earshot turn to look.
+                solo?.heardShot(x, z)
             },
             onHitPlayer = { uid, damage, headshot ->
                 sounds.ouch()
-                online.sendHit(uid, damage)
                 if (!gameOver) online.countHit()
                 lastHitHeadshot[uid] = headshot
+                val bots = solo
+                if (bots != null && bots.isBot(uid)) {
+                    // A bot is hit on this phone, where it lives; its last heart is my kill.
+                    if (!gameOver) bots.hitByPlayer(uid, damage)?.let { name -> onKilled(uid, name) }
+                } else {
+                    online.sendHit(uid, damage)
+                }
             },
             playerTeam = playerTeam.id,
             teamFlag = { id -> Teams.byId(id)?.let { TeamFlags.load(applicationContext, it) } },
@@ -388,7 +459,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             }
         }
         shootButton = findViewById(R.id.shootButton)
+        shootButtonLeft = findViewById(R.id.shootButtonLeft)
         bindShootButton(shootButton)
+        bindShootButton(shootButtonLeft)
         weaponButton = findViewById(R.id.weaponButton)
         weaponButton.setOnClickListener { switchWeapon() }
         reloadButton = findViewById(R.id.reloadButton)
@@ -407,6 +480,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         grenadeKindButton.setOnClickListener { switchGrenade() }
         climbButton = findViewById(R.id.climbButton)
         climbButton.setOnClickListener { climb() }
+        storeButton = findViewById(R.id.storeButton)
+        storeButton.setOnClickListener { openShop() }
         // The three guns chosen on the loadout screen; the primary in hand to start with.
         guns = GunSlot.entries.associateWith { Session.gun(this, it) }
         renderer.weapon = guns.getValue(GunSlot.PRIMARY)
@@ -421,16 +496,22 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         gameTimer.setOnClickListener { showScoreboard() }
         scoreboard = Scoreboard(
             this,
-            myUid = { online.uid },
-            onLeave = { leaveRoom() },
-            onNewRoom = { leaveRoom(createNext = true) },
+            myUid = ::myUid,
+            onLeave = { if (solo != null) leaveSolo() else leaveRoom() },
+            // Solo: the same game again, from the start.
+            onNewRoom = { if (solo != null) recreate() else leaveRoom(createNext = true) },
             onRanking = ::showRanking,
+            nextLabel = if (soloSettings != null) R.string.score_play_again else R.string.score_new_room,
         )
         crosshair = findViewById(R.id.crosshair)
         findViewById<MaterialButton>(R.id.jumpButton).setOnClickListener { if (!dead) renderer.jump() }
         crawlButton = findViewById(R.id.crawlButton)
         crawlButton.setOnClickListener { if (!renderer.climbing) setProne(!renderer.prone) }
         heartsLabel = findViewById(R.id.hearts)
+        medkitSmallButton = findViewById(R.id.medkitSmallButton)
+        medkitBigButton = findViewById(R.id.medkitBigButton)
+        medkitSmallButton.setOnClickListener { useMedkit(big = false) }
+        medkitBigButton.setOnClickListener { useMedkit(big = true) }
         banner = findViewById(R.id.banner)
         damageFlash = findViewById(R.id.damageFlash)
         updateHearts()
@@ -447,6 +528,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         glView.onResume()
         online.resume()
         ticker.post(tick)
+        soloLast = 0L
+        ticker.post(soloTick)
         inForeground = true
         startVoice()
     }
@@ -455,6 +538,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         super.onPause()
         if (!::glView.isInitialized) return
         ticker.removeCallbacks(tick)
+        ticker.removeCallbacks(soloTick)
         glView.onPause()
         online.pause()
         // In the background nobody hears me and I don't record: the mic goes off.
@@ -598,10 +682,17 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // Players I blocked still walk around (they're in the game), but their words don't show.
         val shown = players.map { if (Blocklist.isBlocked(this, it.uid)) it.copy(say = "") else it }
         renderer.setRemotePlayers(shown)
-        // The maps only show teammates: players on other teams have to be found in the city.
+        // The maps show teammates where they are; enemies only as a rough area (below).
         val teammates = shown.filter { it.team == playerTeam.id }
         miniMap.players = teammates
         fullMap?.players = teammates
+        // Enemies only as a rough area: a red circle they are somewhere inside.
+        val areas = if (!showEnemyAreas) emptyList() else enemyAreas.update(
+            shown.filter { it.team != playerTeam.id && !it.dead }.map { Triple(it.uid, it.x, it.z) },
+            SystemClock.uptimeMillis(),
+        )
+        miniMap.enemyAreas = areas
+        fullMap?.enemyAreas = areas
         updateStatusLabel()
         startVoice()
         voice?.setTeammates(teammates.mapTo(HashSet()) { it.uid })
@@ -610,16 +701,26 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     /** The latest drops and players from the server, before blocked players are filtered out. */
     private var sharedDrops: List<PhotoDrop> = emptyList()
     private var remotePlayers: List<RemotePlayer> = emptyList()
+    /** Where enemies roughly are, for the maps (see EnemyAreas). */
+    private val enemyAreas = EnemyAreas()
+    /** Whether the maps show them (a choice kept on this phone, see the menu). */
+    private var showEnemyAreas = true
 
     override fun onFacesChanged() = renderer.reloadFaces()
 
     override fun onRemoteShot(player: RemotePlayer) {
         val gun = Weapon.byId(player.weapon)
         renderer.addRemoteShot(player.uid, player.shotX, player.shotY, player.shotZ, player.shotDX, player.shotDY, player.shotDZ, gun)
-        // Other players' shots are quieter the further away they are: silent beyond ~60 m, or
-        // three times that for a sniper rifle's boom.
+        shotSound(player.shotX, player.shotZ, gun)
+    }
+
+    /**
+     * Another soldier's shot from (x, z): quieter the further away it is, silent beyond ~60 m, or
+     * three times that for a sniper rifle's boom.
+     */
+    private fun shotSound(x: Float, z: Float, gun: Weapon) {
         val hearing = HEARING_RANGE * if (gun.slot == GunSlot.SNIPER) 3f else 1f
-        val distance = hypot(player.shotX - renderer.playerX, player.shotZ - renderer.playerZ)
+        val distance = hypot(x - renderer.playerX, z - renderer.playerZ)
         sounds.shoot(volume = 0.8f * (1f - distance / hearing), weapon = gun)
     }
 
@@ -658,6 +759,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         // Fifth hit: down for a few seconds, then back at a random crossroads.
         dead = true
         online.countDeath()
+        solo?.playerKilledBy(fromUid)
         renderer.down = true
         renderer.triggerHeld = false
         sounds.cancelReload()
@@ -745,8 +847,25 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         sounds.death(volume = 0.8f)
         val headshot = lastHitHeadshot.remove(victimUid) == true
         val gain = if (headshot) award(XpReward.ELIMINATION, XpReward.HEADSHOT) else award(XpReward.ELIMINATION)
+        val cash = if (headshot) pay(CashReward.KILL, CashReward.HEADSHOT) else pay(CashReward.KILL)
         val killed = getString(R.string.you_killed, victimName)
-        showBanner(if (gain != null) getString(R.string.kill_with_xp, killed, getString(R.string.xp_gain, gain.xp.toInt())) else killed)
+        showBanner(if (gain != null) {
+            val reward = getString(R.string.xp_gain, gain.xp.toInt()) + (cash?.let { " · +" + Wallet.format(it) } ?: "")
+            getString(R.string.kill_with_xp, killed, reward)
+        } else killed)
+    }
+
+    /**
+     * Gives me the money for [rewards] (see CashReward), like [award] only in games that count
+     * toward careers (not solo or cheat rooms): saved on this phone and in my career. Returns how
+     * much, or null.
+     */
+    private fun pay(vararg rewards: CashReward): Long? {
+        if (!online.countsForCareer) return null
+        val cash = rewards.sumOf { it.cash }
+        Wallet.earn(this, cash)
+        CareerWallet.upload(this)
+        return cash
     }
 
     /**
@@ -794,10 +913,16 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         PickupKind.FLASH_GRENADE -> R.string.pickup_flashbang
         PickupKind.SMOKE_GRENADE -> R.string.pickup_smoke
         PickupKind.MOLOTOV -> R.string.pickup_molotov
+        PickupKind.MEDKIT_SMALL -> R.string.pickup_medkit_small
+        PickupKind.MEDKIT_BIG -> R.string.pickup_medkit_big
     })
 
     /** A grenade is only picked up with room for it (see GrenadeKind.most): otherwise it stays for someone else. */
-    private fun canTake(p: Pickup) = p.kind.grenade?.let { renderer.unlimitedAmmo || renderer.canCarry(it) } ?: true
+    private fun canTake(p: Pickup) = when (p.kind) {
+        PickupKind.MEDKIT_SMALL -> smallMedkits < MAX_SMALL_MEDKITS
+        PickupKind.MEDKIT_BIG -> bigMedkits < MAX_BIG_MEDKITS
+        else -> p.kind.grenade?.let { renderer.unlimitedAmmo || renderer.canCarry(it) } ?: true
+    }
 
     /** The next of the three guns carried: pistol → primary → sniper rifle → pistol. */
     private fun switchWeapon() {
@@ -872,9 +997,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         scopeButton.visibility = if (canScope(gun)) View.VISIBLE else View.GONE
     }
 
+    /** Shows the pickups that lie in the streets (magazines; the rest are bought at the stores). */
     private fun showPickups(list: List<Pickup>) {
-        pickups = list
-        renderer.setPickups(list)
+        pickups = list.filter { it.kind.inStreets }
+        renderer.setPickups(pickups)
     }
 
     /** Walking over a pickup takes it; online the server decides who got there first. */
@@ -900,7 +1026,15 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun collect(p: Pickup) {
         val slot = p.kind.slot
         val grenade = p.kind.grenade
-        if (grenade != null) {
+        if (p.kind.medkit) {
+            if (p.kind == PickupKind.MEDKIT_BIG) bigMedkits++ else smallMedkits++
+            sounds.grenadeThrow(0.5f)
+            showBanner(getString(
+                if (p.kind == PickupKind.MEDKIT_BIG) R.string.picked_medkit_big else R.string.picked_medkit_small,
+                if (p.kind == PickupKind.MEDKIT_BIG) bigMedkits else smallMedkits,
+            ))
+            updateMedkitButtons()
+        } else if (grenade != null) {
             renderer.addGrenade(grenade)
             sounds.grenadeThrow(0.5f)
             showBanner(getString(R.string.picked_grenade, grenade.displayName, renderer.grenades(grenade)))
@@ -955,6 +1089,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         renderer.triggerHeld = false
         setScoped(false)
         shootButton.alpha = 0.4f
+        shootButtonLeft.alpha = 0.4f
         gameTimer.visibility = View.VISIBLE
         gameTimer.setText(R.string.score_game_over)
         gameTimer.setTextColor(0xFFFFC107.toInt())
@@ -967,6 +1102,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         if (won && online.countsForCareer && PlayerProgress.recordWin(this, "${Session.roomId(this)}@$gameEndsAt")) {
             online.countWin()
             promoted = award(XpReward.VICTORY)?.rankedUp == true
+            pay(CashReward.VICTORY)?.let { showBanner(getString(R.string.cash_won, Wallet.format(it))) }
         }
         // The winner's character dances (if it has dances) before the results come up; a
         // promotion gets its moment too.
@@ -984,7 +1120,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val ranked = Scoreboard.ranked(stats)
         val best = ranked.firstOrNull() ?: return false
         val second = ranked.getOrNull(1)
-        return best.uid == online.uid && best.score > 0 && (second == null || second.score < best.score)
+        return best.uid == myUid() && best.score > 0 && (second == null || second.score < best.score)
     }
 
     /**
@@ -1010,8 +1146,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     // ---- Shooting -----------------------------------------------------------------------------
 
     /**
-     * Press to fire, hold to keep firing. Sliding the finger while it's down aims, just like
-     * dragging on the city, so you can follow a target without letting go of the trigger.
+     * Press to fire, hold to keep firing (with either Shoot button). Sliding the finger while it's
+     * down aims, just like dragging on the city, so you can follow a target without letting go of
+     * the trigger.
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun bindShootButton(button: View) {
@@ -1021,6 +1158,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     v.isPressed = true
+                    shootHeld += v
                     lastX = event.rawX
                     lastY = event.rawY
                     if (!dead && !gameOver) {
@@ -1035,7 +1173,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
-                    renderer.triggerHeld = false
+                    shootHeld -= v
+                    if (shootHeld.isEmpty()) renderer.triggerHeld = false
                 }
             }
             true
@@ -1052,6 +1191,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             full = true
             renderer = this@CityActivity.renderer
             players = miniMap.players
+            enemyAreas = miniMap.enemyAreas
             drops = miniMap.drops
             teamColor = miniMap.teamColor
             city = this@CityActivity.city
@@ -1071,6 +1211,9 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val (x, z) = city.randomStreetPoint()
         renderer.respawn(x, z)
         renderer.refillToStart()
+        // A new life starts with the usual medkits; the ones carried were lost.
+        smallMedkits = START_SMALL_MEDKITS
+        bigMedkits = START_BIG_MEDKITS
         health = CityRenderer.MAX_HEALTH
         dead = false
         renderer.health = health
@@ -1106,6 +1249,155 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun updateHearts() {
         heartsLabel.text = "♥".repeat(health.coerceAtLeast(0)) +
             "♡".repeat((CityRenderer.MAX_HEALTH - health).coerceAtLeast(0))
+        updateMedkitButtons()
+    }
+
+    // ---- Medkits ------------------------------------------------------------------------------
+
+    /** Medkits carried: small ones give a heart back, big ones fill every heart. */
+    private var smallMedkits = START_SMALL_MEDKITS
+    private var bigMedkits = START_BIG_MEDKITS
+    private lateinit var medkitSmallButton: MaterialButton
+    private lateinit var medkitBigButton: MaterialButton
+
+    /** "+1 ×2" and "Full ×1"; dimmed with none left, or nothing to heal. */
+    private fun updateMedkitButtons() {
+        if (!::medkitSmallButton.isInitialized) return
+        val hurt = !dead && !gameOver && health < CityRenderer.MAX_HEALTH
+        medkitSmallButton.text = getString(R.string.medkit_small_button, smallMedkits)
+        medkitBigButton.text = getString(R.string.medkit_big_button, bigMedkits)
+        medkitSmallButton.alpha = if (hurt && smallMedkits > 0) 1f else 0.45f
+        medkitBigButton.alpha = if (hurt && bigMedkits > 0) 1f else 0.45f
+    }
+
+    // ---- Arms stores --------------------------------------------------------------------------
+
+    private lateinit var storeButton: MaterialButton
+    private var shopDialog: androidx.appcompat.app.AlertDialog? = null
+    private var shopRows: LinearLayout? = null
+    private var shopCash: TextView? = null
+
+    /** At a store's counter (alive, game on): the Store button; walking away closes the shop. */
+    private fun updateStoreButton() {
+        val at = if (dead || gameOver) null else renderer.nearStore
+        storeButton.visibility = if (at != null) View.VISIBLE else View.GONE
+        if (at == null) shopDialog?.dismiss()
+    }
+
+    /** What I pay at the stores: nothing in a solo game (it pays nothing either). */
+    private fun priceOf(item: StoreItem) = if (solo != null) 0L else item.price
+
+    /** The shop: magazines for my guns, a scope, medkits and grenades, each with its price; the game goes on meanwhile. */
+    private fun openShop() {
+        if (shopDialog != null) return
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val cash = TextView(this).apply {
+            textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xFF7CD67C.toInt())
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, 0, pad, pad) }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(cash)
+            addView(android.widget.ScrollView(this@CityActivity).apply { addView(rows) })
+        }
+        shopCash = cash
+        shopRows = rows
+        shopDialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.store_title)
+            .setView(body)
+            .setPositiveButton(R.string.close, null)
+            .setOnDismissListener { shopDialog = null; shopRows = null; shopCash = null }
+            .show()
+        fillShop()
+    }
+
+    /** One row per thing for sale: what it is, how many I have, and Buy with the price (greyed out when I can't). */
+    private fun fillShop() {
+        val rows = shopRows ?: return
+        shopCash?.text = if (solo != null) getString(R.string.store_free) else getString(R.string.store_cash, Wallet.format(Wallet.cash(this)))
+        rows.removeAllViews()
+        fun row(item: StoreItem, name: String, have: String, full: Boolean, give: () -> Unit) {
+            val price = priceOf(item)
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, (6 * resources.displayMetrics.density).toInt(), 0, 0)
+            }
+            line.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(this@CityActivity).apply { text = name; textSize = 15f; setTypeface(typeface, android.graphics.Typeface.BOLD) })
+                addView(TextView(this@CityActivity).apply { text = have; textSize = 12f; alpha = 0.7f })
+            })
+            val affordable = solo != null || Wallet.cash(this) >= price
+            line.addView(MaterialButton(this).apply {
+                text = when {
+                    full -> getString(R.string.store_full)
+                    price == 0L -> getString(R.string.store_take)
+                    else -> getString(R.string.buy_button, Wallet.format(price))
+                }
+                isEnabled = !full && affordable && !dead
+                setOnClickListener { buy(item, give) }
+            })
+            rows.addView(line)
+        }
+        for (slot in GunSlot.entries) {
+            val gun = guns.getValue(slot)
+            val item = when (slot) { GunSlot.PISTOL -> StoreItem.PISTOL_MAG; GunSlot.PRIMARY -> StoreItem.PRIMARY_MAG; GunSlot.SNIPER -> StoreItem.SNIPER_MAG }
+            row(item, getString(R.string.store_magazine, gun.displayName, gun.magazine),
+                getString(R.string.store_rounds, renderer.spare(gun)),
+                full = renderer.unlimitedAmmo || renderer.spare(gun) >= gun.startAmmo + gun.magazine) { renderer.addMagazine(gun) }
+        }
+        val primary = guns.getValue(GunSlot.PRIMARY)
+        row(StoreItem.SCOPE, getString(R.string.store_scope, primary.displayName),
+            getString(if (canScope(primary)) R.string.store_scope_have else R.string.store_scope_none),
+            full = canScope(primary)) { hasScope = true; cheatScope = false }
+        row(StoreItem.MEDKIT_SMALL, getString(R.string.store_medkit_small), getString(R.string.store_carried, smallMedkits, MAX_SMALL_MEDKITS),
+            full = smallMedkits >= MAX_SMALL_MEDKITS) { smallMedkits++ }
+        row(StoreItem.MEDKIT_BIG, getString(R.string.store_medkit_big), getString(R.string.store_carried, bigMedkits, MAX_BIG_MEDKITS),
+            full = bigMedkits >= MAX_BIG_MEDKITS) { bigMedkits++ }
+        for ((kind, item) in listOf(GrenadeKind.FRAG to StoreItem.FRAG, GrenadeKind.FLASH to StoreItem.FLASHBANG,
+            GrenadeKind.SMOKE to StoreItem.SMOKE, GrenadeKind.MOLOTOV to StoreItem.MOLOTOV)) {
+            row(item, kind.displayName, getString(R.string.store_carried, renderer.grenades(kind), kind.most),
+                full = !renderer.canCarry(kind)) { renderer.addGrenade(kind) }
+        }
+    }
+
+    /** Pays for [item] (nothing in solo) and hands it over with [give]; then the shop shows what's changed. */
+    private fun buy(item: StoreItem, give: () -> Unit) {
+        if (dead || gameOver) return
+        val price = priceOf(item)
+        if (!Wallet.spend(this, price)) {
+            showBanner(getString(R.string.store_not_enough))
+            return fillShop()
+        }
+        if (price > 0) CareerWallet.upload(this)
+        give()
+        sounds.grenadeThrow(0.5f)
+        updateMedkitButtons()
+        updateGrenadeButtons()
+        updateWeaponButtons()
+        fillShop()
+    }
+
+    /** Uses a small medkit (a heart back) or a big one (every heart), if I have one and I'm hurt. */
+    private fun useMedkit(big: Boolean) {
+        if (dead || gameOver) return
+        when {
+            health >= CityRenderer.MAX_HEALTH -> return showBanner(getString(R.string.medkit_full_health))
+            big && bigMedkits <= 0 -> return showBanner(getString(R.string.medkit_none_big))
+            !big && smallMedkits <= 0 -> return showBanner(getString(R.string.medkit_none_small))
+        }
+        if (big) bigMedkits-- else smallMedkits--
+        health = if (big) CityRenderer.MAX_HEALTH else (health + 1).coerceAtMost(CityRenderer.MAX_HEALTH)
+        renderer.health = health
+        online.setHealth(health, false, "")
+        sounds.grenadeThrow(0.6f)
+        updateHearts()
+        showBanner(getString(if (big) R.string.medkit_used_big else R.string.medkit_used_small))
     }
 
     private fun showBanner(text: String) {
@@ -1118,7 +1410,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     private fun updateStatusLabel() {
         val text = when (status) {
-            OnlineWorld.Status.NOT_CONFIGURED -> getString(R.string.status_offline)
+            OnlineWorld.Status.NOT_CONFIGURED -> solo?.let { soloStatus(it) } ?: getString(R.string.status_offline)
             OnlineWorld.Status.CONNECTING -> getString(R.string.status_connecting)
             OnlineWorld.Status.FAILED -> getString(R.string.status_failed)
             OnlineWorld.Status.ONLINE ->
@@ -1457,9 +1749,14 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     private fun showPlayerMenu() {
         val hasStreets = repo.streets().isNotEmpty()
         val actions = mutableListOf<Pair<Int, () -> Unit>>()
-        if (online.configured) {
-            actions += R.string.menu_scoreboard to { showScoreboard() }
-            actions += R.string.menu_players to { showPlayersDialog() }
+        if (online.configured || solo != null) actions += R.string.menu_scoreboard to { showScoreboard() }
+        if (online.configured) actions += R.string.menu_players to { showPlayersDialog() }
+        // Enemies as rough red circles on the maps (see EnemyAreas): on or off, kept on this phone.
+        actions += (if (showEnemyAreas) R.string.menu_enemy_areas_hide else R.string.menu_enemy_areas_show) to {
+            showEnemyAreas = !showEnemyAreas
+            Session.setEnemyAreas(this, showEnemyAreas)
+            onPlayers(remotePlayers)
+            showBanner(getString(if (showEnemyAreas) R.string.enemy_areas_on else R.string.enemy_areas_off))
         }
         actions += listOf<Pair<Int, () -> Unit>>(
             R.string.menu_change_team to {
@@ -1483,7 +1780,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             repo.removeAllStreets()
             recreate()
         }
-        if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to { leaveRoom() }
+        if (solo != null) actions += R.string.menu_leave_solo to { leaveSolo() }
+        else if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to { leaveRoom() }
         actions += R.string.menu_logout to {
             leavingRoom = true
             Session.logout(this)
@@ -1501,6 +1799,27 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
     }
 
     /** Back to the room list; with [createNext], it opens the create-room dialog straight away. */
+    /** My id on the scoreboard: my online uid, or the solo game's "me". */
+    private fun myUid(): String? = if (solo != null) SoloMatch.ME else online.uid
+
+    /** Ends a solo game: back to choosing solo or multiplayer. */
+    private fun leaveSolo() {
+        Session.setSolo(this, null)
+        startActivity(Intent(this, ModeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    /** "Solo · 4 bots, Hard". */
+    private fun soloStatus(game: SoloMatch): String {
+        val s = game.settings
+        val level = getString(when (s.difficulty) {
+            BotDifficulty.EASY -> R.string.solo_easy
+            BotDifficulty.MEDIUM -> R.string.solo_medium
+            BotDifficulty.HARD -> R.string.solo_hard
+        })
+        return getString(R.string.status_solo, resources.getQuantityString(R.plurals.solo_bots, s.bots, s.bots) + ", " + level)
+    }
+
     private fun leaveRoom(createNext: Boolean = false) {
         leavingRoom = true
         Session.setRoom(this, null, null)
@@ -1522,6 +1841,13 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         private const val FINAL_SECONDS_MS = 30_000L
         private const val MAX_STREETS = 16
         private const val POSE_INTERVAL_MS = 200L
+        /** How often a solo game moves its bots on, ms. */
+        private const val SOLO_TICK_MS = 50L
+        /** Medkits: small ones each life starts with, and the most of each that can be carried. */
+        private const val START_SMALL_MEDKITS = 3
+        private const val START_BIG_MEDKITS = 2
+        private const val MAX_SMALL_MEDKITS = 5
+        private const val MAX_BIG_MEDKITS = 3
         private const val RESPAWN_MS = 4_000L
         private const val BANNER_MS = 2_500L
         /** HUD button background (as in the HudButton style), and the mic button's while it's on. */

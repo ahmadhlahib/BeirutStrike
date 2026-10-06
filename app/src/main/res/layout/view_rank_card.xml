@@ -73,4 +73,15 @@
                 android:progressDrawable="@drawable/xp_progress" />
         </LinearLayout>
     </LinearLayout>
+
+    <!-- My money (see Wallet): earned in online games, spent on guns. -->
+    <TextView
+        android:id="@+id/rankCardCash"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:fontFeatureSettings="tnum"
+        android:textColor="#FF7CD67C"
+        android:textSize="18sp"
+        android:textStyle="bold" />
 </LinearLayout>

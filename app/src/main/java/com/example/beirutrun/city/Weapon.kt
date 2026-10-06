@@ -145,7 +145,20 @@ enum class PickupKind(val id: String, val slot: GunSlot?, val grenade: GrenadeKi
     FRAG_GRENADE("frag_grenade", null, GrenadeKind.FRAG),
     FLASH_GRENADE("flash_grenade", null, GrenadeKind.FLASH),
     SMOKE_GRENADE("smoke_grenade", null, GrenadeKind.SMOKE),
-    MOLOTOV("molotov", null, GrenadeKind.MOLOTOV);
+    MOLOTOV("molotov", null, GrenadeKind.MOLOTOV),
+    /** A first-aid kit: gives back one heart, when the player chooses to use it. */
+    MEDKIT_SMALL("medkit_small", null),
+    /** A medical bag: fills every heart, when the player chooses to use it. */
+    MEDKIT_BIG("medkit_big", null);
+
+    /** A medical kit (carried, used with the medkit buttons), rather than ammo, a scope or a grenade. */
+    val medkit get() = this == MEDKIT_SMALL || this == MEDKIT_BIG
+
+    /**
+     * Lies in the streets: magazines only. Scopes, grenades and medkits are bought at the arms
+     * stores (see Stores); their pickup spots stay in [SLOTS] so older versions still agree.
+     */
+    val inStreets get() = slot != null
 
     companion object {
         fun byId(id: String?) = entries.firstOrNull { it.id == id }
@@ -157,10 +170,13 @@ enum class PickupKind(val id: String, val slot: GunSlot?, val grenade: GrenadeKi
          */
         val SLOTS: List<PickupKind> =
             List(5) { AK_AMMO } + List(4) { PISTOL_AMMO } + List(2) { SCOPE } + List(2) { SNIPER_AMMO } +
-                List(2) { FRAG_GRENADE } + List(2) { FLASH_GRENADE } + SMOKE_GRENADE + MOLOTOV
+                List(2) { FRAG_GRENADE } + List(2) { FLASH_GRENADE } + SMOKE_GRENADE + MOLOTOV +
+                List(3) { MEDKIT_SMALL } + MEDKIT_BIG +
+                List(3) { AK_AMMO } + List(2) { PISTOL_AMMO } + SNIPER_AMMO
 
         fun respawnMs(kind: PickupKind) = when (kind) {
-            SCOPE -> 60_000L
+            SCOPE, MEDKIT_BIG -> 60_000L
+            MEDKIT_SMALL -> 30_000L
             SMOKE_GRENADE, MOLOTOV -> 45_000L
             SNIPER_AMMO, FRAG_GRENADE, FLASH_GRENADE -> 40_000L
             else -> 20_000L

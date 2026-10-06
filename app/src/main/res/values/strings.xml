@@ -360,4 +360,85 @@
     <string name="xp_gain">+%1$d XP</string>
     <!-- A kill with its XP: "You killed Ali! · +75 XP" -->
     <string name="kill_with_xp">%1$s · %2$s</string>
+
+    <!-- Solo or multiplayer (ModeActivity), and the solo setup. -->
+    <string name="mode_greeting">Hi %1$s! How do you want to play?</string>
+    <string name="mode_solo">Solo</string>
+    <string name="mode_solo_info">Fight bots on your own. No internet needed.</string>
+    <string name="mode_multiplayer">Multiplayer</string>
+    <string name="mode_multiplayer_info">Join or create a room and play online with others.</string>
+    <string name="mode_multiplayer_unavailable">Not available in this version.</string>
+    <string name="solo_title">Solo game</string>
+    <string name="solo_start">Next</string>
+    <plurals name="solo_bots">
+        <item quantity="one">%d bot</item>
+        <item quantity="other">%d bots</item>
+    </plurals>
+    <string name="solo_difficulty">Difficulty</string>
+    <string name="solo_easy">Easy</string>
+    <string name="solo_medium">Medium</string>
+    <string name="solo_hard">Hard</string>
+    <string name="solo_easy_info">They see you up close, react slowly and miss a lot.</string>
+    <string name="solo_medium_info">They hunt you down, sidestep and shoot straighter.</string>
+    <string name="solo_hard_info">They spot you from afar, react fast, take cover lying down and rarely miss.</string>
+    <string name="solo_allies">Bots on my team</string>
+    <string name="solo_allies_on">Half the bots fight with you, the rest against you.</string>
+    <string name="solo_allies_off">Every bot is against you.</string>
+    <string name="solo_enemy_areas">Show enemy areas on map</string>
+    <string name="solo_enemy_areas_info">Bots show as red circles they are somewhere inside, never their exact spot.</string>
+    <string name="solo_no_xp">Solo games are practice: they don\'t give XP or count toward ranks.</string>
+    <string name="bot_name">%1$s · bot</string>
+    <string name="status_solo">Solo · %1$s</string>
+    <string name="menu_leave_solo">Leave the game</string>
+    <string name="score_play_again">Play again</string>
+    <!-- Arms stores (Stores) and their shop. -->
+    <string name="store_open">Store</string>
+    <string name="store_title">Arms store</string>
+    <string name="store_cash">You have %1$s</string>
+    <string name="store_free">Solo game: everything here is free</string>
+    <string name="store_take">Take</string>
+    <string name="store_full">Full</string>
+    <string name="store_magazine">%1$s magazine (%2$d rounds)</string>
+    <string name="store_rounds">%1$d spare rounds</string>
+    <string name="store_scope">Scope for the %1$s</string>
+    <string name="store_scope_have">Already has one</string>
+    <string name="store_scope_none">Until you die; aim further</string>
+    <string name="store_medkit_small">Small medkit (+1 ♥)</string>
+    <string name="store_medkit_big">Big medkit (full ♥)</string>
+    <string name="store_carried">%1$d of %2$d carried</string>
+    <string name="store_not_enough">Not enough money</string>
+    <string name="menu_enemy_areas_hide">Hide enemy areas on map</string>
+    <string name="menu_enemy_areas_show">Show enemy areas on map</string>
+    <string name="enemy_areas_on">Enemy areas shown on the map</string>
+    <string name="enemy_areas_off">Enemy areas hidden from the map</string>
+    <!-- Medkits: picked up in the street, used with the buttons beside the hearts. -->
+    <string name="pickup_medkit_small">Medkit +1 ♥</string>
+    <string name="pickup_medkit_big">Medical bag · full ♥</string>
+    <string name="picked_medkit_small">Medkit (%1$d carried)</string>
+    <string name="picked_medkit_big">Medical bag (%1$d carried)</string>
+    <string name="medkit_small_button">+1 ×%1$d</string>
+    <string name="medkit_big_button">Full ×%1$d</string>
+    <string name="medkit_used_small">+1 ♥</string>
+    <string name="medkit_used_big">Health full ♥</string>
+    <string name="medkit_full_health">Your health is already full</string>
+    <string name="medkit_none_small">No small medkits left: find one in the streets</string>
+    <string name="medkit_none_big">No medical bag: find one in the streets</string>
+    <!-- Money (see Wallet): earned in online games, spent on guns. -->
+    <string name="cash_won">Victory · +%1$s</string>
+    <string name="gun_price">🔒 %1$s · tap to buy</string>
+    <string name="buy_title">Buy the %1$s?</string>
+    <string name="buy_confirm">It costs %1$s. You\'ll have %2$s left, and it\'s yours for good.</string>
+    <string name="buy_button">Buy · %1$s</string>
+    <string name="buy_done">%1$s bought</string>
+    <string name="buy_need_more">It costs %1$s and you have %2$s: %3$s more needed. Earn money with kills, headshots and wins in online games.</string>
+
+    <!-- Account (LoginActivity): optional Google sign-in. -->
+    <string name="account_guest">Playing as a guest: your XP, rank, money and guns stay on this phone. Sign in with Google to keep them on any phone.</string>
+    <string name="account_signed_in">Signed in as %1$s. Your XP, rank, money and guns follow you to any phone.</string>
+    <string name="account_google_sign_in">Sign in with Google</string>
+    <string name="account_sign_out">Sign out</string>
+    <string name="account_sign_out_message">Your progress stays with your Google account. This phone starts again as a new guest until you sign in.</string>
+    <string name="account_linked">Signed in: your progress is now saved to your Google account</string>
+    <string name="account_switched">Signed in: your account\'s progress is loading</string>
+    <string name="account_failed">Couldn\'t sign in with Google. Check your connection and try again.</string>
 </resources>

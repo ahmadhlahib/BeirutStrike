@@ -10,11 +10,15 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.beirutrun.city.GunIcon
 import com.example.beirutrun.city.GunPhotos
 import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
+import com.example.beirutrun.online.CareerWallet
+import com.example.beirutrun.progression.GunPrices
+import com.example.beirutrun.progression.Wallet
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -86,11 +90,36 @@ class LoadoutActivity : AppCompatActivity() {
         stats.addView(bar(R.string.stat_mobility, (gun.moveSpeed - 0.7f) / 0.4f))
         card.contentDescription = gun.displayName
         card.setOnClickListener {
+            if (!Wallet.owns(this, gun)) return@setOnClickListener offerToBuy(gun)
             chosen[gun.slot] = gun
             highlight()
         }
         cards[gun] = card
         return card
+    }
+
+    /** Asks whether to buy [gun] (or says how much more is needed); bought, it's chosen straight away. */
+    private fun offerToBuy(gun: Weapon) {
+        val price = GunPrices.of(gun)
+        val cash = Wallet.cash(this)
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.buy_title, gun.displayName))
+        if (cash < price) {
+            dialog.setMessage(getString(R.string.buy_need_more, Wallet.format(price), Wallet.format(cash), Wallet.format(price - cash)))
+                .setPositiveButton(R.string.close, null)
+        } else {
+            dialog.setMessage(getString(R.string.buy_confirm, Wallet.format(price), Wallet.format(cash - price)))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(getString(R.string.buy_button, Wallet.format(price))) { _, _ ->
+                    if (Wallet.buy(this, gun)) {
+                        CareerWallet.upload(this)
+                        chosen[gun.slot] = gun
+                        Toast.makeText(this, getString(R.string.buy_done, gun.displayName), Toast.LENGTH_SHORT).show()
+                    }
+                    highlight()
+                }
+        }
+        dialog.show()
     }
 
     /** "30 × 4 rounds · 600/min · reload 2.6 s · 4× scope" */
@@ -137,9 +166,21 @@ class LoadoutActivity : AppCompatActivity() {
         return row
     }
 
-    /** The chosen gun in each slot is outlined. */
+    /**
+     * The chosen gun in each slot is outlined; guns not owned are dimmed, with their price to
+     * buy them. My money is at the top.
+     */
     private fun highlight() {
-        for ((gun, card) in cards) card.strokeWidth = if (chosen[gun.slot] == gun) dp(3) else 0
+        for ((gun, card) in cards) {
+            card.strokeWidth = if (chosen[gun.slot] == gun) dp(3) else 0
+            val owned = Wallet.owns(this, gun)
+            card.alpha = if (owned) 1f else 0.75f
+            card.findViewById<TextView>(R.id.gunPrice).apply {
+                visibility = if (owned) View.GONE else View.VISIBLE
+                text = getString(R.string.gun_price, Wallet.format(GunPrices.of(gun)))
+            }
+        }
+        findViewById<TextView>(R.id.loadoutCash).text = Wallet.format(Wallet.cash(this))
     }
 
     /** Saves the three guns and goes into the city (the face photo is chosen on the character screen). */
