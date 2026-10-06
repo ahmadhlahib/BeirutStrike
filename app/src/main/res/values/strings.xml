@@ -44,6 +44,7 @@
     <string name="menu_logout">Change name</string>
 
     <string name="osm_attribution">Map data © OpenStreetMap contributors</string>
+    <string name="osm_elevation_attribution">Map data © OpenStreetMap contributors · Elevation: Mapzen Terrain Tiles (SRTM, NASA)</string>
 
     <!-- Rooms -->
     <string name="rooms_subtitle">Join a room or create your own. Players in the same room play together.</string>

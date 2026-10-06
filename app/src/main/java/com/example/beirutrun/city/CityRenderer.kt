@@ -20,6 +20,7 @@ import kotlin.math.atan
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -739,7 +740,7 @@ class CityRenderer(
             val x = ox + camFx * t
             val y = oy + camFy * t
             val z = oz + camFz * t
-            if (y <= 0f || city.isInsideBuilding(x, y, z, 0f)) break
+            if (city.underground(x, y, z) || city.isInsideBuilding(x, y, z, 0f)) break
             if (remotes.values.any { isEnemy(it) && hitsBody(it, x, y, z) }) { onTarget = true; break }
             t += BULLET_STEP
         }
@@ -749,7 +750,7 @@ class CityRenderer(
         }
         aimOnTarget = onTarget
         aimX = ox + camFx * t
-        aimY = (oy + camFy * t).coerceAtLeast(0f)
+        aimY = (oy + camFy * t).coerceAtLeast(city.groundAt(aimX, oz + camFz * t))
         aimZ = oz + camFz * t
     }
 
@@ -1024,7 +1025,7 @@ class CityRenderer(
         for (p in pickups) {
             val d = hypot(p.x - playerX, p.z - playerZ)
             if (d > PICKUP_DRAW_DISTANCE * (if (scoped) SCOPE_RANGE_SCALE else 1f)) continue
-            val y = 0.35f + sin(t * 2f + p.slot) * 0.06f
+            val y = city.groundAt(p.x, p.z) + 0.35f + sin(t * 2f + p.slot) * 0.06f
             Matrix.setIdentityM(base, 0)
             Matrix.translateM(base, 0, p.x, y, p.z)
             Matrix.rotateM(base, 0, deg(t * 1.2f) + p.slot * 40f, 0f, 1f, 0f)
@@ -1110,7 +1111,7 @@ class CityRenderer(
         for (s in stores) {
             if (hypot(s.x - playerX, s.z - playerZ) > STORE_DRAW_DISTANCE * (if (scoped) SCOPE_RANGE_SCALE else 1f)) continue
             Matrix.setIdentityM(base, 0)
-            Matrix.translateM(base, 0, s.x, 0f, s.z)
+            Matrix.translateM(base, 0, s.x, city.groundAt(s.x, s.z), s.z)
             // Kiosk space: +z is the counter's front, towards the street.
             Matrix.rotateM(base, 0, deg(atan2(s.fx, s.fz)), 0f, 1f, 0f)
             partBox(0f, 1.2f, -0.35f, 2.2f, 2.4f, 1.3f, 0xFF5D4037.toInt())     // back cabin
@@ -1141,7 +1142,7 @@ class CityRenderer(
             if (hypot(s.x - playerX, s.z - playerZ) > STORE_LABEL_DISTANCE) continue
             val text = storeLabel
             val tag = label("store:$text") { CityBitmaps.nameTag(text, 0xFFFFC107.toInt()) to NAME_UNITS_PER_PX }
-            drawBillboard(tag, s.x, 3.25f, s.z)
+            drawBillboard(tag, s.x, city.groundAt(s.x, s.z) + 3.25f, s.z)
         }
     }
 
@@ -1151,7 +1152,7 @@ class CityRenderer(
             if (hypot(p.x - playerX, p.z - playerZ) > PICKUP_LABEL_DISTANCE) continue
             val text = pickupLabel(p.kind)
             val tag = label("p:$text") { CityBitmaps.nameTag(text, 0xFFFFC107.toInt()) to NAME_UNITS_PER_PX }
-            drawBillboard(tag, p.x, 0.75f, p.z)
+            drawBillboard(tag, p.x, city.groundAt(p.x, p.z) + 0.75f, p.z)
         }
     }
 
@@ -1201,8 +1202,8 @@ class CityRenderer(
             roof = null
             climb = null
             climbing = false
-            floorY = 0f
-            playerY = 0f
+            floorY = city.groundAt(x, z)
+            playerY = floorY
             vy = 0f
             bullets.clear()
         }
@@ -1349,7 +1350,7 @@ class CityRenderer(
                 b.y += b.dy * s
                 b.z += b.dz * s
                 b.travelled += s
-                if (b.travelled > b.range || b.y <= 0f || city.isInsideBuilding(b.x, b.y, b.z, 0f)) {
+                if (b.travelled > b.range || city.underground(b.x, b.y, b.z) || city.isInsideBuilding(b.x, b.y, b.z, 0f)) {
                     spent = true
                 } else if (life.shoot(b.x, b.y, b.z, b.dx, b.dz)) {
                     // A passer-by hit: they fall, but it counts for nobody's score (not reported).
@@ -1425,10 +1426,10 @@ class CityRenderer(
         // Killed on the ladder: down at whichever end is nearer.
         val done = t >= c.total
         if (isDown || done) {
-            val atTop = if (done) c.up else playerY > l.height / 2f
+            val atTop = if (done) c.up else playerY > (l.footY + l.topY) / 2f
             playerX = if (atTop) l.topX else l.footX
             playerZ = if (atTop) l.topZ else l.footZ
-            floorY = if (atTop) l.height else 0f
+            floorY = if (atTop) l.topY else l.footY
             playerY = floorY
             roof = if (atTop) l.building else null
             climb = null
@@ -1437,7 +1438,7 @@ class CityRenderer(
         }
         heading = l.facingWall
         // Onto the ladder, up or down its rungs, then off it at the other end.
-        val (startY, endY) = if (c.up) 0f to l.height else l.height to 0f
+        val (startY, endY) = if (c.up) l.footY to l.topY else l.topY to l.footY
         when {
             t < c.onto -> {
                 val k = smooth(t / c.onto)
@@ -1486,12 +1487,13 @@ class CityRenderer(
             val cx = l.wallX + l.nx * 0.12f
             val cz = l.wallZ + l.nz * 0.12f
             val top = l.height + 1f
+            val foot = l.footY
             for (side in listOf(-1f, 1f)) {
-                m.turnedBox(cx + ax * side * 0.26f, top / 2f, cz + az * side * 0.26f, ax, az, 0.03f, top / 2f, 0.03f)
+                m.turnedBox(cx + ax * side * 0.26f, foot + top / 2f, cz + az * side * 0.26f, ax, az, 0.03f, top / 2f, 0.03f)
             }
             var y = RUNG_GAP
             while (y < top - 0.05f) {
-                m.turnedBox(cx, y, cz, ax, az, 0.26f, 0.018f, 0.02f)
+                m.turnedBox(cx, foot + y, cz, ax, az, 0.26f, 0.018f, 0.02f)
                 y += RUNG_GAP
             }
         }
@@ -1600,9 +1602,17 @@ class CityRenderer(
         val nz = g.z + g.vz * h
         if (grenadeBlocked(g.x, g.y, nz)) { g.vz = -g.vz * BOUNCE; contact = Contact.WALL } else g.z = nz
         val ny = g.y + g.vy * h
-        val floor = ny <= GRENADE_RADIUS
+        val ground = city.groundAt(g.x, g.z)
+        val floor = ny <= ground + GRENADE_RADIUS
         if (floor || grenadeBlocked(g.x, ny, g.z)) {
-            if (floor) g.y = GRENADE_RADIUS
+            if (floor) {
+                g.y = ground + GRENADE_RADIUS
+                // On a hillside it rolls on downhill.
+                val sx = city.groundAt(g.x + 0.5f, g.z) - city.groundAt(g.x - 0.5f, g.z)
+                val sz = city.groundAt(g.x, g.z + 0.5f) - city.groundAt(g.x, g.z - 0.5f)
+                g.vx -= sx * GRAVITY * h * 0.5f
+                g.vz -= sz * GRAVITY * h * 0.5f
+            }
             val falling = g.vy < 0f
             if (falling) contact = if (floor) Contact.GROUND else Contact.ROOF
             else if (contact == Contact.NONE) contact = Contact.WALL
@@ -1624,9 +1634,10 @@ class CityRenderer(
         val now = SystemClock.uptimeMillis()
         val kind = g.kind
         // Smoke and fire settle on the ground, or on the roof the grenade landed on.
-        val onRoof = contact == Contact.ROOF || (g.y > 0.5f && city.isInsideBuilding(g.x, g.y - 0.3f, g.z, 0f))
+        val ground = city.groundAt(g.x, g.z)
+        val onRoof = contact == Contact.ROOF || (g.y > ground + 0.5f && city.isInsideBuilding(g.x, g.y - 0.3f, g.z, 0f))
         val y = when (kind) {
-            GrenadeKind.SMOKE, GrenadeKind.MOLOTOV -> if (onRoof) g.y - GRENADE_RADIUS else 0f
+            GrenadeKind.SMOKE, GrenadeKind.MOLOTOV -> if (onRoof) g.y - GRENADE_RADIUS else ground
             else -> g.y
         }
         val lasts = when (kind) {
@@ -1774,7 +1785,9 @@ class CityRenderer(
         val steps = (d / BULLET_STEP).toInt()
         for (i in 1 until steps) {
             val k = i / steps.toFloat()
-            if (city.isInsideBuilding(ax + (bx - ax) * k, ay + (by - ay) * k, az + (bz - az) * k, 0f)) return false
+            val x = ax + (bx - ax) * k; val y = ay + (by - ay) * k; val z = az + (bz - az) * k
+            // A wall or a hill in the way.
+            if (city.isInsideBuilding(x, y, z, 0f) || city.underground(x, y, z)) return false
         }
         return true
     }
@@ -1994,7 +2007,7 @@ class CityRenderer(
 
     private fun update(dt: Float) {
         // Standing at a store's counter (in the street, alive): the city screen offers the shop.
-        nearStore = if (down || climbing || floorY > 0.5f) null
+        nearStore = if (down || climbing || roof != null) null
             else stores.firstOrNull { hypot(it.frontX - playerX, it.frontZ - playerZ) < Store.REACH }
         synchronized(lookLock) {
             yaw += pendingYaw
@@ -2089,6 +2102,14 @@ class CityRenderer(
                 heading = approachAngle(heading, yaw + PI.toFloat(), 2.5f * dt)
             }
         }
+        // In the street the floor is the ground under the feet: on a hillside it rises and falls
+        // with each step, and feet on the ground stay on it (only a jump leaves it).
+        if (roof == null && !climbing) {
+            val ground = city.groundAt(playerX, playerZ)
+            val onGround = playerY <= floorY + 0.05f && vy <= 0f
+            floorY = ground
+            if (onGround || playerY < ground) playerY = ground
+        }
         // Shooting turns the character to aim along the camera, even while strafing; in first
         // person the soldier always faces where you look (so others see where you aim).
         if (!climbing && (aimTime > 0f || eyeView)) heading = yaw
@@ -2144,14 +2165,15 @@ class CityRenderer(
             val px = lookX - sin(yaw) * cos(pitch) * t
             val py = targetY + sin(pitch) * t
             val pz = lookZ + cos(yaw) * cos(pitch) * t
-            if (city.isInsideBuilding(px, py, pz, 0.35f)) {
+            // (Or a hillside: on a slope the camera comes in rather than going into the ground.)
+            if (city.isInsideBuilding(px, py, pz, 0.35f) || py < city.groundAt(px, pz) + 0.3f) {
                 distance = (t - 0.35f).coerceAtLeast(0.3f)
                 break
             }
             t += 0.2f
         }
         eyeX = lookX - sin(yaw) * cos(pitch) * distance
-        eyeY = (targetY + sin(pitch) * distance).coerceAtLeast(0.3f)
+        eyeY = (targetY + sin(pitch) * distance).coerceAtLeast(city.groundAt(eyeX, lookZ + cos(yaw) * cos(pitch) * distance) + 0.3f)
         eyeZ = lookZ + cos(yaw) * cos(pitch) * distance
         if (shake > 0f) {
             eyeX += (kotlin.random.Random.nextFloat() - 0.5f) * shake * SHAKE_MOVE
@@ -2201,24 +2223,45 @@ class CityRenderer(
         val water = MeshBuilder()
         fun strip(sea: Boolean, ax: Float, az: Float, bx: Float, bz: Float) =
             if (sea) water.floor(ax, az, bx, bz, 0.012f) else land.floor(ax, az, bx, bz, 0f, GROUND_SPAN)
-        land.floor(x0, z0, x1, z1, 0f, GROUND_SPAN)
-        strip(north, x0, z0 - m, x1, z0)
-        strip(south, x0, z1, x1, z1 + m)
-        strip(west, x0 - m, z0, x0, z1)
-        strip(east, x1, z0, x1 + m, z1)
-        strip(north || west, x0 - m, z0 - m, x0, z0)
-        strip(north || east, x1, z0 - m, x1 + m, z0)
-        strip(south || west, x0 - m, z1, x0, z1 + m)
-        strip(south || east, x1, z1, x1 + m, z1 + m)
+        if (city.terrain.flat) {
+            land.floor(x0, z0, x1, z1, 0f, GROUND_SPAN)
+            strip(north, x0, z0 - m, x1, z0)
+            strip(south, x0, z1, x1, z1 + m)
+            strip(west, x0 - m, z0, x0, z1)
+            strip(east, x1, z0, x1 + m, z1)
+            strip(north || west, x0 - m, z0 - m, x0, z0)
+            strip(north || east, x1, z0 - m, x1 + m, z0)
+            strip(south || west, x0 - m, z1, x0, z1 + m)
+            strip(south || east, x1, z1, x1 + m, z1 + m)
+        } else {
+            // The hills themselves are in the scene (CityScene's hillsides); beyond the map's
+            // edges the land carries on at the edge's height, out to the horizon.
+            hillSkirts(land, m)
+        }
         ground = land.build()
         openSea = water.build()
         if (city.limited) border = MeshBuilder().apply {
             val t = 0.08f
             val x0p = city.playMinX; val x1p = city.playMaxX; val z0p = city.playMinZ; val z1p = city.playMaxZ
-            box(x0p - t, 0f, z0p - t, x1p + t, BORDER_HEIGHT, z0p + t)
-            box(x0p - t, 0f, z1p - t, x1p + t, BORDER_HEIGHT, z1p + t)
-            box(x0p - t, 0f, z0p - t, x0p + t, BORDER_HEIGHT, z1p + t)
-            box(x1p - t, 0f, z0p - t, x1p + t, BORDER_HEIGHT, z1p + t)
+            if (city.terrain.flat) {
+                box(x0p - t, 0f, z0p - t, x1p + t, BORDER_HEIGHT, z0p + t)
+                box(x0p - t, 0f, z1p - t, x1p + t, BORDER_HEIGHT, z1p + t)
+                box(x0p - t, 0f, z0p - t, x0p + t, BORDER_HEIGHT, z1p + t)
+                box(x1p - t, 0f, z0p - t, x1p + t, BORDER_HEIGHT, z1p + t)
+            } else {
+                // On hills, in short pieces that follow the ground.
+                fun along(ax: Float, az: Float, bx: Float, bz: Float) {
+                    val n = (hypot(bx - ax, bz - az) / BORDER_PIECE).toInt().coerceAtLeast(1)
+                    for (i in 0 until n) {
+                        val sx = ax + (bx - ax) * i / n; val sz = az + (bz - az) * i / n
+                        val ex = ax + (bx - ax) * (i + 1) / n; val ez = az + (bz - az) * (i + 1) / n
+                        val g = city.groundAt((sx + ex) / 2f, (sz + ez) / 2f)
+                        box(min(sx, ex) - t, g - 1f, min(sz, ez) - t, max(sx, ex) + t, g + BORDER_HEIGHT, max(sz, ez) + t)
+                    }
+                }
+                along(x0p, z0p, x1p, z0p); along(x0p, z1p, x1p, z1p)
+                along(x0p, z0p, x0p, z1p); along(x1p, z0p, x1p, z1p)
+            }
         }.build()
         ladderMesh = buildLadders()
         cube = MeshBuilder().apply { box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f) }.build()
@@ -2229,6 +2272,34 @@ class CityRenderer(
                 0f, 0f, 1f,
             )
         }.build()
+    }
+
+    /**
+     * Land beyond a hilly map's edges: from each piece of the edge, out [m] metres at that piece's
+     * height, so the hills don't end in a cliff; corners at their corner's height.
+     */
+    private fun hillSkirts(land: MeshBuilder, m: Float) {
+        val x0 = city.minX; val x1 = city.maxX; val z0 = city.minZ; val z1 = city.maxZ
+        val piece = SKIRT_PIECE
+        fun flat(ax: Float, az: Float, bx: Float, bz: Float, y: Float) = land.floor(min(ax, bx), min(az, bz), max(ax, bx), max(az, bz), y, GROUND_SPAN)
+        var x = x0
+        while (x < x1) {
+            val e = min(x + piece, x1)
+            flat(x, z0 - m, e, z0, city.groundAt((x + e) / 2f, z0))
+            flat(x, z1, e, z1 + m, city.groundAt((x + e) / 2f, z1))
+            x = e
+        }
+        var z = z0
+        while (z < z1) {
+            val e = min(z + piece, z1)
+            flat(x0 - m, z, x0, e, city.groundAt(x0, (z + e) / 2f))
+            flat(x1, z, x1 + m, e, city.groundAt(x1, (z + e) / 2f))
+            z = e
+        }
+        flat(x0 - m, z0 - m, x0, z0, city.groundAt(x0, z0))
+        flat(x1, z0 - m, x1 + m, z0, city.groundAt(x1, z0))
+        flat(x0 - m, z1, x0, z1 + m, city.groundAt(x0, z1))
+        flat(x1, z1, x1 + m, z1 + m, city.groundAt(x1, z1))
     }
 
     /**
@@ -2261,11 +2332,13 @@ class CityRenderer(
             val nx = dz; val nz = -dx
             var w = bestLen * 0.9f
             var h = w / aspect
-            val maxHeight = b.height * 0.9f - 0.4f
-            if (h > maxHeight) { h = maxHeight; w = h * aspect }
             val cx = (ax + bx) / 2f + nx * 0.05f
             val cz = (az + bz) / 2f + nz * 0.05f
-            val y0 = 0.4f
+            // From just above the street in front (on a hillside, the ground there).
+            val street = maxOf(city.groundAt(cx, cz), b.base)
+            val maxHeight = (b.top - street) * 0.9f - 0.4f
+            if (h > maxHeight) { h = maxHeight; w = h * aspect }
+            val y0 = street + 0.4f
             val y1 = y0 + h
             // Seen from outside, the b end is on the left.
             val left = floatArrayOf(cx + dx * w / 2, 0f, cz + dz * w / 2)
@@ -2372,7 +2445,7 @@ class CityRenderer(
             m[0] = car.fz; m[1] = 0f; m[2] = -car.fx; m[3] = 0f
             m[4] = 0f; m[5] = 1f; m[6] = 0f; m[7] = 0f
             m[8] = car.fx; m[9] = 0f; m[10] = car.fz; m[11] = 0f
-            m[12] = car.x; m[13] = 0f; m[14] = car.z; m[15] = 1f
+            m[12] = car.x; m[13] = city.groundAt(car.x, car.z); m[14] = car.z; m[15] = 1f
             // The shadow: drawn without writing depth, a little above the road.
             System.arraycopy(m, 0, wheelMatrix, 0, 16)
             Matrix.translateM(wheelMatrix, 0, 0f, CAR_SHADOW_LIFT, 0f)
@@ -2426,7 +2499,7 @@ class CityRenderer(
             // Mid-turn they're drawn facing the way they came; the clip turns them round.
             val heading = if (p.id in passerbyTurning) p.heading + PI.toFloat() else p.heading
             // Models with plain materials named like clothes take the person's colours.
-            drawSoldier(anim, SoldierLook(p.shirt, p.trousers, 0), 0, p.x, p.z, heading, armed = false)
+            drawSoldier(anim, SoldierLook(p.shirt, p.trousers, 0), 0, p.x, p.z, heading, y = city.groundAt(p.x, p.z), armed = false)
         }
     }
 
@@ -2455,7 +2528,7 @@ class CityRenderer(
         val (w, h) = boardSize(visual.aspect)
         val bottom = 1.0f
         Matrix.setIdentityM(base, 0)
-        Matrix.translateM(base, 0, drop.x, 0f, drop.z)
+        Matrix.translateM(base, 0, drop.x, city.groundAt(drop.x, drop.z), drop.z)
         // Local +z is the side facing whoever dropped it.
         Matrix.rotateM(base, 0, -deg(drop.yaw), 0f, 1f, 0f)
 
@@ -2471,7 +2544,7 @@ class CityRenderer(
         val (sx, sz) = dropToWorld(drop, w / 2f + 0.8f, 0.4f)
         val statue = statueSoldier ?: return
         if (!isWorthAnimating(sx, sz)) return
-        drawSoldier(statue, lookFor(drop.team), faceTexture(dropFace(drop)), sx, sz, drop.yaw + PI.toFloat())
+        drawSoldier(statue, lookFor(drop.team), faceTexture(dropFace(drop)), sx, sz, drop.yaw + PI.toFloat(), y = city.groundAt(sx, sz))
     }
 
     /** How far a player's name tag moves: up with a jump, down near the ground when crawling. */
@@ -2490,7 +2563,7 @@ class CityRenderer(
     private fun drawDropLabels(visual: DropVisual) {
         val (w, _) = boardSize(visual.aspect)
         val (sx, sz) = dropToWorld(visual.drop, w / 2f + 0.8f, 0.4f)
-        drawLabels(sx, sz, visual.drop.author, visual.drop.caption.ifBlank { null })
+        drawLabels(sx, sz, visual.drop.author, visual.drop.caption.ifBlank { null }, lift = city.groundAt(sx, sz))
     }
 
     // ---- Characters ---------------------------------------------------------------------------
@@ -2786,7 +2859,8 @@ class CityRenderer(
     /** Sets how much the sky is reflected, whether walls darken at their foot and whether see-through texels are cut away, if changed. */
     private fun finish(shine: Float, ao: Boolean, cutout: Boolean = false) {
         if (shine != shineSet) { GLES20.glUniform1f(shader.uShine, shine); shineSet = shine }
-        val a = if (ao) 1f else 0f
+        // (The darkening is measured from height 0, so on a map with hills it's left off.)
+        val a = if (ao && city.terrain.flat) 1f else 0f
         if (a != aoSet) { GLES20.glUniform1f(shader.uAo, a); aoSet = a }
         val c = if (cutout) 0.5f else 0f
         if (c != cutoutSet) { GLES20.glUniform1f(shader.uCutout, c); cutoutSet = c }
@@ -2841,6 +2915,9 @@ class CityRenderer(
         private const val REACH = 3.5f
         private const val SPEECH_MILLIS = 12_000L
         private const val GROUND_COLOR = 0xFFDAD3C4.toInt()
+        /** Hilly maps: the land past the edge, and the play-area border, in pieces this long (metres). */
+        private const val SKIRT_PIECE = 8f
+        private const val BORDER_PIECE = 4f
         private val GROUND_SPAN = CityTextures.groundSpan(CityTextures.GROUND)
         private const val FOG_START = 70f
         private const val FOG_END = 230f

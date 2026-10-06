@@ -14,9 +14,14 @@ class Ladder(
     val building: CityMap.Building,
     val wallX: Float, val wallZ: Float,
     val nx: Float, val nz: Float,
+    /** The ground's height at its foot (0 on flat maps). */
+    val footY: Float = 0f,
 ) {
-    /** The roof's height: the top of the climb. */
-    val height get() = building.height
+    /** The roof's height in the world: the top of the climb. */
+    val topY get() = building.top
+
+    /** How far the climb goes, foot to roof. */
+    val height get() = topY - footY
 
     /** Where a player stands to start climbing, in the street just in front of it. */
     val footX get() = wallX + nx * FOOT
@@ -82,12 +87,14 @@ object Ladders {
             // Perpendicular to the wall, turned to point out of the building.
             var nx = -(bz - az) / len; var nz = (bx - ax) / len
             if (CityMap.inside(p, mx + nx * 0.3f, mz + nz * 0.3f)) { nx = -nx; nz = -nz }
-            val ladder = Ladder(b, mx, mz, nx, nz)
+            val ladder = Ladder(b, mx, mz, nx, nz, city.groundAt(mx + nx * Ladder.FOOT, mz + nz * Ladder.FOOT))
+            // On a hillside, only where the street at the foot is about level with the building's base.
+            if (ladder.footY - b.base > 1.5f) continue
             val footClear = city.inPlayArea(ladder.footX, ladder.footZ) && !city.isBlocked(ladder.footX, ladder.footZ, 0.45f)
             // Somewhere to stand on top: on the roof, back from its edge, with nothing taller there.
             val roofClear = CityMap.inside(p, ladder.topX, ladder.topZ) &&
                 CityMap.edgeDistance(p, ladder.topX, ladder.topZ) > 0.6f &&
-                !city.isInsideBuilding(ladder.topX, b.height + 1f, ladder.topZ, 0.4f)
+                !city.isInsideBuilding(ladder.topX, b.top + 1f, ladder.topZ, 0.4f)
             if (footClear && roofClear) return ladder
         }
         return null

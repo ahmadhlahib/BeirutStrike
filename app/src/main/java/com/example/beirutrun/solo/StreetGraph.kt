@@ -20,7 +20,7 @@ class StreetGraph(city: CityMap) {
 
     init {
         for (road in city.roads) {
-            if (road.kind > CityMap.ROAD_PEDESTRIAN) continue
+            if (road.kind > CityMap.ROAD_PEDESTRIAN && road.kind != CityMap.ROAD_TRACK) continue
             var last = -1
             for (i in 0 until road.pts.size / 2) {
                 val x = road.pts[2 * i]; val z = road.pts[2 * i + 1]

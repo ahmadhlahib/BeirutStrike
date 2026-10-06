@@ -13,8 +13,9 @@ command -v cygpath >/dev/null && gson=$(cygpath -w "$gson")
 ids=("$@")
 [ ${#ids[@]} -gt 0 ] || mapfile -t ids < <(grep -vE '^\s*(#|$)' "$here/maps.txt" | awk '{print $1}')
 for id in "${ids[@]}"; do
-  read -r _ south west north east lat lon source <<< "$(grep -E "^$id[[:space:]]" "$here/maps.txt")"
-  source="${source:-$id}"
+  read -r _ south west north east lat lon source terrain <<< "$(grep -E "^$id[[:space:]]" "$here/maps.txt")"
+  [ -n "${source:-}" ] && [ "$source" != "-" ] || source="$id"
   bash "$here/fetch_osm.sh" "$source"
-  java -cp "$gson" "$here/OsmToCity.java" "$id" "$south" "$west" "$north" "$east" "$lat" "$lon" "$source"
+  [ "${terrain:-}" = "terrain" ] && bash "$here/fetch_elevation.sh" "$id"
+  java -cp "$gson" "$here/OsmToCity.java" "$id" "$south" "$west" "$north" "$east" "$lat" "$lon" "$source" "${terrain:-flat}"
 done

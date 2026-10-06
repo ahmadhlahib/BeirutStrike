@@ -28,7 +28,10 @@ enum class Surface(
     PARK(0xFF78AE5F.toInt(), CityTextures.GRASS), PITCH(0xFF56A44E.toInt(), CityTextures.GRASS),
     WATER(0xFF2F6E95.toInt(), shine = 0.5f), SAND(0xFFEFDDA8.toInt(), CityTextures.SAND),
     PIER(0xFFADABA6.toInt(), CityTextures.SLABS), CONSTRUCTION(0xFFB39878.toInt(), CityTextures.SAND),
-    ROAD_PATH(0xFFC8BA9F.toInt(), CityTextures.SAND), ROAD_PEDESTRIAN(0xFFDDCFB3.toInt(), CityTextures.PAVING),
+    ROAD_PATH(0xFFC8BA9F.toInt(), CityTextures.SAND), ROAD_TRACK(0xFFC9A86A.toInt(), CityTextures.SAND),
+    // Hillsides (maps with hills): dry grass and scrub, and bare rock and earth where it's steep.
+    HILLSIDE(0xFFB9B98A.toInt(), CityTextures.GRASS), HILL_ROCK(0xFFB4A288.toInt(), CityTextures.SAND),
+    ROAD_PEDESTRIAN(0xFFDDCFB3.toInt(), CityTextures.PAVING),
     ROAD_MINOR(0xFF56575C.toInt(), CityTextures.ASPHALT), ROAD_MEDIUM(0xFF4C4D52.toInt(), CityTextures.ASPHALT),
     ROAD_MAJOR(0xFF434448.toInt(), CityTextures.ASPHALT), ROAD_PIER(0xFFA4A29E.toInt(), CityTextures.SLABS),
     SIDEWALK(0xFFD6D1C7.toInt(), CityTextures.SLABS), CURB(0xFFBDB9B0.toInt()),
@@ -77,6 +80,8 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         private const val CROSSING_LENGTH = 3f
         private const val LAMP_SPACING = 32f
         private const val LAMP_HEIGHT = 7.5f
+        /** Most metres between a road surface's points on a map with hills. */
+        private const val ROAD_STEP = 3f
         /** Pieces a palm trunk is curved in, and panels along a frond. */
         private const val PALM_SEGMENTS = 3
         private const val FROND_PANELS = 3
@@ -103,20 +108,39 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
      * Growable float list for vertex data. Ground textures are mapped from ([ox], [oz]), the
      * tile's corner, so their coordinates stay small enough for the GPU to keep precise.
      */
-    class Floats(val ox: Float = 0f, val oz: Float = 0f) {
+    class Floats(val ox: Float = 0f, val oz: Float = 0f, private val lift: Lift? = null) {
         var data = FloatArray(1024)
         var size = 0
 
         fun vertex(x: Float, y: Float, z: Float, nx: Float, ny: Float, nz: Float, u: Float, v: Float) {
             if (size + FLOATS > data.size) data = data.copyOf(max(data.size * 2, size + FLOATS))
             val d = data
-            d[size] = x; d[size + 1] = y; d[size + 2] = z
+            d[size] = x; d[size + 1] = y + (lift?.at(x, z) ?: 0f); d[size + 2] = z
             d[size + 3] = nx; d[size + 4] = ny; d[size + 5] = nz
             d[size + 6] = u; d[size + 7] = v
             size += FLOATS
         }
 
         fun toArray() = data.copyOf(size)
+    }
+
+    /**
+     * Raises what's built onto the hills (maps with hills; on flat maps the ground is 0, so
+     * nothing moves). Things laid on the ground (roads, areas, lamps) follow it vertex by vertex;
+     * a building or tree is raised as one piece ([fixed]) so it stays upright and square.
+     */
+    class Lift(private val terrain: Terrain) {
+        /** Raise everything by this much, not by the ground under each vertex; null: follow the ground. */
+        var fixed: Float? = null
+
+        fun at(x: Float, z: Float): Float = fixed ?: terrain.heightAt(x, z)
+
+        /** Builds [what] raised by [dy] as one piece. */
+        inline fun <T> by(dy: Float, what: () -> T): T {
+            val before = fixed
+            fixed = dy
+            try { return what() } finally { fixed = before }
+        }
     }
 
     private class Builder(val map: CityMap, val look: CityLook) {
@@ -127,11 +151,13 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         /** Buildings with a ladder up the wall (see Ladders): no cornice, so it doesn't cut through one. */
         private val withLadder = Ladders.place(map).mapTo(HashSet()) { it.building }
         private val network = RoadNetwork(map.roads)
+        /** Raises everything onto the hills (see [Lift]). */
+        private val lift = Lift(map.terrain)
 
         private fun out(x: Float, z: Float, s: Surface): Floats {
             val c = floor((x - map.minX) / TILE).toInt().coerceIn(0, cols - 1)
             val r = floor((z - map.minZ) / TILE).toInt().coerceIn(0, rows - 1)
-            return tileParts[r * cols + c].getOrPut(s) { Floats(map.minX + c * TILE, map.minZ + r * TILE) }
+            return tileParts[r * cols + c].getOrPut(s) { Floats(map.minX + c * TILE, map.minZ + r * TILE, lift) }
         }
 
         /** Metres one repeat of [s]'s ground texture covers; 0 when it has none. */
@@ -158,7 +184,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
 
         fun addAll() {
             // Sea goes in "always" so the coast is visible from far off.
-            for (s in map.sea) flatPolygon(alwaysParts.getOrPut(Surface.SEA) { Floats() }, s, 0.012f)
+            for (s in map.sea) flatPolygon(alwaysParts.getOrPut(Surface.SEA) { Floats(lift = lift) }, s, 0.012f)
             for (a in map.areas) {
                 val (surface, y) = when (a.kind) {
                     CityMap.AREA_PARKING -> Surface.PARKING to 0.02f
@@ -175,8 +201,46 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             }
             for (road in map.roads) addRoad(road)
             addCrossings()
-            map.buildings.forEachIndexed { i, b -> addBuilding(b, i) }
-            for (t in map.trees) if (t.kind == CityMap.TREE_PALM) addPalm(t) else addLeafyTree(t)
+            // Buildings stand on the lowest ground under them, trees a little into it, upright.
+            map.buildings.forEachIndexed { i, b -> lift.by(b.base) { addBuilding(b, i) } }
+            for (t in map.trees) lift.by(map.groundAt(t.x, t.z) - 0.15f) {
+                if (t.kind == CityMap.TREE_PALM) addPalm(t) else addLeafyTree(t)
+            }
+            if (!map.terrain.flat) addHillsides()
+        }
+
+        /**
+         * The hills' ground: the height grid as triangles, lit by their slope; gentle slopes are
+         * dry grass, steep ones bare rock and earth. Split into tiles like everything else.
+         */
+        private fun addHillsides() {
+            val t = map.terrain
+            val c = t.cell
+            lift.by(0f) {
+                for (r in 0 until t.rows - 1) for (k in 0 until t.cols - 1) {
+                    val x0 = t.x0 + k * c
+                    val z0 = t.z0 + r * c
+                    val h00 = t.at(k, r); val h10 = t.at(k + 1, r); val h01 = t.at(k, r + 1); val h11 = t.at(k + 1, r + 1)
+                    // How steep this cell is (rise over run), for grass or rock.
+                    val steep = maxOf(abs(h10 - h00), abs(h01 - h00), abs(h11 - h10), abs(h11 - h01)) / c
+                    val surface = if (steep > 0.75f) Surface.HILL_ROCK else Surface.HILLSIDE
+                    val o = out(x0 + c / 2f, z0 + c / 2f, surface)
+                    val s = span(surface)
+                    fun v(cc: Int, rr: Int) {
+                        val x = t.x0 + cc * c
+                        val z = t.z0 + rr * c
+                        // The slope's normal, from the heights either side.
+                        val nx = t.at(cc - 1, rr) - t.at(cc + 1, rr)
+                        val nz = t.at(cc, rr - 1) - t.at(cc, rr + 1)
+                        val ny = 2f * c
+                        val len = sqrt(nx * nx + ny * ny + nz * nz)
+                        o.vertex(x, t.at(cc, rr), z, nx / len, ny / len, nz / len, (x - o.ox) / s, (z - o.oz) / s)
+                    }
+                    // Two triangles, wound to face up.
+                    v(k, r); v(k, r + 1); v(k + 1, r)
+                    v(k + 1, r); v(k, r + 1); v(k + 1, r + 1)
+                }
+            }
         }
 
         // ---- Flat things ---------------------------------------------------------------------
@@ -203,10 +267,12 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 CityMap.ROAD_MINOR -> Surface.ROAD_MINOR
                 CityMap.ROAD_PEDESTRIAN -> Surface.ROAD_PEDESTRIAN
                 CityMap.ROAD_PIER -> Surface.ROAD_PIER
+                CityMap.ROAD_TRACK -> Surface.ROAD_TRACK
                 else -> Surface.ROAD_PATH
             }
             val y = roadY(road.kind)
-            val p = road.pts
+            // On hills, a point every few metres so the surface follows the ground between them.
+            val p = if (map.terrain.flat) road.pts else CityMap.densify(road.pts, ROAD_STEP)
             val half = road.width / 2f
             val sidewalk = sidewalkWidth(road.kind)
             if (sidewalk > 0f) {
@@ -276,6 +342,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             CityMap.ROAD_MINOR -> 0.075f
             CityMap.ROAD_PEDESTRIAN -> 0.068f
             CityMap.ROAD_PIER -> 0.3f
+            CityMap.ROAD_TRACK -> 0.065f
             else -> 0.062f
         }
 
@@ -368,7 +435,8 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     // On the sidewalk just behind the curb, the arm reaching out over the road.
                     val nx = -dz * side; val nz = dx * side
                     val x = ax + dx * t + nx * (half + 0.6f); val z = az + dz * t + nz * (half + 0.6f)
-                    if (!network.nearJunction(x, z, 6f) && !map.isInsideBuilding(x, 1f, z, 0.5f)) lamp(x, z, -nx, -nz)
+                    val ground = map.groundAt(x, z)
+                    if (!network.nearJunction(x, z, 6f) && !map.isInsideBuilding(x, ground + 1f, z, 0.5f)) lift.by(ground) { lamp(x, z, -nx, -nz) }
                     side = -side
                     t += LAMP_SPACING
                 }

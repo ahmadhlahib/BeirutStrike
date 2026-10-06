@@ -97,6 +97,38 @@ class MiniMapView @JvmOverloads constructor(
         renderMap(map, area, minOf(width / area.width(), height / area.height()))
     }
 
+    /**
+     * Hill shading under the roads: the ground drawn in [SHADE_CELL]-metre squares, lighter where
+     * it faces the north-west light and darker on slopes facing away, greener low down.
+     */
+    private fun hillShade(c: Canvas, map: CityMap, area: RectF) {
+        val t = map.terrain
+        val p = Paint()
+        val span = (t.maxHeight - t.minHeight).coerceAtLeast(1f)
+        var z = area.top
+        while (z < area.bottom) {
+            var x = area.left
+            while (x < area.right) {
+                val cx = x + SHADE_CELL / 2f
+                val cz = z + SHADE_CELL / 2f
+                val dx = t.heightAt(cx + 2f, cz) - t.heightAt(cx - 2f, cz)
+                val dz = t.heightAt(cx, cz + 2f) - t.heightAt(cx, cz - 2f)
+                val nx = -dx / 4f
+                val nz = -dz / 4f
+                val light = ((-0.5f * nx - 0.5f * nz + 0.7f) / kotlin.math.sqrt(nx * nx + nz * nz + 1f) / 0.95f).coerceIn(0f, 1.2f)
+                val high = (t.heightAt(cx, cz) - t.minHeight) / span
+                val k = 0.62f + 0.38f * light
+                val r = ((214 + 22 * high) * k).toInt().coerceIn(0, 255)
+                val g = ((218 + 12 * high) * k).toInt().coerceIn(0, 255)
+                val b = ((186 + 22 * high) * k).toInt().coerceIn(0, 255)
+                p.color = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                c.drawRect(x, z, x + SHADE_CELL, z + SHADE_CELL, p)
+                x += SHADE_CELL
+            }
+            z += SHADE_CELL
+        }
+    }
+
     /** Draws [area] of the map at [pxPerMetre], once, off the main thread. */
     private fun renderMap(map: CityMap, area: RectF, pxPerMetre: Float) = thread(name = "minimap") {
         val w = (area.width() * pxPerMetre).toInt().coerceAtLeast(1)
@@ -107,6 +139,8 @@ class MiniMapView @JvmOverloads constructor(
         c.translate(-area.left, -area.top)
         val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG)
         c.drawColor(LAND)
+        // Hills: shaded as lit from the north-west, so slopes and valleys show.
+        if (!map.terrain.flat) hillShade(c, map, area)
 
         fun polygon(ring: FloatArray, color: Int) {
             val path = Path()
@@ -135,14 +169,16 @@ class MiniMapView @JvmOverloads constructor(
                 for (i in 2 until road.pts.size step 2) lineTo(road.pts[i], road.pts[i + 1])
             }
         }
-        val order = intArrayOf(CityMap.ROAD_PIER, CityMap.ROAD_PATH, CityMap.ROAD_PEDESTRIAN, CityMap.ROAD_MINOR, CityMap.ROAD_MEDIUM, CityMap.ROAD_MAJOR)
+        val order = intArrayOf(CityMap.ROAD_PIER, CityMap.ROAD_PATH, CityMap.ROAD_TRACK, CityMap.ROAD_PEDESTRIAN, CityMap.ROAD_MINOR, CityMap.ROAD_MEDIUM, CityMap.ROAD_MAJOR)
         p.style = Paint.Style.STROKE
         p.strokeCap = Paint.Cap.ROUND
         p.strokeJoin = Paint.Join.ROUND
         for (casing in booleanArrayOf(true, false)) for (kind in order) {
-            if (kind == CityMap.ROAD_PATH && casing) continue
+            if ((kind == CityMap.ROAD_PATH || kind == CityMap.ROAD_TRACK) && casing) continue
             p.color = when {
                 kind == CityMap.ROAD_PATH -> 0xFFB9A88A.toInt()
+                // Dirt and sand tracks.
+                kind == CityMap.ROAD_TRACK -> 0xFFD8B878.toInt()
                 casing && kind == CityMap.ROAD_MAJOR -> 0xFFD9A956.toInt()
                 casing && kind == CityMap.ROAD_PEDESTRIAN -> 0xFFD9D0C0.toInt()
                 casing -> 0xFFC2BAAB.toInt()
@@ -315,6 +351,8 @@ class MiniMapView @JvmOverloads constructor(
         /** Metres shown across the corner minimap. */
         private const val VIEW_UNITS = 160f
         private const val LAND = 0xFFECE7DE.toInt()
+        /** Hill shading is drawn in squares this big (metres). */
+        private const val SHADE_CELL = 4f
         private const val SEA = 0xFF8EC1E3.toInt()
         /** Enemy areas: red (alpha added as it pulses), and pulses per second × 2π. */
         private const val ENEMY_RED = 0xFF1744

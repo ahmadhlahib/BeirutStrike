@@ -25,6 +25,8 @@ class CityMap(
     val sea: List<FloatArray>,
     val trees: List<Tree>,
     val attribution: String,
+    /** The ground's height (hills); [Terrain.FLAT] on flat maps. */
+    val terrain: Terrain = Terrain.FLAT,
 ) {
     /** A footprint ring (x, z pairs, counter-clockwise as drawn north-up) extruded to [height]. */
     class Building(val pts: FloatArray, val height: Float, val minHeight: Float, val kind: Int) {
@@ -38,6 +40,20 @@ class CityMap(
 
         /** Only the ground floor blocks walking; raised parts (bridges, overhangs) don't. */
         val blocksWalking get() = minHeight < 2.5f
+
+        /**
+         * Where the building stands: the lowest ground under it (0 on flat maps). On a hillside its
+         * walls start there, so the uphill side is partly sunk into the slope, as village houses are.
+         * [height] and [minHeight] are measured from here.
+         */
+        var base = 0f
+            internal set
+
+        /** The roof's height in the world. */
+        val top get() = base + height
+
+        /** The bottom of its solid part in the world. */
+        val bottom get() = base + minHeight
     }
 
     class Road(val kind: Int, val width: Float, val pts: FloatArray)
@@ -79,6 +95,7 @@ class CityMap(
     private val waterCells = Array(cols * rows) { ArrayList<FloatArray>(1) }
 
     init {
+        if (!terrain.flat) for (b in buildings) b.base = terrain.lowestUnder(b.pts)
         for (b in buildings) forCells(b.minX, b.minZ, b.maxX, b.maxZ) { buildingCells[it] += b }
         for (t in trees) forCells(t.x, t.z, t.x, t.z) { treeCells[it] += t }
         val water = sea + areas.filter { it.kind == AREA_WATER }.map { it.pts }
@@ -94,6 +111,12 @@ class CityMap(
     private fun row(z: Float) = floor((z - minZ) / CELL).toInt().coerceIn(0, rows - 1)
 
     // ---- Queries -------------------------------------------------------------------------------
+
+    /** The ground's height at (x, z): 0 on flat maps, the hillside on maps with hills. */
+    fun groundAt(x: Float, z: Float) = terrain.heightAt(x, z)
+
+    /** True when (x, y, z) is under the ground (a bullet or grenade reaching a hillside or the street). */
+    fun underground(x: Float, y: Float, z: Float) = y <= terrain.heightAt(x, z)
 
     /** True when a body of radius [r] at ([x], [z]) would hit a building, a tree, water or the play area's edge. */
     fun isBlocked(x: Float, z: Float, r: Float): Boolean {
@@ -119,7 +142,7 @@ class CityMap(
     fun isInsideBuilding(x: Float, y: Float, z: Float, pad: Float): Boolean {
         forCells(x - pad, z - pad, x + pad, z + pad) { cell ->
             for (b in buildingCells[cell]) {
-                if (y > b.height + pad || y < b.minHeight - pad) continue
+                if (y > b.top + pad || y < b.bottom - pad) continue
                 if (x < b.minX - pad || x > b.maxX + pad || z < b.minZ - pad || z > b.maxZ + pad) continue
                 if (inside(b.pts, x, z) || (pad > 0f && edgeDistance(b.pts, x, z) < pad)) return true
             }
@@ -135,9 +158,9 @@ class CityMap(
         var best = max
         forCells(x - max, z - max, x + max, z + max) { cell ->
             for (b in buildingCells[cell]) {
-                if (y > b.height + 0.3f || y < b.minHeight - 0.3f) continue
+                if (y > b.top + 0.3f || y < b.bottom - 0.3f) continue
                 if (x < b.minX - best || x > b.maxX + best || z < b.minZ - best || z > b.maxZ + best) continue
-                if (inside(b.pts, x, z) && y <= b.height && y >= b.minHeight) return 0f
+                if (inside(b.pts, x, z) && y <= b.top && y >= b.bottom) return 0f
                 best = min(best, edgeDistance(b.pts, x, z))
             }
         }
@@ -148,7 +171,7 @@ class CityMap(
     fun randomStreetPoint(random: Random = Random): Pair<Float, Float> {
         val points = ArrayList<Pair<Float, Float>>()
         for (road in roads) {
-            if (road.kind > ROAD_PEDESTRIAN) continue
+            if (road.kind > ROAD_PEDESTRIAN && road.kind != ROAD_TRACK) continue
             for (i in road.pts.indices step 2) {
                 if (inPlayArea(road.pts[i], road.pts[i + 1])) points += road.pts[i] to road.pts[i + 1]
             }
@@ -178,6 +201,8 @@ class CityMap(
         const val ROAD_PEDESTRIAN = 3
         const val ROAD_PATH = 4
         const val ROAD_PIER = 5
+        /** A dirt or sand track (farm tracks in the mountains). */
+        const val ROAD_TRACK = 6
 
         const val AREA_PARK = 0
         const val AREA_PITCH = 1
@@ -195,7 +220,8 @@ class CityMap(
         fun load(input: InputStream): CityMap = DataInputStream(input.buffered()).use { d ->
             val magic = ByteArray(4).also { d.readFully(it) }
             require(String(magic) == "BRMP") { "Not a city map" }
-            require(d.readInt() == 1) { "Unsupported map version" }
+            val version = d.readInt()
+            require(version in 1..2) { "Unsupported map version" }
             val minX = d.readFloat(); val minZ = d.readFloat(); val maxX = d.readFloat(); val maxZ = d.readFloat()
             val spawnX = d.readFloat(); val spawnZ = d.readFloat()
             val buildings = List(d.readInt()) {
@@ -212,7 +238,32 @@ class CityMap(
                 Tree(d.readByte().toInt(), d.readFloat(), d.readFloat(), d.readFloat())
             }
             val attribution = d.readUTF()
-            CityMap(minX, minZ, maxX, maxZ, spawnX, spawnZ, buildings, roads, areas, sea, trees, attribution)
+            // Version 2 adds the ground's height (hills); version 1 maps are flat.
+            val terrain = if (version < 2) Terrain.FLAT else {
+                val x0 = d.readFloat(); val z0 = d.readFloat(); val cell = d.readFloat()
+                val cols = d.readInt(); val rows = d.readInt()
+                Terrain(x0, z0, cell, cols, rows, FloatArray(cols * rows) { d.readInt() / 100f })
+            }
+            CityMap(minX, minZ, maxX, maxZ, spawnX, spawnZ, buildings, roads, areas, sea, trees, attribution, terrain)
+        }
+
+        /** [p] (x, z pairs) with points added so none is more than [step] metres from the next. */
+        fun densify(p: FloatArray, step: Float): FloatArray {
+            val out = ArrayList<Float>(p.size * 2)
+            for (i in 0 until p.size / 2) {
+                val x = p[2 * i]; val z = p[2 * i + 1]
+                if (i > 0) {
+                    val px = p[2 * i - 2]; val pz = p[2 * i - 1]
+                    // n points in between leave n + 1 pieces, each at most [step] long.
+                    val n = (hypot(x - px, z - pz) / step).toInt()
+                    for (k in 1..n) {
+                        val t = k / (n + 1f)
+                        out += px + (x - px) * t; out += pz + (z - pz) * t
+                    }
+                }
+                out += x; out += z
+            }
+            return out.toFloatArray()
         }
 
         private fun DataInputStream.points(): FloatArray {

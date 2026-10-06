@@ -595,7 +595,7 @@ class OnlineWorld(
         val update = HashMap<String, Any>()
         for (b in bots) update["${room}bots/${b.uid}"] = mapOf(
             "name" to b.name, "team" to b.team, "host" to host, "bot" to true,
-            "x" to b.x.toDouble(), "z" to b.z.toDouble(), "heading" to b.heading.toDouble(),
+            "x" to b.x.toDouble(), "z" to b.z.toDouble(), "floor" to b.floor.toDouble(), "heading" to b.heading.toDouble(),
             "walking" to b.walking, "prone" to b.prone, "health" to b.health, "dead" to b.dead,
             "killedBy" to b.killedBy, "weapon" to b.weapon, "character" to b.character, "showFace" to false,
             "shotSeq" to b.shotSeq, "shotX" to b.shotX.toDouble(), "shotY" to b.shotY.toDouble(),
