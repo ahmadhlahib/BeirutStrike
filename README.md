@@ -132,6 +132,7 @@ Without a Firebase configuration, the app still builds and runs as a single-play
 | --- | --- |
 | Joystick (bottom left) | Walk; push further to run |
 | Medkits (beside the hearts, top left) | **+1** gives a heart back, **Full** fills them all; each shows how many you carry |
+| Store (at an arms store's counter) | Opens the shop: magazines, a scope, medkits and grenades |
 | Swipe on the city | Look and aim |
 | Big red button (under the minimap) | Shoot. Hold for the AK-47; tap for the pistol. Slide your finger on it to aim while firing |
 | Jump / Crawl (small, under Shoot) | Jump, or lie down and crawl; Crawl is lit while lying down |
@@ -207,25 +208,36 @@ sees the same throw. Tap the button below it to change kind. More lie in the str
 | Smoke | 1 | after 1.8 s | A grey cloud 5.5 m across for 20 s: hides players and their name tags, and the crosshair can't pick out enemies through it |
 | Molotov | 1 | on impact | Fire 3.2 m across for 8 s, taking a heart a second from anyone standing in it (you too) |
 
-### Pickups
+### Pickups and arms stores
+
+Only magazines lie in the streets:
 
 | Pickup | Per room | Effect | Respawns after |
 | --- | --- | --- | --- |
-| Rifle magazine | 5 | +1 magazine for the primary carried | 20 s |
-| Pistol magazine | 4 | +1 magazine for the pistol carried | 20 s |
-| Sniper rounds | 2 | +1 magazine for the sniper rifle carried | 40 s |
-| Scope | 2 | A 4× scope for a primary without one, until death | 60 s |
-| Frag grenade | 2 | +1 frag (up to 4 carried) | 40 s |
-| Flashbang | 2 | +1 flashbang (up to 4 carried) | 40 s |
-| Smoke grenade | 1 | +1 smoke grenade (up to 2 carried) | 45 s |
-| Molotov | 1 | +1 molotov (up to 2 carried) | 45 s |
-| Medkit (white box) | 3 | +1 small medkit (up to 3 carried) | 30 s |
-| Medical bag (red) | 1 | +1 big medkit (1 carried) | 60 s |
+| Rifle magazine | 8 | +1 magazine for the primary carried | 20 s |
+| Pistol magazine | 6 | +1 magazine for the pistol carried | 20 s |
+| Sniper rounds | 3 | +1 magazine for the sniper rifle carried | 40 s |
+
+Every map has 4 **arms stores**: kiosks with a striped awning and a gold sign beside the streets,
+the first one near the start, marked with a green **$** on the maps (`city/Stores.kt`, the same
+spots on every phone). At a store's counter a **Store** button opens the shop (the game goes on
+meanwhile):
+
+| Item | Price | Limit |
+| --- | --- | --- |
+| Pistol / primary / sniper magazine | $100 / $200 / $300 | a magazine above the starting rounds |
+| Scope (for a primary without one, until death) | $500 | 1 |
+| Small medkit (+1 heart) | $150 | 5 carried |
+| Big medkit (all hearts) | $400 | 3 carried |
+| Frag / flashbang / smoke / molotov | $300 / $200 / $200 / $300 | as carried before |
+
+In solo games everything in the stores is free (solo games pay nothing either).
 
 Medkits are used when you choose, with the buttons beside your hearts (top left): **+1** gives
-one heart back, **Full** fills all five. Every life starts with 2 small medkits; the ones
-carried are lost when you die. Pickup kinds must also be allowed in `firebase/database.rules.json`
-(`PickupKindsTest` checks it).
+one heart back, **Full** fills all five. Every life starts with 3 small and 2 big medkits; the
+ones carried are lost when you die. Scope, grenade and medkit pickup spots are still in
+`PickupKind.SLOTS` so older versions agree on them, but they aren't shown in the streets. Pickup
+kinds must also be allowed in `firebase/database.rules.json` (`PickupKindsTest` checks it).
 
 ### Cheat codes
 

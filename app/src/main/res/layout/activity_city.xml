@@ -371,6 +371,19 @@
         app:backgroundTint="#DDFFB300"
         app:icon="@drawable/ic_photo" />
 
+    <!-- At an arms store's counter: open the shop. Above Climb. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/storeButton"
+        style="@style/HudButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="128dp"
+        android:text="@string/store_open"
+        android:visibility="gone"
+        app:backgroundTint="#DD2E7D32"
+        app:icon="@drawable/ic_store" />
+
     <!-- At the foot of a ladder (or beside its top on a roof): climb up or down. Above View photo. -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/climbButton"

@@ -123,12 +123,17 @@ class ModeActivity : AppCompatActivity() {
         allies.setOnCheckedChangeListener { _, _ -> showAllies() }
         showAllies()
 
+        // Enemy areas on the map: on unless turned off (here or in the game's menu).
+        val enemyAreas = view.findViewById<SwitchMaterial>(R.id.soloEnemyAreas)
+        enemyAreas.isChecked = Session.enemyAreas(this)
+
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.solo_title)
             .setView(view)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.solo_start) { _, _ ->
                 val settings = SoloSettings(bots.value.toInt(), difficulty, allies.isChecked, duration)
+                Session.setEnemyAreas(this, enemyAreas.isChecked)
                 Session.setSolo(this, settings, CityMaps.roomValue(chosen, size))
                 // Then the team, character and guns, as for an online game.
                 startActivity(Intent(this, TeamSelectActivity::class.java))

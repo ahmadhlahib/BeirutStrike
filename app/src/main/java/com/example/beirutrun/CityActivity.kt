@@ -20,6 +20,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
@@ -57,6 +58,7 @@ import com.example.beirutrun.online.RemotePlayer
 import com.example.beirutrun.online.RoomTeams
 import com.example.beirutrun.online.VoiceChat
 import com.example.beirutrun.progression.PlayerProgress
+import com.example.beirutrun.progression.StoreItem
 import com.example.beirutrun.progression.XpGain
 import com.example.beirutrun.progression.CashReward
 import com.example.beirutrun.progression.Wallet
@@ -172,6 +174,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             updateWeaponButtons()
             updateGrenadeButtons()
             updateMedkitButtons()
+            updateStoreButton()
             checkPickups()
             // Now and then, re-check who is still around (hides players whose phone went quiet).
             if (++ticks % 25 == 0) online.publishPlayers()
@@ -477,6 +480,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         grenadeKindButton.setOnClickListener { switchGrenade() }
         climbButton = findViewById(R.id.climbButton)
         climbButton.setOnClickListener { climb() }
+        storeButton = findViewById(R.id.storeButton)
+        storeButton.setOnClickListener { openShop() }
         // The three guns chosen on the loadout screen; the primary in hand to start with.
         guns = GunSlot.entries.associateWith { Session.gun(this, it) }
         renderer.weapon = guns.getValue(GunSlot.PRIMARY)
@@ -992,9 +997,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         scopeButton.visibility = if (canScope(gun)) View.VISIBLE else View.GONE
     }
 
+    /** Shows the pickups that lie in the streets (magazines; the rest are bought at the stores). */
     private fun showPickups(list: List<Pickup>) {
-        pickups = list
-        renderer.setPickups(list)
+        pickups = list.filter { it.kind.inStreets }
+        renderer.setPickups(pickups)
     }
 
     /** Walking over a pickup takes it; online the server decides who got there first. */
@@ -1207,7 +1213,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         renderer.refillToStart()
         // A new life starts with the usual medkits; the ones carried were lost.
         smallMedkits = START_SMALL_MEDKITS
-        bigMedkits = 0
+        bigMedkits = START_BIG_MEDKITS
         health = CityRenderer.MAX_HEALTH
         dead = false
         renderer.health = health
@@ -1250,7 +1256,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
 
     /** Medkits carried: small ones give a heart back, big ones fill every heart. */
     private var smallMedkits = START_SMALL_MEDKITS
-    private var bigMedkits = 0
+    private var bigMedkits = START_BIG_MEDKITS
     private lateinit var medkitSmallButton: MaterialButton
     private lateinit var medkitBigButton: MaterialButton
 
@@ -1262,6 +1268,119 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         medkitBigButton.text = getString(R.string.medkit_big_button, bigMedkits)
         medkitSmallButton.alpha = if (hurt && smallMedkits > 0) 1f else 0.45f
         medkitBigButton.alpha = if (hurt && bigMedkits > 0) 1f else 0.45f
+    }
+
+    // ---- Arms stores --------------------------------------------------------------------------
+
+    private lateinit var storeButton: MaterialButton
+    private var shopDialog: androidx.appcompat.app.AlertDialog? = null
+    private var shopRows: LinearLayout? = null
+    private var shopCash: TextView? = null
+
+    /** At a store's counter (alive, game on): the Store button; walking away closes the shop. */
+    private fun updateStoreButton() {
+        val at = if (dead || gameOver) null else renderer.nearStore
+        storeButton.visibility = if (at != null) View.VISIBLE else View.GONE
+        if (at == null) shopDialog?.dismiss()
+    }
+
+    /** What I pay at the stores: nothing in a solo game (it pays nothing either). */
+    private fun priceOf(item: StoreItem) = if (solo != null) 0L else item.price
+
+    /** The shop: magazines for my guns, a scope, medkits and grenades, each with its price; the game goes on meanwhile. */
+    private fun openShop() {
+        if (shopDialog != null) return
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val cash = TextView(this).apply {
+            textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xFF7CD67C.toInt())
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, 0, pad, pad) }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(cash)
+            addView(android.widget.ScrollView(this@CityActivity).apply { addView(rows) })
+        }
+        shopCash = cash
+        shopRows = rows
+        shopDialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.store_title)
+            .setView(body)
+            .setPositiveButton(R.string.close, null)
+            .setOnDismissListener { shopDialog = null; shopRows = null; shopCash = null }
+            .show()
+        fillShop()
+    }
+
+    /** One row per thing for sale: what it is, how many I have, and Buy with the price (greyed out when I can't). */
+    private fun fillShop() {
+        val rows = shopRows ?: return
+        shopCash?.text = if (solo != null) getString(R.string.store_free) else getString(R.string.store_cash, Wallet.format(Wallet.cash(this)))
+        rows.removeAllViews()
+        fun row(item: StoreItem, name: String, have: String, full: Boolean, give: () -> Unit) {
+            val price = priceOf(item)
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, (6 * resources.displayMetrics.density).toInt(), 0, 0)
+            }
+            line.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(this@CityActivity).apply { text = name; textSize = 15f; setTypeface(typeface, android.graphics.Typeface.BOLD) })
+                addView(TextView(this@CityActivity).apply { text = have; textSize = 12f; alpha = 0.7f })
+            })
+            val affordable = solo != null || Wallet.cash(this) >= price
+            line.addView(MaterialButton(this).apply {
+                text = when {
+                    full -> getString(R.string.store_full)
+                    price == 0L -> getString(R.string.store_take)
+                    else -> getString(R.string.buy_button, Wallet.format(price))
+                }
+                isEnabled = !full && affordable && !dead
+                setOnClickListener { buy(item, give) }
+            })
+            rows.addView(line)
+        }
+        for (slot in GunSlot.entries) {
+            val gun = guns.getValue(slot)
+            val item = when (slot) { GunSlot.PISTOL -> StoreItem.PISTOL_MAG; GunSlot.PRIMARY -> StoreItem.PRIMARY_MAG; GunSlot.SNIPER -> StoreItem.SNIPER_MAG }
+            row(item, getString(R.string.store_magazine, gun.displayName, gun.magazine),
+                getString(R.string.store_rounds, renderer.spare(gun)),
+                full = renderer.unlimitedAmmo || renderer.spare(gun) >= gun.startAmmo + gun.magazine) { renderer.addMagazine(gun) }
+        }
+        val primary = guns.getValue(GunSlot.PRIMARY)
+        row(StoreItem.SCOPE, getString(R.string.store_scope, primary.displayName),
+            getString(if (canScope(primary)) R.string.store_scope_have else R.string.store_scope_none),
+            full = canScope(primary)) { hasScope = true; cheatScope = false }
+        row(StoreItem.MEDKIT_SMALL, getString(R.string.store_medkit_small), getString(R.string.store_carried, smallMedkits, MAX_SMALL_MEDKITS),
+            full = smallMedkits >= MAX_SMALL_MEDKITS) { smallMedkits++ }
+        row(StoreItem.MEDKIT_BIG, getString(R.string.store_medkit_big), getString(R.string.store_carried, bigMedkits, MAX_BIG_MEDKITS),
+            full = bigMedkits >= MAX_BIG_MEDKITS) { bigMedkits++ }
+        for ((kind, item) in listOf(GrenadeKind.FRAG to StoreItem.FRAG, GrenadeKind.FLASH to StoreItem.FLASHBANG,
+            GrenadeKind.SMOKE to StoreItem.SMOKE, GrenadeKind.MOLOTOV to StoreItem.MOLOTOV)) {
+            row(item, kind.displayName, getString(R.string.store_carried, renderer.grenades(kind), kind.most),
+                full = !renderer.canCarry(kind)) { renderer.addGrenade(kind) }
+        }
+    }
+
+    /** Pays for [item] (nothing in solo) and hands it over with [give]; then the shop shows what's changed. */
+    private fun buy(item: StoreItem, give: () -> Unit) {
+        if (dead || gameOver) return
+        val price = priceOf(item)
+        if (!Wallet.spend(this, price)) {
+            showBanner(getString(R.string.store_not_enough))
+            return fillShop()
+        }
+        if (price > 0) CareerWallet.upload(this)
+        give()
+        sounds.grenadeThrow(0.5f)
+        updateMedkitButtons()
+        updateGrenadeButtons()
+        updateWeaponButtons()
+        fillShop()
     }
 
     /** Uses a small medkit (a heart back) or a big one (every heart), if I have one and I'm hurt. */
@@ -1725,9 +1844,10 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         /** How often a solo game moves its bots on, ms. */
         private const val SOLO_TICK_MS = 50L
         /** Medkits: small ones each life starts with, and the most of each that can be carried. */
-        private const val START_SMALL_MEDKITS = 2
-        private const val MAX_SMALL_MEDKITS = 3
-        private const val MAX_BIG_MEDKITS = 1
+        private const val START_SMALL_MEDKITS = 3
+        private const val START_BIG_MEDKITS = 2
+        private const val MAX_SMALL_MEDKITS = 5
+        private const val MAX_BIG_MEDKITS = 3
         private const val RESPAWN_MS = 4_000L
         private const val BANNER_MS = 2_500L
         /** HUD button background (as in the HudButton style), and the mic button's while it's on. */

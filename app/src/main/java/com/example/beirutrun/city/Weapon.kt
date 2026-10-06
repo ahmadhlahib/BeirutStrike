@@ -154,6 +154,12 @@ enum class PickupKind(val id: String, val slot: GunSlot?, val grenade: GrenadeKi
     /** A medical kit (carried, used with the medkit buttons), rather than ammo, a scope or a grenade. */
     val medkit get() = this == MEDKIT_SMALL || this == MEDKIT_BIG
 
+    /**
+     * Lies in the streets: magazines only. Scopes, grenades and medkits are bought at the arms
+     * stores (see Stores); their pickup spots stay in [SLOTS] so older versions still agree.
+     */
+    val inStreets get() = slot != null
+
     companion object {
         fun byId(id: String?) = entries.firstOrNull { it.id == id }
 
@@ -165,7 +171,8 @@ enum class PickupKind(val id: String, val slot: GunSlot?, val grenade: GrenadeKi
         val SLOTS: List<PickupKind> =
             List(5) { AK_AMMO } + List(4) { PISTOL_AMMO } + List(2) { SCOPE } + List(2) { SNIPER_AMMO } +
                 List(2) { FRAG_GRENADE } + List(2) { FLASH_GRENADE } + SMOKE_GRENADE + MOLOTOV +
-                List(3) { MEDKIT_SMALL } + MEDKIT_BIG
+                List(3) { MEDKIT_SMALL } + MEDKIT_BIG +
+                List(3) { AK_AMMO } + List(2) { PISTOL_AMMO } + SNIPER_AMMO
 
         fun respawnMs(kind: PickupKind) = when (kind) {
             SCOPE, MEDKIT_BIG -> 60_000L

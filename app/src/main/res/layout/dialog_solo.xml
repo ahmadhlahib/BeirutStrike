@@ -152,6 +152,20 @@
         android:layout_marginBottom="8dp"
         android:textSize="12sp" />
 
+    <!-- Enemies as rough red circles on the map (the same choice as in the game's menu). -->
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/soloEnemyAreas"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/solo_enemy_areas" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="@string/solo_enemy_areas_info"
+        android:textSize="12sp" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

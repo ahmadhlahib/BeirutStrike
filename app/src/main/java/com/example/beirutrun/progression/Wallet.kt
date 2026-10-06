@@ -81,6 +81,19 @@ object Wallet {
         return now
     }
 
+    /** Takes [amount] from the balance if there's enough; returns whether it did. */
+    fun spend(context: Context, amount: Long): Boolean {
+        if (amount <= 0) return true
+        val now = synchronized(this) {
+            val p = prefs(context)
+            val cash = p.getLong(KEY_CASH, STARTING_CASH)
+            if (cash < amount) return false
+            (cash - amount).also { p.edit().putLong(KEY_CASH, it).apply() }
+        }
+        changed(now)
+        return true
+    }
+
     /** Buys [gun] if it isn't owned yet and there's enough money; returns whether it was bought. */
     fun buy(context: Context, gun: Weapon): Boolean {
         val now = synchronized(this) {
@@ -123,4 +136,18 @@ object Wallet {
 
     /** "$2,000". */
     fun format(cash: Long): String = "$" + String.format(java.util.Locale.US, "%,d", cash)
+}
+
+/** What the arms stores sell (see CityActivity's shop), and for how much; free in solo games. */
+enum class StoreItem(val price: Long) {
+    PISTOL_MAG(100),
+    PRIMARY_MAG(200),
+    SNIPER_MAG(300),
+    SCOPE(500),
+    MEDKIT_SMALL(150),
+    MEDKIT_BIG(400),
+    FRAG(300),
+    FLASHBANG(200),
+    SMOKE(200),
+    MOLOTOV(300),
 }

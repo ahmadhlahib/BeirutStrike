@@ -82,6 +82,8 @@ class CityRenderer(
     private val onReloaded: (Weapon) -> Unit = {},
     /** The text floating over a pickup, e.g. "AK-47 ×10". */
     private val pickupLabel: (PickupKind) -> String = { it.id },
+    /** The words over the arms stores. */
+    private val storeLabel: String = "$ Arms store",
     /** Called on the main thread when the player throws a grenade: its kind, and start x, y, z and velocity x, y, z. */
     private val onGrenadeThrown: (GrenadeKind, FloatArray) -> Unit = { _, _ -> },
     /** Called on the main thread when the player starts winding up a throw (the grenade now in hand), and with null if it's called off. */
@@ -291,6 +293,13 @@ class CityRenderer(
 
     /** The ladders up buildings on this map (the same on every phone, see Ladders). */
     val ladders: List<Ladder> = Ladders.place(city)
+
+    /** The arms stores on this map (the same on every phone, see Stores). */
+    val stores: List<Store> = Stores.place(city)
+
+    /** The store the player is close enough to shop at, or null. */
+    @Volatile var nearStore: Store? = null
+        private set
 
     /** Passing cars and people (scenery, made up on this phone; see CityLife). */
     private val life = CityLife(city, RoadNetwork(city.roads))
@@ -677,6 +686,7 @@ class CityRenderer(
         drawWorld()
         for (visual in dropVisuals.values) drawDrop(visual)
         drawPickups(now)
+        drawStores()
         val isDown = down
         val fp = eyeView
         if (fp) muzzleKnown = false
@@ -700,6 +710,7 @@ class CityRenderer(
         // Transparent labels last so they blend over everything behind them.
         for (visual in dropVisuals.values) drawDropLabels(visual)
         drawPickupLabels()
+        drawStoreLabels()
         for (r in remotes.values) {
             // Smoke hides who's behind it, name tag and all.
             if (smokeBetween(eyeX, eyeY, eyeZ, r.x, r.feet + 1.2f, r.z, now)) continue
@@ -1091,6 +1102,49 @@ class CityRenderer(
         }
     }
 
+    /**
+     * The arms stores: a wooden kiosk with a counter at the front (facing the street), rifles on
+     * the back wall, a striped awning on two posts, a gold sign, and an ammo crate beside it.
+     */
+    private fun drawStores() {
+        for (s in stores) {
+            if (hypot(s.x - playerX, s.z - playerZ) > STORE_DRAW_DISTANCE * (if (scoped) SCOPE_RANGE_SCALE else 1f)) continue
+            Matrix.setIdentityM(base, 0)
+            Matrix.translateM(base, 0, s.x, 0f, s.z)
+            // Kiosk space: +z is the counter's front, towards the street.
+            Matrix.rotateM(base, 0, deg(atan2(s.fx, s.fz)), 0f, 1f, 0f)
+            partBox(0f, 1.2f, -0.35f, 2.2f, 2.4f, 1.3f, 0xFF5D4037.toInt())     // back cabin
+            partBox(0f, 0.55f, 0.55f, 2.2f, 1.1f, 0.5f, 0xFF4B5320.toInt())     // counter
+            partBox(0f, 1.13f, 0.6f, 2.32f, 0.06f, 0.62f, 0xFF8D6E63.toInt())   // counter top
+            partBox(0f, 0.55f, 0.81f, 1.6f, 0.08f, 0.005f, 0xFFFFC107.toInt())  // gold stripe
+            for (y in listOf(1.55f, 1.85f)) {
+                partBox(0f, y, 0.31f, 1.1f, 0.07f, 0.08f, 0xFF1B1B1B.toInt())    // rifles on the wall
+                partBox(0.38f, y - 0.06f, 0.31f, 0.28f, 0.13f, 0.09f, 0xFF6D4C2F.toInt())
+            }
+            for (side in listOf(-1.05f, 1.05f)) partBox(side, 1.45f, 0.82f, 0.08f, 1.9f, 0.08f, 0xFF2A2A2A.toInt()) // posts
+            for (i in 0 until 6) {
+                // The awning: red and white stripes from the cabin out over the counter.
+                partBox(-0.96f + i * 0.385f, 2.45f, 0.25f, 0.385f, 0.06f, 1.4f, if (i % 2 == 0) 0xFFC62828.toInt() else 0xFFF2F2F2.toInt())
+            }
+            partBox(0f, 2.82f, 0.25f, 1.5f, 0.5f, 0.08f, 0xFF1B1B1B.toInt())    // sign board
+            partBox(0f, 2.82f, 0.3f, 1.3f, 0.34f, 0.02f, 0xFFFFC107.toInt())    // gold face
+            partBox(0f, 2.82f, 0.32f, 0.08f, 0.3f, 0.01f, 0xFF1B1B1B.toInt())   // "$": the bar
+            partBox(0f, 2.82f, 0.32f, 0.22f, 0.05f, 0.01f, 0xFF1B1B1B.toInt())
+            partBox(1.55f, 0.2f, 0.35f, 0.7f, 0.4f, 0.5f, 0xFF4B5320.toInt())   // ammo crate
+            partBox(1.55f, 0.41f, 0.35f, 0.72f, 0.03f, 0.52f, 0xFF3A4118.toInt())
+        }
+    }
+
+    /** "$ Arms store" over the stores, from further off than pickup labels. */
+    private fun drawStoreLabels() {
+        for (s in stores) {
+            if (hypot(s.x - playerX, s.z - playerZ) > STORE_LABEL_DISTANCE) continue
+            val text = storeLabel
+            val tag = label("store:$text") { CityBitmaps.nameTag(text, 0xFFFFC107.toInt()) to NAME_UNITS_PER_PX }
+            drawBillboard(tag, s.x, 3.25f, s.z)
+        }
+    }
+
     /** "AK-47 ×10" and the like over nearby pickups (drawn with the other see-through labels). */
     private fun drawPickupLabels() {
         for (p in pickups) {
@@ -1334,6 +1388,8 @@ class CityRenderer(
     /** Where the player can't walk: walls and the like in the street; on a roof, past its edge or into anything built on it. */
     private fun blocked(x: Float, z: Float): Boolean {
         // A car blocks the way, unless already standing in one (then the player can step out).
+        // A store kiosk is solid.
+        if (stores.any { abs(it.x - x) < Store.HALF + BODY_RADIUS && abs(it.z - z) < Store.HALF + BODY_RADIUS }) return true
         val r = roof ?: return city.isBlocked(x, z, BODY_RADIUS) ||
             (life.blocks(x, z, BODY_RADIUS) && !life.blocks(playerX, playerZ, BODY_RADIUS))
         if (!CityMap.inside(r.pts, x, z) || CityMap.edgeDistance(r.pts, x, z) < ROOF_EDGE) return true
@@ -1937,6 +1993,9 @@ class CityRenderer(
     }
 
     private fun update(dt: Float) {
+        // Standing at a store's counter (in the street, alive): the city screen offers the shop.
+        nearStore = if (down || climbing || floorY > 0.5f) null
+            else stores.firstOrNull { hypot(it.frontX - playerX, it.frontZ - playerZ) < Store.REACH }
         synchronized(lookLock) {
             yaw += pendingYaw
             if (eyeView) lookPitch = (lookPitch + pendingPitch).coerceIn(-1.1f, 1.1f)
@@ -2820,6 +2879,9 @@ class CityRenderer(
         private const val SCOPE_DRAW_SCALE = 1.6f
         private const val PICKUP_DRAW_DISTANCE = 90f
         private const val PICKUP_LABEL_DISTANCE = 30f
+        /** Stores are drawn this far off, and labelled this far. */
+        private const val STORE_DRAW_DISTANCE = 160f
+        private const val STORE_LABEL_DISTANCE = 70f
         private const val SKIN = 0xFFC9A07E.toInt()
         private const val BULLET_STEP = 0.4f
         /** Bullets fly at gun height (the raised arm is at shoulder height). */
