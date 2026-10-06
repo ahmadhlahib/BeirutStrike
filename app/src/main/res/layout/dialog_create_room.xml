@@ -76,6 +76,22 @@
             app:singleSelection="true" />
     </HorizontalScrollView>
 
+    <!-- Enemies as rough red circles on everyone's map in this room (see EnemyAreas). -->
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/roomEnemyAreasSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:checked="true"
+        android:text="@string/room_enemy_areas"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:text="@string/room_enemy_areas_helper" />
+
     <!-- Just for fun: cheat codes work, and scores don't count toward the ranking. -->
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/roomCheatsSwitch"

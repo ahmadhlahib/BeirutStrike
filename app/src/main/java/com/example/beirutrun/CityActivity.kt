@@ -309,7 +309,8 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
             gameEndsAt = System.currentTimeMillis() + it.durationMs
         }
         online.onStat = { key -> solo?.count(key) }
-        showEnemyAreas = Session.enemyAreas(this)
+        // Enemy areas on the maps: the room's setting online (its creator chose), the solo setup's in solo.
+        showEnemyAreas = if (roomId != null && soloSettings == null) Session.roomEnemyAreas(this) else Session.enemyAreas(this)
         val scene = sceneBuilder.submit(Callable { CityScene.build(city, mapInfo.look) })
         // Each character's animated model (see Characters), loaded in the background the first
         // time a player uses it: mine, and whichever other players choose.
@@ -1812,13 +1813,6 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         val actions = mutableListOf<Pair<Int, () -> Unit>>()
         if (online.configured || solo != null) actions += R.string.menu_scoreboard to { showScoreboard() }
         if (online.configured) actions += R.string.menu_players to { showPlayersDialog() }
-        // Enemies as rough red circles on the maps (see EnemyAreas): on or off, kept on this phone.
-        actions += (if (showEnemyAreas) R.string.menu_enemy_areas_hide else R.string.menu_enemy_areas_show) to {
-            showEnemyAreas = !showEnemyAreas
-            Session.setEnemyAreas(this, showEnemyAreas)
-            onPlayers(remotePlayers)
-            showBanner(getString(if (showEnemyAreas) R.string.enemy_areas_on else R.string.enemy_areas_off))
-        }
         actions += listOf<Pair<Int, () -> Unit>>(
             R.string.menu_change_team to {
                 startActivity(Intent(this, TeamSelectActivity::class.java))

@@ -1,14 +1,15 @@
 package com.example.beirutrun
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
+import android.widget.Toast
 
 /**
- * Invites to an online room, shared over WhatsApp (or anything else): a link to the website's
- * join page, which opens the game on the room (`beirutstrike://join?r=…`), or Google Play if the
- * game isn't installed. A room with a password carries it in the link, so friends get in with a
+ * Invites to an online room, shared over WhatsApp (or anything else in the share sheet): a link
+ * to the website's join page, which opens the game on the room (`beirutstrike://join?r=…`), or
+ * Google Play if the game isn't installed. A room with a password carries it in the link, so friends get in with a
  * tap; whoever has the link can join.
  */
 object RoomInvite {
@@ -38,22 +39,25 @@ object RoomInvite {
         return Invite(room, uri.getQueryParameter("p")?.takeIf { it.isNotEmpty() }?.take(64))
     }
 
-    /** Shares an invite to room [roomId] called [name] on WhatsApp, or anywhere else if it isn't installed. */
-    fun share(activity: Activity, roomId: String, name: String, password: String?) {
+    /**
+     * Shares an invite to room [roomId] called [name] through the share sheet (WhatsApp is in it,
+     * each copy of it on phones with a second WhatsApp or a Secure Folder). Returns whether the
+     * sheet opened; if not, says why on screen.
+     */
+    fun share(activity: Activity, roomId: String, name: String, password: String?): Boolean {
         val text = activity.getString(R.string.invite_message, name, link(roomId, name, password))
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-        for (app in WHATSAPP) {
-            try {
-                activity.startActivity(Intent(send).setPackage(app))
-                return
-            } catch (_: ActivityNotFoundException) {
-                // Not installed: try the next, then the share sheet.
-            }
+        return try {
+            activity.startActivity(Intent.createChooser(send, activity.getString(R.string.invite_share_title)))
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't open the share sheet", e)
+            Toast.makeText(activity, activity.getString(R.string.invite_failed, e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            false
         }
-        activity.startActivity(Intent.createChooser(send, activity.getString(R.string.invite_share_title)))
     }
 
-    private val WHATSAPP = listOf("com.whatsapp", "com.whatsapp.w4b")
+    private const val TAG = "RoomInvite"
     /** Firebase push keys: letters, digits, '-' and '_'. */
     private val ROOM_ID = Regex("[A-Za-z0-9_-]{1,40}")
 }

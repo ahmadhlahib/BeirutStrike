@@ -43,6 +43,10 @@
           ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
           ".validate": "newData.isBoolean()"
         },
+        "noEnemyAreas": {
+          ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
+          ".validate": "newData.isBoolean()"
+        },
         "minXp": {
           ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
           ".validate": "newData.isNumber() && newData.val() > 0 && root.child('career/' + auth.uid + '/xp').isNumber() && newData.val() <= root.child('career/' + auth.uid + '/xp').val()"

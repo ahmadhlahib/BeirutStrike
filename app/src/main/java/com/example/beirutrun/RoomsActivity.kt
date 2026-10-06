@@ -197,7 +197,7 @@ class RoomsActivity : AppCompatActivity() {
         dir.join(room, password) { ok ->
             if (ok) {
                 Session.setRoomPassword(this, password)
-                enter(room.id, room.name, room.map)
+                enter(room.id, room.name, room.map, !room.noEnemyAreas)
             } else {
                 status.text = ""
                 Toast.makeText(
@@ -263,6 +263,7 @@ class RoomsActivity : AppCompatActivity() {
         }
 
         // Cheats: off by default. Turning them on says straight away that scores won't count.
+        val enemyAreasSwitch = view.findViewById<SwitchMaterial>(R.id.roomEnemyAreasSwitch)
         val cheatsSwitch = view.findViewById<SwitchMaterial>(R.id.roomCheatsSwitch)
         val cheatsHelper = view.findViewById<TextView>(R.id.roomCheatsHelper)
         val helperColor = cheatsHelper.currentTextColor
@@ -294,7 +295,7 @@ class RoomsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.room_create) { _, _ ->
                 val name = nameInput.text.toString().trim().ifEmpty { getString(R.string.room_untitled) }
                 create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size), duration,
-                    cheatsSwitch.isChecked, minRank.xpRequired.toLong())
+                    cheatsSwitch.isChecked, minRank.xpRequired.toLong(), enemyAreasSwitch.isChecked)
             }
             .show()
     }
@@ -365,13 +366,13 @@ class RoomsActivity : AppCompatActivity() {
     private fun isOver(room: RoomInfo) = room.endsAt > 0 && (directory?.serverNow() ?: 0L) >= room.endsAt
 
     /** Creates a room; [map] is its map value (see CityMaps.roomValue). */
-    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long) {
+    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long, enemyAreas: Boolean) {
         val dir = directory ?: return
         status.setText(R.string.room_creating)
-        dir.create(name, password, map, durationMs, cheats, minXp) { id ->
+        dir.create(name, password, map, durationMs, cheats, minXp, enemyAreas) { id ->
             if (id != null) {
                 Session.setRoomPassword(this, password)
-                offerInvite(id, name, password) { enter(id, name, map) }
+                offerInvite(id, name, password) { enter(id, name, map, enemyAreas) }
             } else Toast.makeText(
                 this,
                 // The server checks a minimum rank against my online career, which may lag behind.
@@ -403,12 +404,18 @@ class RoomsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.invite_whatsapp) { _, _ ->
                 // Into the room once back from WhatsApp, not straight away (that would hide it).
                 afterInvite = then
-                RoomInvite.share(this, id, name, password)
+                // The share sheet didn't open: straight on, as there's nothing to come back from.
+                if (!RoomInvite.share(this, id, name, password)) {
+                    afterInvite = null
+                    then()
+                }
             }
             .show()
     }
 
-    private fun enter(id: String, name: String, map: String) {
+    /** Into room [id]; [enemyAreas]: whether its maps show enemy areas (the creator's choice). */
+    private fun enter(id: String, name: String, map: String, enemyAreas: Boolean) {
+        Session.setRoomEnemyAreas(this, enemyAreas)
         Session.setRoom(this, id, name, map)
         startActivity(Intent(this, TeamSelectActivity::class.java))
     }

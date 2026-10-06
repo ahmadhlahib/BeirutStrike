@@ -26,6 +26,8 @@ data class RoomInfo(
     val startedAt: Long = 0L,
     /** Cheat codes allowed: a room just for fun, whose scores don't count toward the ranking. */
     val cheats: Boolean = false,
+    /** The maps show no enemy areas in this room (set once by its creator, see EnemyAreas). */
+    val noEnemyAreas: Boolean = false,
     /**
      * Career XP needed to join: the XP of the lowest rank allowed in (see progression/Rank);
      * 0 = anyone. Checked by the security rules too.
@@ -95,6 +97,7 @@ class RoomDirectory(private val userId: String) {
                         durationMs = (s.child("duration").value as? Number)?.toLong() ?: 0L,
                         startedAt = (s.child("startedAt").value as? Number)?.toLong() ?: 0L,
                         cheats = s.child("cheats").getValue(Boolean::class.java) == true,
+                        noEnemyAreas = s.child("noEnemyAreas").getValue(Boolean::class.java) == true,
                         minXp = (s.child("minXp").value as? Number)?.toLong() ?: 0L,
                     )
                 }
@@ -131,7 +134,7 @@ class RoomDirectory(private val userId: String) {
      * [onDone] gets the new room id.
      */
     fun create(
-        name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long,
+        name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long, enemyAreas: Boolean,
         onDone: (String?) -> Unit,
     ) {
         val database = db ?: return onDone(null)
@@ -151,6 +154,8 @@ class RoomDirectory(private val userId: String) {
         if (hasPassword) updates["roomKeys/$id"] = key
         // Only cheat rooms carry the flag, so normal rooms look the same to older versions.
         if (cheats) updates["roomList/$id/cheats"] = true
+        // Only rooms without enemy areas carry the flag.
+        if (!enemyAreas) updates["roomList/$id/noEnemyAreas"] = true
         // Likewise only rooms with a minimum rank carry one.
         if (minXp > 0) updates["roomList/$id/minXp"] = minXp
         database.reference.updateChildren(updates).addOnCompleteListener { task ->
