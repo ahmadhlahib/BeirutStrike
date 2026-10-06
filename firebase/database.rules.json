@@ -1,5 +1,17 @@
 {
   "rules": {
+    "config": {
+      ".read": true,
+      ".write": false,
+      "minVersion": { ".validate": "newData.isNumber()" }
+    },
+    "versions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000"
+      }
+    },
     "roomList": {
       ".read": "auth != null",
       "$room": {
@@ -28,6 +40,10 @@
           ".validate": "newData.isNumber() && newData.val() >= 30000 && newData.val() <= 3600000"
         },
         "cheats": {
+          ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
+          ".validate": "newData.isBoolean()"
+        },
+        "noEnemyAreas": {
           ".write": "auth != null && !data.exists() && newData.parent().child('createdBy').val() === auth.uid",
           ".validate": "newData.isBoolean()"
         },
@@ -64,7 +80,7 @@
         ".write": "auth != null && !newData.exists() && (root.child('roomList/' + $room + '/createdBy').val() === auth.uid || (!root.child('roomList/' + $room + '/online').exists() && (root.child('rooms/' + $room + '/members/' + auth.uid).exists() || (root.child('roomList/' + $room + '/lastActive').exists() ? root.child('roomList/' + $room + '/lastActive').val() : root.child('roomList/' + $room + '/createdAt').val()) < now - 300000)))",
         "members": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && (root.child('roomList/' + $room).exists() || newData.parent().parent().parent().parent().child('roomList/' + $room + '/createdBy').val() === auth.uid) && (!newData.exists() || (root.child('roomKeys/' + $room).exists() ? newData.val() === root.child('roomKeys/' + $room).val() : (newData.parent().parent().parent().parent().child('roomKeys/' + $room).exists() ? newData.val() === newData.parent().parent().parent().parent().child('roomKeys/' + $room).val() : newData.val() === 'open'))) && (!newData.exists() || !root.child('roomList/' + $room + '/minXp').exists() || (root.child('career/' + auth.uid + '/xp').isNumber() && root.child('career/' + auth.uid + '/xp').val() >= root.child('roomList/' + $room + '/minXp').val()))",
+            ".write": "auth != null && auth.uid === $uid && (root.child('roomList/' + $room).exists() || newData.parent().parent().parent().parent().child('roomList/' + $room + '/createdBy').val() === auth.uid) && (!newData.exists() || (root.child('roomKeys/' + $room).exists() ? newData.val() === root.child('roomKeys/' + $room).val() : (newData.parent().parent().parent().parent().child('roomKeys/' + $room).exists() ? newData.val() === newData.parent().parent().parent().parent().child('roomKeys/' + $room).val() : newData.val() === 'open'))) && (!newData.exists() || !root.child('roomList/' + $room + '/minXp').exists() || (root.child('career/' + auth.uid + '/xp').isNumber() && root.child('career/' + auth.uid + '/xp').val() >= root.child('roomList/' + $room + '/minXp').val())) && (!newData.exists() || !root.child('config/minVersion').exists() || (root.child('versions/' + auth.uid).isNumber() && root.child('versions/' + auth.uid).val() >= root.child('config/minVersion').val()))",
             ".validate": "newData.isString()"
           }
         },

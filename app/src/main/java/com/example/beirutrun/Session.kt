@@ -79,10 +79,15 @@ object Session {
 
     fun setTeamId(context: Context, id: String) = prefs(context).edit().putString(KEY_TEAM, id).apply()
 
-    /** Whether the maps show roughly where enemies are (red circles, see EnemyAreas); on unless turned off. */
+    /** Whether a solo game's maps show roughly where the bots are (red circles, see EnemyAreas); on unless turned off. */
     fun enemyAreas(context: Context): Boolean = prefs(context).getBoolean(KEY_ENEMY_AREAS, true)
 
     fun setEnemyAreas(context: Context, on: Boolean) = prefs(context).edit().putBoolean(KEY_ENEMY_AREAS, on).apply()
+
+    /** Whether the online room I'm in shows enemy areas on the maps (its creator's choice). */
+    fun roomEnemyAreas(context: Context): Boolean = prefs(context).getBoolean(KEY_ROOM_ENEMY_AREAS, true)
+
+    fun setRoomEnemyAreas(context: Context, on: Boolean) = prefs(context).edit().putBoolean(KEY_ROOM_ENEMY_AREAS, on).apply()
 
     /** Whether the player last chose the first-person view (through the soldier's eyes). */
     fun firstPerson(context: Context): Boolean = prefs(context).getBoolean(KEY_FIRST_PERSON, false)
@@ -164,6 +169,26 @@ object Session {
     private const val KEY_SOLO_DIFFICULTY = "solo_difficulty"
     private const val KEY_SOLO_ALLIES = "solo_allies"
     private const val KEY_SOLO_DURATION = "solo_duration"
+    /** An invite to a room the app was opened with (see RoomInvite), waiting until the rooms screen joins it. */
+    fun pendingInvite(context: Context): RoomInvite.Invite? {
+        val p = prefs(context)
+        val room = p.getString(KEY_INVITE_ROOM, null) ?: return null
+        return RoomInvite.Invite(room, p.getString(KEY_INVITE_PASSWORD, null))
+    }
+
+    fun setPendingInvite(context: Context, invite: RoomInvite.Invite?) {
+        prefs(context).edit().putString(KEY_INVITE_ROOM, invite?.roomId).putString(KEY_INVITE_PASSWORD, invite?.password).apply()
+    }
+
+    /** The password of the room I'm in (as I typed it), for inviting friends; null without one. */
+    fun roomPassword(context: Context): String? = prefs(context).getString(KEY_ROOM_PASSWORD, null)?.takeIf { it.isNotEmpty() }
+
+    fun setRoomPassword(context: Context, password: String?) =
+        prefs(context).edit().putString(KEY_ROOM_PASSWORD, password).apply()
+
+    private const val KEY_INVITE_ROOM = "invite_room"
+    private const val KEY_INVITE_PASSWORD = "invite_password"
+    private const val KEY_ROOM_PASSWORD = "room_password"
     private const val KEY_ROOM_ID = "room_id"
     private const val KEY_ROOM_NAME = "room_name"
     private const val KEY_ROOM_MAP = "room_map"
@@ -172,6 +197,7 @@ object Session {
     private const val KEY_FACE_ON_CHARACTER = "face_on_character"
     private const val KEY_FIRST_PERSON = "first_person"
     private const val KEY_ENEMY_AREAS = "enemy_areas"
+    private const val KEY_ROOM_ENEMY_AREAS = "room_enemy_areas"
     // "v2": maps got new start points; older saved positions are ignored.
     private const val KEY_X = "pos2_x"
     private const val KEY_Z = "pos2_z"

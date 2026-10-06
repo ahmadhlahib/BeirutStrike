@@ -7,6 +7,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.beirutrun.online.AppVersion
 import com.example.beirutrun.online.CareerWallet
 import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.GoogleAccount
@@ -32,6 +33,15 @@ class LoginActivity : AppCompatActivity() {
 
         nameInput.setText(Session.name(this))
 
+        // Opened from a room invite: remember it, and with a name already, go straight to the rooms.
+        RoomInvite.parse(intent?.data)?.let { invite ->
+            Session.setPendingInvite(this, invite)
+            if (savedInstanceState == null && !Session.name(this).isNullOrBlank()) {
+                Session.setSolo(this, null)
+                startActivity(Intent(this, RoomsActivity::class.java))
+            }
+        }
+
         fun submit() {
             val name = nameInput.text?.toString()?.trim().orEmpty()
             if (name.isEmpty()) {
@@ -39,7 +49,13 @@ class LoginActivity : AppCompatActivity() {
                 return
             }
             Session.setName(this, name)
-            startActivity(Intent(this, ModeActivity::class.java))
+            // An invite waiting: straight to the rooms, to join it; otherwise solo or multiplayer.
+            if (Session.pendingInvite(this) != null) {
+                Session.setSolo(this, null)
+                startActivity(Intent(this, RoomsActivity::class.java))
+            } else {
+                startActivity(Intent(this, ModeActivity::class.java))
+            }
         }
 
         enter.setOnClickListener { submit() }
@@ -50,6 +66,12 @@ class LoginActivity : AppCompatActivity() {
 
         // A Google account (optional) keeps the career on any phone; only with online play.
         if (FirebaseSession.configured(this)) {
+            // A version too old to play (see AppVersion) is stopped here, with a way to update.
+            FirebaseSession.signIn { uid ->
+                if (uid == null || isFinishing) return@signIn
+                AppVersion.register(this)
+                AppVersion.check(this)
+            }
             findViewById<View>(R.id.accountCard).visibility = View.VISIBLE
             findViewById<View>(R.id.googleSignIn).setOnClickListener { signIn() }
             findViewById<View>(R.id.googleSignOut).setOnClickListener { confirmSignOut() }

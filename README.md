@@ -46,8 +46,8 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   the phone, and run from gunfire. They're scenery: shooting them counts for no one.
 - **Adjustable play area:** from 200 m to 800 m square, or the whole map.
 - **Minimap** with a full-screen map view: teammates where they are, enemies only as wide pulsing red
-  circles (120 m across) they are somewhere inside, never their exact spot (**Hide / Show enemy
-  areas on map** in the menu), and a gun view (first
+  circles (120 m across) they are somewhere inside, never their exact spot (on or off when
+  creating a room, for everyone in it, or in the solo setup), and a gun view (first
   person) or 3D person (third person) camera.
 
 ### Solo
@@ -63,6 +63,10 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   ranks or Ranking (`solo/SoloMatch.kt`, `solo/StreetGraph.kt`, `SoloMatchTest`).
 
 ### Multiplayer
+- **Invites:** after creating a room (or from **Invite friends** in the menu), share it on
+  WhatsApp: the link opens the website's join page (`docs/join/`), whose button opens the game
+  on the room, password included (`RoomInvite.kt`, the `beirutstrike://join` link), or Google
+  Play without the game.
 - **Rooms:** public or password-protected. The password is checked by the database's security
   rules, not by the app.
 - **Minimum rank:** a room's creator can let in only players of a chosen rank or higher, up to
@@ -527,6 +531,14 @@ least 12 testers opted in for 14 days in a row). Raise `versionCode` before ever
 - **[STORE_LISTING.md](STORE_LISTING.md):** store listing text, content rating and Data safety
   answers.
 - **[PRIVACY_POLICY.md](PRIVACY_POLICY.md):** the privacy policy linked from the store.
+
+**Forcing an update:** set `config/minVersion` in the Realtime Database (Firebase console →
+Realtime Database → Data) to the oldest versionCode still allowed. Versions from 1.3.1 on show
+"Update required" and only let the player open Google Play; every version records its
+versionCode at `versions/{uid}`, and the rules only let versions at or above the minimum create
+or join rooms, so versions older than the check (1.3.0 and before) are kept out of online games
+too. Raise it only once the new version is live on every track its players use. Delete
+`config/minVersion` to lift it (`online/AppVersion.kt`).
 
 Release builds are signed with an upload key described in a local, git-ignored
 `keystore.properties`:

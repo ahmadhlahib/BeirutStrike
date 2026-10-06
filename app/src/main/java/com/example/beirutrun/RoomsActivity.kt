@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.beirutrun.city.CityMapInfo
 import com.example.beirutrun.city.CityMaps
+import com.example.beirutrun.online.AppVersion
 import com.example.beirutrun.online.CareerWallet
 import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.RoomDirectory
@@ -88,12 +89,16 @@ class RoomsActivity : AppCompatActivity() {
             }
             // My money and guns too (see Wallet).
             CareerWallet.settle(this, uid) { if (!isFinishing) showRank() }
+            // This phone's version, which the rules check before joining or creating a room.
+            AppVersion.register(this)
+            AppVersion.check(this)
             // Came from "New room" on a finished game's scoreboard: go straight to creating one.
             if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_CREATE_ROOM, false)) showCreateDialog()
             dir.listen(
                 onRooms = { rooms ->
                     status.text = resources.getQuantityString(R.plurals.rooms_count, rooms.size, rooms.size)
                     adapter.rooms = rooms
+                    openInvite(rooms)
                 },
                 onError = { status.setText(R.string.status_failed) },
             )
@@ -114,7 +119,15 @@ class RoomsActivity : AppCompatActivity() {
         ticker.post(refresh)
         // The rank may have changed in a game since this screen was last shown.
         showRank()
+        // Back from sharing an invite: on into the room created.
+        afterInvite?.let { next ->
+            afterInvite = null
+            next()
+        }
     }
+
+    /** What to do once back from sharing an invite (going on at once would cover WhatsApp). */
+    private var afterInvite: (() -> Unit)? = null
 
     private fun showRank() =
         RankViews.bindCard(findViewById(R.id.roomsRank), Session.name(this).orEmpty(), PlayerProgress.state(this))
@@ -130,7 +143,7 @@ class RoomsActivity : AppCompatActivity() {
     }
 
     /** Shows the room's map (and asks for the password if it's locked) before joining. */
-    private fun onRoomTapped(room: RoomInfo) {
+    private fun onRoomTapped(room: RoomInfo, password: String? = null) {
         if (isOver(room)) {
             Toast.makeText(this, R.string.room_game_over_join, Toast.LENGTH_LONG).show()
             return
@@ -156,6 +169,8 @@ class RoomsActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.passwordLayout).visibility = if (room.hasPassword) View.VISIBLE else View.GONE
         view.findViewById<View>(R.id.joinCheats).visibility = if (room.cheats) View.VISIBLE else View.GONE
         val input = view.findViewById<EditText>(R.id.passwordInput)
+        // From an invite: its password, filled in.
+        password?.let { input.setText(it) }
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.room_join_title, room.name))
             .setView(view)
@@ -181,7 +196,8 @@ class RoomsActivity : AppCompatActivity() {
         status.setText(R.string.room_joining)
         dir.join(room, password) { ok ->
             if (ok) {
-                enter(room.id, room.name, room.map)
+                Session.setRoomPassword(this, password)
+                enter(room.id, room.name, room.map, !room.noEnemyAreas)
             } else {
                 status.text = ""
                 Toast.makeText(
@@ -247,6 +263,7 @@ class RoomsActivity : AppCompatActivity() {
         }
 
         // Cheats: off by default. Turning them on says straight away that scores won't count.
+        val enemyAreasSwitch = view.findViewById<SwitchMaterial>(R.id.roomEnemyAreasSwitch)
         val cheatsSwitch = view.findViewById<SwitchMaterial>(R.id.roomCheatsSwitch)
         val cheatsHelper = view.findViewById<TextView>(R.id.roomCheatsHelper)
         val helperColor = cheatsHelper.currentTextColor
@@ -278,7 +295,7 @@ class RoomsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.room_create) { _, _ ->
                 val name = nameInput.text.toString().trim().ifEmpty { getString(R.string.room_untitled) }
                 create(name.take(40), passwordInput.text.toString(), CityMaps.roomValue(chosen, size), duration,
-                    cheatsSwitch.isChecked, minRank.xpRequired.toLong())
+                    cheatsSwitch.isChecked, minRank.xpRequired.toLong(), enemyAreasSwitch.isChecked)
             }
             .show()
     }
@@ -349,12 +366,14 @@ class RoomsActivity : AppCompatActivity() {
     private fun isOver(room: RoomInfo) = room.endsAt > 0 && (directory?.serverNow() ?: 0L) >= room.endsAt
 
     /** Creates a room; [map] is its map value (see CityMaps.roomValue). */
-    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long) {
+    private fun create(name: String, password: String, map: String, durationMs: Long, cheats: Boolean, minXp: Long, enemyAreas: Boolean) {
         val dir = directory ?: return
         status.setText(R.string.room_creating)
-        dir.create(name, password, map, durationMs, cheats, minXp) { id ->
-            if (id != null) enter(id, name, map)
-            else Toast.makeText(
+        dir.create(name, password, map, durationMs, cheats, minXp, enemyAreas) { id ->
+            if (id != null) {
+                Session.setRoomPassword(this, password)
+                offerInvite(id, name, password) { enter(id, name, map, enemyAreas) }
+            } else Toast.makeText(
                 this,
                 // The server checks a minimum rank against my online career, which may lag behind.
                 if (minXp > 0) R.string.room_rank_create_failed else R.string.room_create_failed,
@@ -363,7 +382,40 @@ class RoomsActivity : AppCompatActivity() {
         }
     }
 
-    private fun enter(id: String, name: String, map: String) {
+    /**
+     * Opened from an invite (see RoomInvite): once the rooms are listed, opens the invited room's
+     * join window (its password filled in), or says it has closed.
+     */
+    private fun openInvite(rooms: List<RoomInfo>) {
+        val invite = Session.pendingInvite(this) ?: return
+        Session.setPendingInvite(this, null)
+        val room = rooms.firstOrNull { it.id == invite.roomId }
+        if (room == null) Toast.makeText(this, R.string.invite_room_gone, Toast.LENGTH_LONG).show()
+        else onRoomTapped(room, invite.password)
+    }
+
+    /** Just created room [id]: offers to invite friends on WhatsApp, then goes on ([then]) either way. */
+    private fun offerInvite(id: String, name: String, password: String, then: () -> Unit) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.invite_created_title)
+            .setMessage(if (password.isEmpty()) R.string.invite_created else R.string.invite_created_password)
+            .setCancelable(false)
+            .setNegativeButton(R.string.invite_later) { _, _ -> then() }
+            .setPositiveButton(R.string.invite_whatsapp) { _, _ ->
+                // Into the room once back from WhatsApp, not straight away (that would hide it).
+                afterInvite = then
+                // The share sheet didn't open: straight on, as there's nothing to come back from.
+                if (!RoomInvite.share(this, id, name, password)) {
+                    afterInvite = null
+                    then()
+                }
+            }
+            .show()
+    }
+
+    /** Into room [id]; [enemyAreas]: whether its maps show enemy areas (the creator's choice). */
+    private fun enter(id: String, name: String, map: String, enemyAreas: Boolean) {
+        Session.setRoomEnemyAreas(this, enemyAreas)
         Session.setRoom(this, id, name, map)
         startActivity(Intent(this, TeamSelectActivity::class.java))
     }

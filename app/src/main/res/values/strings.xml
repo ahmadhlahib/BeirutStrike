@@ -412,10 +412,24 @@
     <string name="store_swap_instead">Instead of the %1$s</string>
     <string name="store_swap_none">No other guns yet: buy more on the guns screen, with the money you earn online.</string>
     <string name="store_swapped">%1$s in your hands</string>
-    <string name="menu_enemy_areas_hide">Hide enemy areas on map</string>
-    <string name="menu_enemy_areas_show">Show enemy areas on map</string>
-    <string name="enemy_areas_on">Enemy areas shown on the map</string>
-    <string name="enemy_areas_off">Enemy areas hidden from the map</string>
+    <!-- Room invites (RoomInvite), shared on WhatsApp. -->
+    <string name="invite_message">Join my room \"%1$s\" in Beirut Strike 🎯 Tap to play with me: %2$s</string>
+    <string name="invite_share_title">Invite friends to the room</string>
+    <string name="invite_created_title">Room created</string>
+    <string name="invite_created">Invite friends on WhatsApp? They tap the link and land right in your room.</string>
+    <string name="invite_created_password">Invite friends on WhatsApp? The link includes the password, so they get straight in. Anyone with the link can join.</string>
+    <string name="invite_whatsapp">Invite on WhatsApp</string>
+    <string name="invite_later">Not now</string>
+    <string name="invite_room_gone">That room has closed. Pick another one, or create your own.</string>
+    <string name="menu_invite">Invite friends</string>
+    <string name="room_enemy_areas">Show enemy areas on the map</string>
+    <string name="room_enemy_areas_helper">Everyone in the room sees enemies as red circles they\'re somewhere inside, never their exact spot.</string>
+    <string name="invite_failed">Couldn\'t open sharing (%1$s)</string>
+    <!-- Forced updates (AppVersion). -->
+    <string name="update_title">Update required</string>
+    <string name="update_message">A new version of Beirut Strike is out. Update it on Google Play to keep playing: older versions can\'t join rooms any more.</string>
+    <string name="update_button">Update</string>
+    <string name="update_close">Close</string>
     <!-- Medkits: picked up in the street, used with the buttons beside the hearts. -->
     <string name="pickup_medkit_small">Medkit +1 ♥</string>
     <string name="pickup_medkit_big">Medical bag · full ♥</string>
