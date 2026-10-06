@@ -26,6 +26,9 @@ public class MakeScreenshots {
         {"08_rooms", "Screenshot_20261002_101229_Beirut Strike.jpg", "CREATE YOUR OWN MATCH", "Pick the map, size and length, add a password or a minimum rank"},
         {"09_living_city", "20261005_people_corniche.jpeg", "A CITY THAT'S ALIVE", "Cars drive the streets, people walk the sidewalks and run when the shooting starts"},
         {"10_rooftops", "20261005_rooftop.jpeg", "TAKE THE ROOFTOPS", "Climb the ladders and cover the streets from above"},
+        {"11_solo", "20261006_solo_setup.jpg", "PLAY SOLO AGAINST BOTS", "Pick the map, the length and 1 to 8 bots, Easy, Medium or Hard"},
+        {"12_store", "20261006_store_shop.jpg", "ARMS STORES IN EVERY MAP", "Magazines, scopes, grenades and medkits at the counter"},
+        {"13_enemy_areas", "20261006_map_enemy_areas.jpg", "KNOW WHERE THE ENEMY IS, ROUGHLY", "Red circles on the map, never their exact spot; green $ for the stores"},
     };
 
     static final int W = 1920, H = 1080;
