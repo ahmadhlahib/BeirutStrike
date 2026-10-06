@@ -121,12 +121,13 @@ Expect roughly **PEGI 16 / ESRB Teen–Mature 17+ / USK 16**.
 
 | Data type | Collected | Shared* | Optional | Purpose |
 | --- | --- | --- | --- | --- |
-| Personal info → **Name** (player name) | Yes | No | No (a name is needed to play) | App functionality |
-| Personal info → **User IDs** (Firebase anonymous ID) | Yes | No | No | App functionality, fraud prevention/security |
+| Personal info → **Name** (player name; and the Google account name with Google sign-in) | Yes | No | No (a name is needed to play) | App functionality, Account management |
+| Personal info → **User IDs** (Firebase user ID: random for guests, or the Google account) | Yes | No | No | App functionality, Account management, fraud prevention/security |
+| Personal info → **Email address** (only with Google sign-in) | Yes | No | Yes | Account management |
 | Photos and videos → **Photos** (face photo, dropped photos, team flags) | Yes | No | Yes | App functionality |
 | Messages → **Other in-app messages** (speech bubbles, captions) | Yes | No | Yes | App functionality |
 | Audio → **Voice or sound recordings** (team voice chat, live only while the mic is on; sent phone to phone, never stored) | Yes | No | Yes | App functionality |
-| App activity → **Other actions** (gameplay: game stats, scores, XP and rank) | Yes | No | No | App functionality |
+| App activity → **Other actions** (gameplay: game stats, scores, XP, rank, money and guns bought) | Yes | No | No | App functionality |
 | App info and performance → **Diagnostics** (sent by Google ML Kit face detection: device model, OS version, performance, error codes) | Yes | No | Yes (only with the face photo) | Analytics |
 | Device or other IDs → **Device or other IDs** (ML Kit's per-install ID for those diagnostics) | Yes | No | Yes (only with the face photo) | Analytics |
 

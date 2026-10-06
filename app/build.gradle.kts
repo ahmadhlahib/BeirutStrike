@@ -72,6 +72,9 @@ dependencies {
     implementation(libs.firebase.database)
     implementation(libs.firebase.auth)
     implementation(libs.stream.webrtc)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play)
+    implementation(libs.google.id)
     testImplementation(libs.junit)
     // Real org.json for unit tests (Android's built-in one is only a stub off-device).
     testImplementation(libs.org.json)

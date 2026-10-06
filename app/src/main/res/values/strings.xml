@@ -413,4 +413,14 @@
     <string name="buy_button">Buy · %1$s</string>
     <string name="buy_done">%1$s bought</string>
     <string name="buy_need_more">It costs %1$s and you have %2$s: %3$s more needed. Earn money with kills, headshots and wins in online games.</string>
+
+    <!-- Account (LoginActivity): optional Google sign-in. -->
+    <string name="account_guest">Playing as a guest: your XP, rank, money and guns stay on this phone. Sign in with Google to keep them on any phone.</string>
+    <string name="account_signed_in">Signed in as %1$s. Your XP, rank, money and guns follow you to any phone.</string>
+    <string name="account_google_sign_in">Sign in with Google</string>
+    <string name="account_sign_out">Sign out</string>
+    <string name="account_sign_out_message">Your progress stays with your Google account. This phone starts again as a new guest until you sign in.</string>
+    <string name="account_linked">Signed in: your progress is now saved to your Google account</string>
+    <string name="account_switched">Signed in: your account\'s progress is loading</string>
+    <string name="account_failed">Couldn\'t sign in with Google. Check your connection and try again.</string>
 </resources>

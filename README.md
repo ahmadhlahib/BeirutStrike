@@ -114,6 +114,11 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   camera and ML Kit face detection put your photo on the character's head. It's off by default,
   and never used on characters with a real face of their own.
 - **Speech bubbles** and **photo drops** left in the city for other players to find.
+- **Accounts:** play as a guest, or **Sign in with Google** on the name screen so your XP, rank,
+  money and guns follow you to any phone. Signing in keeps a guest's progress; a Google account
+  that already plays elsewhere is switched to instead (`online/GoogleAccount.kt`). It needs the
+  Google provider enabled in Firebase Authentication and the app's SHA-1 fingerprints (debug,
+  upload and Play app signing keys) added to the Firebase Android app.
 - **Safety and privacy:** report or block other players, and delete all your data from the menu.
 
 ### Offline mode
@@ -279,7 +284,7 @@ career screen for +500 XP to try a rank-up; tapping it replays your last promoti
 | Platform | Android 8.0+ (min SDK 26), target SDK 36 (Android 16) |
 | Rendering | Custom OpenGL ES 2.0 renderer; skinned glTF (`.glb`) characters and street people, glTF car models |
 | Camera | CameraX 1.3, ML Kit face detection |
-| Backend | Firebase Realtime Database and Anonymous Authentication (fits the free Spark plan) |
+| Backend | Firebase Realtime Database and Authentication: guests (anonymous) or Sign in with Google via Credential Manager (fits the free Spark plan) |
 | Audio | Gunshot and reload recordings plus effects synthesized at runtime |
 | Voice chat | WebRTC (stream-webrtc-android 1.3), peer-to-peer between teammates, signalled through Firebase |
 | Map data | OpenStreetMap, converted offline by a Java tool in `tools/` |
