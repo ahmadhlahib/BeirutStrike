@@ -115,7 +115,15 @@ class RoomsActivity : AppCompatActivity() {
         ticker.post(refresh)
         // The rank may have changed in a game since this screen was last shown.
         showRank()
+        // Back from sharing an invite: on into the room created.
+        afterInvite?.let { next ->
+            afterInvite = null
+            next()
+        }
     }
+
+    /** What to do once back from sharing an invite (going on at once would cover WhatsApp). */
+    private var afterInvite: (() -> Unit)? = null
 
     private fun showRank() =
         RankViews.bindCard(findViewById(R.id.roomsRank), Session.name(this).orEmpty(), PlayerProgress.state(this))
@@ -389,8 +397,9 @@ class RoomsActivity : AppCompatActivity() {
             .setCancelable(false)
             .setNegativeButton(R.string.invite_later) { _, _ -> then() }
             .setPositiveButton(R.string.invite_whatsapp) { _, _ ->
+                // Into the room once back from WhatsApp, not straight away (that would hide it).
+                afterInvite = then
                 RoomInvite.share(this, id, name, password)
-                then()
             }
             .show()
     }
