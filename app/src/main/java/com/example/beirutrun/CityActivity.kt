@@ -1843,6 +1843,11 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         }
         if (solo != null) actions += R.string.menu_leave_solo to { leaveSolo() }
         else if (FirebaseSession.configured(this)) actions += R.string.menu_leave_room to { leaveRoom() }
+        // Online: invite friends to this room over WhatsApp (see RoomInvite).
+        val roomId = Session.roomId(this)
+        if (solo == null && online.configured && roomId != null) actions += R.string.menu_invite to {
+            RoomInvite.share(this, roomId, Session.roomName(this).orEmpty(), Session.roomPassword(this))
+        }
         actions += R.string.menu_logout to {
             leavingRoom = true
             Session.logout(this)

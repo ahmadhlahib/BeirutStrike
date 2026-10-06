@@ -1,0 +1,74 @@
+<!doctype html>
+<!--
+  A room invite, served by GitHub Pages at https://ahmadhlahib.github.io/BeirutStrike/join/?r=<room>&n=<name>&p=<password>
+  (see RoomInvite.kt). WhatsApp only links web addresses, so the invite comes here, and the
+  button opens the game on the room (beirutstrike://join, through an Android intent link that
+  falls back to Google Play when the game isn't installed).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join my room · Beirut Strike</title>
+<meta name="description" content="You're invited to a room in Beirut Strike, a multiplayer shooter set in real Beirut streets.">
+<meta name="robots" content="noindex">
+<meta property="og:title" content="Join my room in Beirut Strike">
+<meta property="og:description" content="Tap to open the game and play with me in real Beirut streets.">
+<meta property="og:image" content="https://ahmadhlahib.github.io/BeirutStrike/assets/feature.jpg">
+<link rel="icon" href="../privacy/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  body { min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+  .invite { width: 100%; max-width: 520px; box-sizing: border-box; margin: 0 auto; padding: 40px 20px; text-align: center; overflow-wrap: anywhere; }
+  .invite img.logo { display: block; margin: 0 auto; width: 112px; height: 112px; border-radius: 26px; border: 3px solid var(--gold, #e8b64a); }
+  .invite h1 { font-size: clamp(30px, 8vw, 44px); margin: 18px 0 6px; }
+  .invite .room { font-size: 22px; font-weight: 700; color: var(--gold, #e8b64a); margin: 4px 0 20px; word-break: break-word; }
+  .invite .buttons { justify-content: center; margin: 22px 0 10px; }
+  .invite .small { font-size: 14px; opacity: .8; margin-top: 18px; }
+  .invite .ar { direction: rtl; font-size: 15px; opacity: .85; margin-top: 6px; }
+  .invite .desktop { display: none; }
+  .invite.not-android .desktop { display: block; }
+  .invite.not-android .open { display: none; }
+</style>
+</head>
+<body>
+<main class="invite" id="invite">
+  <img class="logo" src="../privacy/icon.png" alt="Beirut Strike icon" width="112" height="112">
+  <h1>You're invited</h1>
+  <p>Join my room in <strong>Beirut Strike</strong>:</p>
+  <p class="room" id="room">a room</p>
+  <p class="ar">انضم إلى غرفتي في بيروت سترايك</p>
+
+  <div class="buttons open">
+    <a class="button primary" id="open" href="../">Open in Beirut Strike</a>
+  </div>
+  <p class="small open">Don't have the game? The button takes you to Google Play. It's in testing now: if Play says it's not available, <a href="mailto:Ahmad.h.lahib@gmail.com?subject=Beirut%20Strike%20tester&amp;body=I%27d%20like%20to%20test%20Beirut%20Strike.%20My%20Google%20Play%20email%3A%20">email us to join the test</a>.</p>
+
+  <p class="desktop">Open this link on your Android phone to join the room.</p>
+  <p class="small"><a href="../">About Beirut Strike</a></p>
+</main>
+<script>
+  // The room's id, name and password come from the link (see RoomInvite.link).
+  const params = new URLSearchParams(location.search);
+  const room = params.get('r') || '';
+  const name = params.get('n');
+  const password = params.get('p');
+  if (name) document.getElementById('room').textContent = name;
+  const play = 'https://play.google.com/store/apps/details?id=com.alahib.beirutstrike';
+  if (/^[A-Za-z0-9_-]{1,40}$/.test(room)) {
+    let query = 'r=' + encodeURIComponent(room);
+    if (password) query += '&p=' + encodeURIComponent(password);
+    // An Android intent link: opens the game on the room, or Google Play without it.
+    document.getElementById('open').href = 'intent://join?' + query +
+      '#Intent;scheme=beirutstrike;package=com.alahib.beirutstrike;S.browser_fallback_url=' +
+      encodeURIComponent(play) + ';end';
+  } else {
+    document.getElementById('open').href = play;
+  }
+  if (!/Android/i.test(navigator.userAgent)) document.getElementById('invite').classList.add('not-android');
+</script>
+</body>
+</html>

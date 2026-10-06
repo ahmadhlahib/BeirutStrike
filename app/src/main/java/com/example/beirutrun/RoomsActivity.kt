@@ -94,6 +94,7 @@ class RoomsActivity : AppCompatActivity() {
                 onRooms = { rooms ->
                     status.text = resources.getQuantityString(R.plurals.rooms_count, rooms.size, rooms.size)
                     adapter.rooms = rooms
+                    openInvite(rooms)
                 },
                 onError = { status.setText(R.string.status_failed) },
             )
@@ -130,7 +131,7 @@ class RoomsActivity : AppCompatActivity() {
     }
 
     /** Shows the room's map (and asks for the password if it's locked) before joining. */
-    private fun onRoomTapped(room: RoomInfo) {
+    private fun onRoomTapped(room: RoomInfo, password: String? = null) {
         if (isOver(room)) {
             Toast.makeText(this, R.string.room_game_over_join, Toast.LENGTH_LONG).show()
             return
@@ -156,6 +157,8 @@ class RoomsActivity : AppCompatActivity() {
         view.findViewById<View>(R.id.passwordLayout).visibility = if (room.hasPassword) View.VISIBLE else View.GONE
         view.findViewById<View>(R.id.joinCheats).visibility = if (room.cheats) View.VISIBLE else View.GONE
         val input = view.findViewById<EditText>(R.id.passwordInput)
+        // From an invite: its password, filled in.
+        password?.let { input.setText(it) }
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.room_join_title, room.name))
             .setView(view)
@@ -181,6 +184,7 @@ class RoomsActivity : AppCompatActivity() {
         status.setText(R.string.room_joining)
         dir.join(room, password) { ok ->
             if (ok) {
+                Session.setRoomPassword(this, password)
                 enter(room.id, room.name, room.map)
             } else {
                 status.text = ""
@@ -353,14 +357,42 @@ class RoomsActivity : AppCompatActivity() {
         val dir = directory ?: return
         status.setText(R.string.room_creating)
         dir.create(name, password, map, durationMs, cheats, minXp) { id ->
-            if (id != null) enter(id, name, map)
-            else Toast.makeText(
+            if (id != null) {
+                Session.setRoomPassword(this, password)
+                offerInvite(id, name, password) { enter(id, name, map) }
+            } else Toast.makeText(
                 this,
                 // The server checks a minimum rank against my online career, which may lag behind.
                 if (minXp > 0) R.string.room_rank_create_failed else R.string.room_create_failed,
                 Toast.LENGTH_LONG,
             ).show()
         }
+    }
+
+    /**
+     * Opened from an invite (see RoomInvite): once the rooms are listed, opens the invited room's
+     * join window (its password filled in), or says it has closed.
+     */
+    private fun openInvite(rooms: List<RoomInfo>) {
+        val invite = Session.pendingInvite(this) ?: return
+        Session.setPendingInvite(this, null)
+        val room = rooms.firstOrNull { it.id == invite.roomId }
+        if (room == null) Toast.makeText(this, R.string.invite_room_gone, Toast.LENGTH_LONG).show()
+        else onRoomTapped(room, invite.password)
+    }
+
+    /** Just created room [id]: offers to invite friends on WhatsApp, then goes on ([then]) either way. */
+    private fun offerInvite(id: String, name: String, password: String, then: () -> Unit) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.invite_created_title)
+            .setMessage(if (password.isEmpty()) R.string.invite_created else R.string.invite_created_password)
+            .setCancelable(false)
+            .setNegativeButton(R.string.invite_later) { _, _ -> then() }
+            .setPositiveButton(R.string.invite_whatsapp) { _, _ ->
+                RoomInvite.share(this, id, name, password)
+                then()
+            }
+            .show()
     }
 
     private fun enter(id: String, name: String, map: String) {
