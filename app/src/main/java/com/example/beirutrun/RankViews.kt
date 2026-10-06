@@ -8,6 +8,7 @@ import android.widget.TextView
 import com.example.beirutrun.progression.ProgressState
 import com.example.beirutrun.progression.Progression
 import com.example.beirutrun.progression.Rank
+import com.example.beirutrun.progression.Wallet
 import java.text.NumberFormat
 
 /** How ranks are written and shown on every screen (their names, badges and XP are in Rank). */
@@ -51,6 +52,7 @@ object RankViews {
         card.findViewById<TextView>(R.id.rankCardRank).text = bothNames(context, state.rank)
         card.findViewById<TextView>(R.id.rankCardLevel).text = context.getString(R.string.career_level, state.level)
         setProgress(card.findViewById(R.id.rankCardProgress), state)
+        card.findViewById<TextView>(R.id.rankCardCash)?.text = Wallet.format(Wallet.cash(context))
         card.contentDescription = context.getString(R.string.career_open)
     }
 }

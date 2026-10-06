@@ -187,6 +187,8 @@
         "hitsTaken": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "xp": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "cash": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000" },
+        "guns": { ".validate": "newData.isString() && newData.val().length <= 200" },
         "updated": { ".validate": "newData.isNumber() && newData.val() <= now" },
         "$other": { ".validate": false }
       }

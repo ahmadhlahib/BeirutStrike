@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.progression.PlayerProgress
+import com.example.beirutrun.progression.Wallet
 import com.example.beirutrun.solo.BotDifficulty
 import com.example.beirutrun.solo.SoloSettings
 import java.io.File
@@ -43,6 +44,8 @@ object Session {
     fun gun(context: Context, slot: GunSlot): Weapon =
         prefs(context).getString("gun_${slot.name.lowercase()}", null)
             ?.let { id -> Weapon.entries.firstOrNull { it.id == id && it.slot == slot } }
+            // A gun not bought (e.g. chosen before guns cost money) falls back to the free one.
+            ?.takeIf { Wallet.owns(context, it) }
             ?: Weapon.defaults.getValue(slot)
 
     fun setGun(context: Context, weapon: Weapon) =

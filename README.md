@@ -92,6 +92,13 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   shoot down from above. Everyone sees you climb and stand up there, and can shoot you there too.
 
 ### Progression
+- **Money:** every player starts with $2,000 and earns $300 per kill, $100 more for a headshot
+  and $1,000 for winning, in online games that count toward careers (not solo or cheat rooms).
+  The balance shows on the rank card and the guns screen, and is copied to the online career
+  (`progression/Wallet.kt`, `online/CareerWallet.kt`).
+- **Guns cost money:** the Beretta M9, AK-47 and SVD are free; the others are bought once on the
+  guns screen (from $1,500 for the Glock 17 to $12,000 for the Barrett M82) and kept for good
+  (`GunPrices`).
 - **Live scoreboard** during the match and final results at the end: score, kills, deaths, K/D,
   shots, accuracy and hits taken, for players and teams.
 - **Career ranking** across all matches, with face photos.

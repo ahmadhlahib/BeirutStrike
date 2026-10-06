@@ -8,13 +8,36 @@
     android:orientation="vertical"
     android:padding="20dp">
 
-    <TextView
-        android:layout_width="wrap_content"
+    <!-- The title, and my money on the right (guns not owned yet cost money, see Wallet). -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/loadout_title"
-        android:textColor="@android:color/white"
-        android:textSize="26sp"
-        android:textStyle="bold" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/loadout_title"
+            android:textColor="@android:color/white"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/loadoutCash"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#99000000"
+            android:fontFeatureSettings="tnum"
+            android:paddingStart="12dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="4dp"
+            android:textColor="#FF7CD67C"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"

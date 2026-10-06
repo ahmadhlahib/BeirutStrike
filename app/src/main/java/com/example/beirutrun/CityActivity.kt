@@ -49,6 +49,7 @@ import com.example.beirutrun.city.GunSlot
 import com.example.beirutrun.city.Weapon
 import com.example.beirutrun.city.SoundEffects
 import com.example.beirutrun.city.SoldierRig
+import com.example.beirutrun.online.CareerWallet
 import com.example.beirutrun.online.FirebaseSession
 import com.example.beirutrun.online.OnlineWorld
 import com.example.beirutrun.online.PlayerStats
@@ -57,6 +58,8 @@ import com.example.beirutrun.online.RoomTeams
 import com.example.beirutrun.online.VoiceChat
 import com.example.beirutrun.progression.PlayerProgress
 import com.example.beirutrun.progression.XpGain
+import com.example.beirutrun.progression.CashReward
+import com.example.beirutrun.progression.Wallet
 import com.example.beirutrun.progression.XpReward
 import com.example.beirutrun.solo.BotDifficulty
 import com.example.beirutrun.solo.SoloMatch
@@ -839,8 +842,25 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         sounds.death(volume = 0.8f)
         val headshot = lastHitHeadshot.remove(victimUid) == true
         val gain = if (headshot) award(XpReward.ELIMINATION, XpReward.HEADSHOT) else award(XpReward.ELIMINATION)
+        val cash = if (headshot) pay(CashReward.KILL, CashReward.HEADSHOT) else pay(CashReward.KILL)
         val killed = getString(R.string.you_killed, victimName)
-        showBanner(if (gain != null) getString(R.string.kill_with_xp, killed, getString(R.string.xp_gain, gain.xp.toInt())) else killed)
+        showBanner(if (gain != null) {
+            val reward = getString(R.string.xp_gain, gain.xp.toInt()) + (cash?.let { " · +" + Wallet.format(it) } ?: "")
+            getString(R.string.kill_with_xp, killed, reward)
+        } else killed)
+    }
+
+    /**
+     * Gives me the money for [rewards] (see CashReward), like [award] only in games that count
+     * toward careers (not solo or cheat rooms): saved on this phone and in my career. Returns how
+     * much, or null.
+     */
+    private fun pay(vararg rewards: CashReward): Long? {
+        if (!online.countsForCareer) return null
+        val cash = rewards.sumOf { it.cash }
+        Wallet.earn(this, cash)
+        CareerWallet.upload(this)
+        return cash
     }
 
     /**
@@ -1076,6 +1096,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         if (won && online.countsForCareer && PlayerProgress.recordWin(this, "${Session.roomId(this)}@$gameEndsAt")) {
             online.countWin()
             promoted = award(XpReward.VICTORY)?.rankedUp == true
+            pay(CashReward.VICTORY)?.let { showBanner(getString(R.string.cash_won, Wallet.format(it))) }
         }
         // The winner's character dances (if it has dances) before the results come up; a
         // promotion gets its moment too.

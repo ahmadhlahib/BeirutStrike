@@ -405,4 +405,12 @@
     <string name="medkit_full_health">Your health is already full</string>
     <string name="medkit_none_small">No small medkits left: find one in the streets</string>
     <string name="medkit_none_big">No medical bag: find one in the streets</string>
+    <!-- Money (see Wallet): earned in online games, spent on guns. -->
+    <string name="cash_won">Victory · +%1$s</string>
+    <string name="gun_price">🔒 %1$s · tap to buy</string>
+    <string name="buy_title">Buy the %1$s?</string>
+    <string name="buy_confirm">It costs %1$s. You\'ll have %2$s left, and it\'s yours for good.</string>
+    <string name="buy_button">Buy · %1$s</string>
+    <string name="buy_done">%1$s bought</string>
+    <string name="buy_need_more">It costs %1$s and you have %2$s: %3$s more needed. Earn money with kills, headshots and wins in online games.</string>
 </resources>
