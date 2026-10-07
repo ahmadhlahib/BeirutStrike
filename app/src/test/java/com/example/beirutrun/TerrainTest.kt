@@ -134,7 +134,7 @@ class TerrainTest {
             val city = load(id)
             val scene = com.example.beirutrun.city.CityScene.build(city)
             val hill = scene.tiles.flatMap { tile ->
-                listOfNotNull(tile.parts[com.example.beirutrun.city.Surface.HILLSIDE], tile.parts[com.example.beirutrun.city.Surface.HILL_ROCK])
+                listOfNotNull(tile.parts[com.example.beirutrun.city.Surface.HILLSIDE], tile.parts[com.example.beirutrun.city.Surface.HILL_ROCK], tile.parts[com.example.beirutrun.city.Surface.CITY_GROUND])
             }
             var under = 0
             var below = 0

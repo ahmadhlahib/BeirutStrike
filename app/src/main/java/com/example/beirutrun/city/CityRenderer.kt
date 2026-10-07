@@ -2547,7 +2547,14 @@ class CityRenderer(
 
     private fun drawSurface(surface: Surface, mesh: Mesh) {
         val texture = if (surface.texture >= 0) surfaceTextures[surface.texture] else 0
+        // Things laid on the ground are pulled towards the camera a little (more for each layer up),
+        // so on hills the ground never pokes through them where it bulges.
+        if (surface.layer > 0) {
+            GLES20.glEnable(GLES20.GL_POLYGON_OFFSET_FILL)
+            GLES20.glPolygonOffset(-1f, -DECAL_UNITS * surface.layer)
+        }
         draw(mesh, identity, surface.color, texture, surface.lit, surface.shine, surface.ao, surface.cutout)
+        if (surface.layer > 0) GLES20.glDisable(GLES20.GL_POLYGON_OFFSET_FILL)
     }
 
     // ---- Photo drops --------------------------------------------------------------------------
@@ -2961,6 +2968,8 @@ class CityRenderer(
         private const val BORDER_PIECE = 4f
         /** uGroundBase when there's no ground height map (a flat map). */
         private const val NO_GROUND_MAP = -10000f
+        /** Depth pulled towards the camera per ground layer (see Surface.layer), in the depth buffer's smallest steps. */
+        private const val DECAL_UNITS = 4f
         private val GROUND_SPAN = CityTextures.groundSpan(CityTextures.GROUND)
         private const val FOG_START = 70f
         private const val FOG_END = 230f

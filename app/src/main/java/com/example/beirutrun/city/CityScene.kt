@@ -22,20 +22,27 @@ import kotlin.random.Random
 enum class Surface(
     val color: Int, val texture: Int = -1, val lit: Boolean = true, val shine: Float = 0f, val ao: Boolean = false,
     val cutout: Boolean = false,
+    /**
+     * Laid on the ground (areas 1, streets 2, their paint 3): drawn pulled towards the camera, so
+     * on hills the ground never shows through where it bulges a few centimetres (0: not laid on it).
+     */
+    val layer: Int = 0,
 ) {
     SEA(0xFF2F6E95.toInt(), shine = 0.5f),
-    PARKING(0xFF96938E.toInt(), CityTextures.ASPHALT), PLAZA(0xFFE8DDC8.toInt(), CityTextures.PAVING),
-    PARK(0xFF78AE5F.toInt(), CityTextures.GRASS), PITCH(0xFF56A44E.toInt(), CityTextures.GRASS),
-    WATER(0xFF2F6E95.toInt(), shine = 0.5f), SAND(0xFFEFDDA8.toInt(), CityTextures.SAND),
-    PIER(0xFFADABA6.toInt(), CityTextures.SLABS), CONSTRUCTION(0xFFB39878.toInt(), CityTextures.SAND),
-    ROAD_PATH(0xFFC8BA9F.toInt(), CityTextures.SAND), ROAD_TRACK(0xFFC9A86A.toInt(), CityTextures.SAND),
+    PARKING(0xFF96938E.toInt(), CityTextures.ASPHALT, layer = 1), PLAZA(0xFFE8DDC8.toInt(), CityTextures.PAVING, layer = 1),
+    PARK(0xFF78AE5F.toInt(), CityTextures.GRASS, layer = 1), PITCH(0xFF56A44E.toInt(), CityTextures.GRASS, layer = 1),
+    WATER(0xFF2F6E95.toInt(), shine = 0.5f), SAND(0xFFEFDDA8.toInt(), CityTextures.SAND, layer = 1),
+    PIER(0xFFADABA6.toInt(), CityTextures.SLABS), CONSTRUCTION(0xFFB39878.toInt(), CityTextures.SAND, layer = 1),
+    ROAD_PATH(0xFFC8BA9F.toInt(), CityTextures.SAND, layer = 2), ROAD_TRACK(0xFFC9A86A.toInt(), CityTextures.SAND, layer = 2),
     // Hillsides (maps with hills): dry grass and scrub, and bare rock and earth where it's steep.
     HILLSIDE(0xFFB9B98A.toInt(), CityTextures.GRASS), HILL_ROCK(0xFFB4A288.toInt(), CityTextures.SAND),
-    ROAD_PEDESTRIAN(0xFFDDCFB3.toInt(), CityTextures.PAVING),
-    ROAD_MINOR(0xFF56575C.toInt(), CityTextures.ASPHALT), ROAD_MEDIUM(0xFF4C4D52.toInt(), CityTextures.ASPHALT),
-    ROAD_MAJOR(0xFF434448.toInt(), CityTextures.ASPHALT), ROAD_PIER(0xFFA4A29E.toInt(), CityTextures.SLABS),
-    SIDEWALK(0xFFD6D1C7.toInt(), CityTextures.SLABS), CURB(0xFFBDB9B0.toInt()),
-    LANE(0xFFE9E4D0.toInt(), lit = false),
+    // The city's bare ground on hills (as on flat maps): pale stone and dust, not grass.
+    CITY_GROUND(0xFFDAD3C4.toInt(), CityTextures.GROUND),
+    ROAD_PEDESTRIAN(0xFFDDCFB3.toInt(), CityTextures.PAVING, layer = 2),
+    ROAD_MINOR(0xFF56575C.toInt(), CityTextures.ASPHALT, layer = 2), ROAD_MEDIUM(0xFF4C4D52.toInt(), CityTextures.ASPHALT, layer = 2),
+    ROAD_MAJOR(0xFF434448.toInt(), CityTextures.ASPHALT, layer = 2), ROAD_PIER(0xFFA4A29E.toInt(), CityTextures.SLABS),
+    SIDEWALK(0xFFD6D1C7.toInt(), CityTextures.SLABS, layer = 2), CURB(0xFFBDB9B0.toInt(), layer = 2),
+    LANE(0xFFE9E4D0.toInt(), lit = false, layer = 3),
     WALL_SANDSTONE(0xFFFFFFFF.toInt(), CityTextures.SANDSTONE, ao = true),
     WALL_CREAM(0xFFFFFFFF.toInt(), CityTextures.CREAM, ao = true),
     WALL_CONCRETE(0xFFFFFFFF.toInt(), CityTextures.CONCRETE, ao = true),
@@ -52,7 +59,7 @@ enum class Surface(
     LEAVES(0xFF74B654.toInt(), CityTextures.LEAF), LEAVES_DARK(0xFF559A4A.toInt(), CityTextures.LEAF),
     LEAVES_OLIVE(0xFF98AE58.toInt(), CityTextures.LEAF),
     PALM_LEAVES(0xFF6EA43E.toInt(), CityTextures.FROND, cutout = true), PALM_CROWN(0xFF6E5A3E.toInt()),
-    POLE(0xFF4A4D50.toInt()), LAMP(0xFFF4F0DE.toInt(), lit = false), GUTTER(0xFF3A3A38.toInt()),
+    POLE(0xFF4A4D50.toInt()), LAMP(0xFFF4F0DE.toInt(), lit = false), GUTTER(0xFF3A3A38.toInt(), layer = 2),
 }
 
 /**
@@ -86,7 +93,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
          * Laying roads and squares over hills: how far the ground may bend away from a straight
          * line before a point is added (metres), and the shortest piece worth splitting.
          */
-        private const val GROUND_TOLERANCE = 0.1f
+        private const val GROUND_TOLERANCE = 0.08f
         private const val MIN_GROUND_STEP = 2f
         /** How far the hillside under a road is drawn below it (out of sight), metres. */
         private const val ROAD_SINK = 0.3f
@@ -250,7 +257,12 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     if (coveredByBuilding(x0, z0, c)) continue
                     // How steep this cell is (rise over run), for grass or rock.
                     val steep = maxOf(abs(h10 - h00), abs(h01 - h00), abs(h11 - h10), abs(h11 - h01)) / c
-                    val surface = if (steep > 0.75f) Surface.HILL_ROCK else Surface.HILLSIDE
+                    // A village's hills are grass and rock; a city's bare ground is pale stone, rock only where steep.
+                    val surface = when {
+                        steep > 0.75f -> Surface.HILL_ROCK
+                        look == CityLook.VILLAGE -> Surface.HILLSIDE
+                        else -> Surface.CITY_GROUND
+                    }
                     val o = out(x0 + c / 2f, z0 + c / 2f, surface)
                     val s = span(surface)
                     fun v(cc: Int, rr: Int) {
@@ -289,7 +301,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             }
         }
 
-        /** Which of the height grid's points are under a road or its sidewalks (see [addHillsides]). */
+        /** Which of the height grid's points are under a road, its sidewalks, or a square, park or car park (see [addHillsides]). */
         private fun underRoads(): BooleanArray {
             val t = map.terrain
             val under = BooleanArray(t.cols * t.rows)
@@ -308,6 +320,24 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     for (r in r0..r1) for (c in c0..c1) {
                         if (CityMap.segmentDistance(t.x0 + c * t.cell, t.z0 + r * t.cell, ax, az, bx, bz) <= reach) under[r * t.cols + c] = true
                     }
+                }
+            }
+            // And under squares, parks and parking (not water: that lies level on its own).
+            for (a in map.areas) {
+                if (a.kind == CityMap.AREA_WATER || a.kind == CityMap.AREA_PIER) continue
+                val p = a.pts
+                var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var minZ = Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
+                for (i in 0 until p.size / 2) {
+                    minX = minOf(minX, p[2 * i]); maxX = maxOf(maxX, p[2 * i])
+                    minZ = minOf(minZ, p[2 * i + 1]); maxZ = maxOf(maxZ, p[2 * i + 1])
+                }
+                val c0 = ceil((minX - t.x0) / t.cell).toInt().coerceAtLeast(0)
+                val c1 = floor((maxX - t.x0) / t.cell).toInt().coerceAtMost(t.cols - 1)
+                val r0 = ceil((minZ - t.z0) / t.cell).toInt().coerceAtLeast(0)
+                val r1 = floor((maxZ - t.z0) / t.cell).toInt().coerceAtMost(t.rows - 1)
+                for (r in r0..r1) for (c in c0..c1) {
+                    val x = t.x0 + c * t.cell; val z = t.z0 + r * t.cell
+                    if (CityMap.inside(p, x, z) && CityMap.edgeDistance(p, x, z) > 0.3f) under[r * t.cols + c] = true
                 }
             }
             return under
