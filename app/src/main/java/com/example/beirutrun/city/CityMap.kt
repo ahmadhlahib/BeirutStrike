@@ -94,8 +94,18 @@ class CityMap(
     private val treeCells = Array(cols * rows) { ArrayList<Tree>(4) }
     private val waterCells = Array(cols * rows) { ArrayList<FloatArray>(1) }
 
+    /** How roads lie on the hills (null on flat maps): level across, as drawn (see [RoadLevels]). */
+    val roadLevels: RoadLevels? by lazy { if (terrain.flat) null else RoadLevels(roads, terrain, coastal = sea.isNotEmpty()) }
+
+    /**
+     * The ground exactly as it's drawn: the hillside shaped round the roads (under them, and their
+     * banks, see [RoadLevels.drawnGround]); the terrain itself on flat maps.
+     */
+    val drawnGround: Terrain by lazy { roadLevels?.drawnGround ?: terrain }
+
     init {
-        if (!terrain.flat) for (b in buildings) b.base = terrain.lowestUnder(b.pts)
+        // On the ground as drawn (shaped round the roads), so walls reach down to the street.
+        if (!terrain.flat) for (b in buildings) b.base = drawnGround.lowestUnder(b.pts)
         for (b in buildings) forCells(b.minX, b.minZ, b.maxX, b.maxZ) { buildingCells[it] += b }
         for (t in trees) forCells(t.x, t.z, t.x, t.z) { treeCells[it] += t }
         val water = sea + areas.filter { it.kind == AREA_WATER }.map { it.pts }
@@ -112,8 +122,6 @@ class CityMap(
 
     // ---- Queries -------------------------------------------------------------------------------
 
-    /** How roads lie on the hills (null on flat maps): level across, as drawn (see [RoadLevels]). */
-    val roadLevels: RoadLevels? by lazy { if (terrain.flat) null else RoadLevels(roads, terrain) }
 
     /**
      * The ground's height at (x, z): 0 on flat maps; on maps with hills the hillside, or on a road
@@ -121,8 +129,9 @@ class CityMap(
      */
     fun groundAt(x: Float, z: Float): Float {
         if (terrain.flat) return 0f
-        return roadLevels?.heightAt(x, z) ?: terrain.heightAt(x, z)
+        return roadLevels?.heightAt(x, z) ?: drawnGround.heightAt(x, z)
     }
+
 
     /** True when (x, y, z) is under the ground (a bullet or grenade reaching a hillside or the street). */
     fun underground(x: Float, y: Float, z: Float) = y <= groundAt(x, z)

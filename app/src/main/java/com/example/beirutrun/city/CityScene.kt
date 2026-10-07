@@ -105,8 +105,6 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         private const val CROSSING_LENGTH = 3f
         private const val LAMP_SPACING = 32f
         private const val LAMP_HEIGHT = 7.5f
-        /** How far the hillside under a road is drawn below it (out of sight), metres. */
-        private const val ROAD_SINK = 0.3f
         /** City ground steeper than this (rise over run) is drawn as a stone retaining wall. */
         private const val CITY_WALL_SLOPE = 0.45f
         /** Hillside steeper than these (rise over run) is bare rock, or (in a village) sandy earth. */
@@ -174,7 +172,10 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         /** A road being laid: level across, at its middle's height (see [RoadProfile]). */
         var road: RoadProfile? = null
 
-        fun at(x: Float, z: Float): Float = fixed ?: road?.at(x, z) ?: terrain.heightAt(x, z)
+        /** The road segment being drawn (its index along the road's points), or -1: any, the nearest. */
+        var segment = -1
+
+        fun at(x: Float, z: Float): Float = fixed ?: road?.let { if (segment >= 0) it.atSegment(x, z, segment) else it.at(x, z) } ?: terrain.heightAt(x, z)
 
         /** Builds [what] raised by [dy] as one piece. */
         inline fun <T> by(dy: Float, what: () -> T): T {
@@ -273,15 +274,12 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
          * dry grass, steep ones bare rock and earth. Split into tiles like everything else.
          */
         private fun addHillsides() {
-            val t = map.terrain
+            // The ground as drawn and stood on: the hillside shaped round the roads (see RoadLevels).
+            val t = map.drawnGround
             val c = t.cell
-            val cap = underRoads()
-            // The hillside under a road is drawn a little lower, out of sight: the road's surface is
-            // flat between its points, and the hill mustn't show through it where it bulges.
             fun height(cc: Int, rr: Int): Float {
                 val ci = cc.coerceIn(0, t.cols - 1); val ri = rr.coerceIn(0, t.rows - 1)
-                val limit = cap[ri * t.cols + ci]
-                return if (limit == Float.MAX_VALUE) t.at(ci, ri) else minOf(t.at(ci, ri), limit) - ROAD_SINK
+                return t.at(ci, ri)
             }
             lift.by(0f) {
                 for (r in 0 until t.rows - 1) for (k in 0 until t.cols - 1) {
@@ -444,52 +442,6 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
 
         private fun profileOf(road: CityMap.Road): RoadProfile? = map.roadLevels?.profile(road)
 
-        /** Which of the height grid's points are under a road, its sidewalks, or a square, park or car park (see [addHillsides]). */
-        private fun underRoads(): FloatArray {
-            val t = map.terrain
-            // The highest the drawn ground may be at each grid point (MAX_VALUE: as high as it is).
-            val cap = FloatArray(t.cols * t.rows) { Float.MAX_VALUE }
-            for (road in map.roads) {
-                if (road.kind == CityMap.ROAD_PIER) continue
-                // A little past its edge, so the ground there is below the road too.
-                val reach = road.width / 2f + sidewalkWidth(road.kind) + 0.5f
-                val profile = profileOf(road) ?: continue
-                if (reach <= 0f) continue
-                val p = road.pts
-                for (i in 0 until p.size / 2 - 1) {
-                    val ax = p[2 * i]; val az = p[2 * i + 1]; val bx = p[2 * i + 2]; val bz = p[2 * i + 3]
-                    val c0 = floor((minOf(ax, bx) - reach - t.x0) / t.cell).toInt().coerceAtLeast(0)
-                    val c1 = ceil((maxOf(ax, bx) + reach - t.x0) / t.cell).toInt().coerceAtMost(t.cols - 1)
-                    val r0 = floor((minOf(az, bz) - reach - t.z0) / t.cell).toInt().coerceAtLeast(0)
-                    val r1 = ceil((maxOf(az, bz) + reach - t.z0) / t.cell).toInt().coerceAtMost(t.rows - 1)
-                    for (r in r0..r1) for (c in c0..c1) {
-                        val x = t.x0 + c * t.cell; val z = t.z0 + r * t.cell
-                        // No higher than the road there (it lies level across at its middle's height).
-                        if (CityMap.segmentDistance(x, z, ax, az, bx, bz) <= reach) cap[r * t.cols + c] = minOf(cap[r * t.cols + c], profile.at(x, z))
-                    }
-                }
-            }
-            // And under squares, parks and parking (not water: that lies level on its own).
-            for (a in map.areas) {
-                if (a.kind == CityMap.AREA_WATER || a.kind == CityMap.AREA_PIER) continue
-                val p = a.pts
-                var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var minZ = Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
-                for (i in 0 until p.size / 2) {
-                    minX = minOf(minX, p[2 * i]); maxX = maxOf(maxX, p[2 * i])
-                    minZ = minOf(minZ, p[2 * i + 1]); maxZ = maxOf(maxZ, p[2 * i + 1])
-                }
-                val c0 = ceil((minX - t.x0) / t.cell).toInt().coerceAtLeast(0)
-                val c1 = floor((maxX - t.x0) / t.cell).toInt().coerceAtMost(t.cols - 1)
-                val r0 = ceil((minZ - t.z0) / t.cell).toInt().coerceAtLeast(0)
-                val r1 = floor((maxZ - t.z0) / t.cell).toInt().coerceAtMost(t.rows - 1)
-                for (r in r0..r1) for (c in c0..c1) {
-                    val x = t.x0 + c * t.cell; val z = t.z0 + r * t.cell
-                    if (CityMap.inside(p, x, z) && CityMap.edgeDistance(p, x, z) > 0.3f) cap[r * t.cols + c] = minOf(cap[r * t.cols + c], t.at(c, r))
-                }
-            }
-            return cap
-        }
-
         /** Whether the ground cell at (x0, z0), [c] metres square, is all inside one building's solid ground floor. */
         private fun coveredByBuilding(x0: Float, z0: Float, c: Float): Boolean {
             val y = map.groundAt(x0 + c / 2f, z0 + c / 2f) + 0.5f
@@ -574,12 +526,16 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             var i = 0
             while (i + 3 < p.size) {
                 val ax = p[i]; val az = p[i + 1]; val bx = p[i + 2]; val bz = p[i + 3]
+                // This piece takes its heights from its own stretch of road (not another arm of a hairpin).
+                lift.segment = i / 2
                 val o = out((ax + bx) / 2f, (az + bz) / 2f, surface)
                 strip(o, ax, az, bx, bz, half, y, span)
                 if (i == 0) disc(o, ax, az, half, y, span) else join(o, p, i, half, y, span)
                 i += 2
             }
+            lift.segment = p.size / 2 - 2
             disc(out(p[p.size - 2], p[p.size - 1], surface), p[p.size - 2], p[p.size - 1], half, y, span)
+            lift.segment = -1
         }
 
         /**
@@ -628,6 +584,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             var i = 0
             while (i + 3 < p.size) {
                 val ax = p[i]; val az = p[i + 1]; val bx = p[i + 2]; val bz = p[i + 3]
+                lift.segment = i / 2
                 i += 2
                 val len = hypot(bx - ax, bz - az)
                 if (len < 1e-3f) continue
@@ -645,6 +602,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 }
                 carry = if (dash > 0f) max(0f, t - len) else 0f
             }
+            lift.segment = -1
         }
 
         /**

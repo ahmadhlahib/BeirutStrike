@@ -684,7 +684,7 @@ class CityRenderer(
         val fogScale = if (zoomed) SCOPE_RANGE_SCALE else 1f
         GLES20.glUniform2f(shader.uFog, FOG_START * fogScale, FOG_END * fogScale)
         // The ground's height map, so walls darken near the ground under them on hills.
-        val t = city.terrain
+        val t = city.drawnGround
         if (groundTexture != 0) {
             GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, groundTexture)
@@ -2296,7 +2296,7 @@ class CityRenderer(
      * would mix the bytes up).
      */
     private fun uploadGroundMap(): Int {
-        val t = city.terrain
+        val t = city.drawnGround
         if (t.flat) return 0
         val pixels = IntArray(t.cols * t.rows)
         for (r in 0 until t.rows) for (c in 0 until t.cols) {

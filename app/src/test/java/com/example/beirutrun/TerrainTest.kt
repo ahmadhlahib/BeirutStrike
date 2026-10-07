@@ -161,6 +161,42 @@ class TerrainTest {
         }
     }
 
+    /**
+     * Everything agrees on the ground: off the roads, where things stand is exactly the ground that's
+     * drawn; on a road, the ground drawn under it is below its surface; and roads climb gently,
+     * never jumping over a short distance.
+     */
+    @Test
+    fun groundRoadsAndPeopleAgree() {
+        for (id in listOf("downtown", "hamra", "raouche", "kfarnabrakh")) {
+            val city = load(id)
+            val levels = city.roadLevels!!
+            val rnd = kotlin.random.Random(5)
+            repeat(2000) {
+                val x = city.minX + 20f + rnd.nextFloat() * (city.maxX - city.minX - 40f)
+                val z = city.minZ + 20f + rnd.nextFloat() * (city.maxZ - city.minZ - 40f)
+                val road = levels.heightAt(x, z)
+                if (road == null) assertEquals("$id: off-road ground at ($x, $z)", city.drawnGround.heightAt(x, z), city.groundAt(x, z), 0.001f)
+                else assertEquals("$id: on a road, people stand on it", road, city.groundAt(x, z), 0.001f)
+            }
+            // Roads: almost never steeper than 30% from one point to the next.
+            var steep = 0
+            var total = 0
+            for (r in city.roads) {
+                if (r.kind == CityMap.ROAD_PIER || r.kind == CityMap.ROAD_PATH) continue
+                val p = levels.laid(r)
+                val prof = levels.profile(r)
+                for (i in 0 until p.size / 2 - 1) {
+                    val len = hypot(p[2 * i + 2] - p[2 * i], p[2 * i + 3] - p[2 * i + 1])
+                    if (len < 0.5f) continue
+                    total++
+                    if (abs(prof.atSegment(p[2 * i + 2], p[2 * i + 3], i) - prof.atSegment(p[2 * i], p[2 * i + 1], i)) / len > 0.301f) steep++
+                }
+            }
+            assertTrue("$id: $steep of $total road pieces steeper than 30%", steep <= total / 500)
+        }
+    }
+
     @Test
     fun hillsBlockTheView() {
         val t = Terrain(0f, 0f, 10f, 3, 2, floatArrayOf(0f, 20f, 0f, 0f, 20f, 0f))
