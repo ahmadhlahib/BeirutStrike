@@ -88,6 +88,8 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
          */
         private const val GROUND_TOLERANCE = 0.1f
         private const val MIN_GROUND_STEP = 2f
+        /** How far the hillside under a road is drawn below it (out of sight), metres. */
+        private const val ROAD_SINK = 0.3f
         /** A sea rock bigger than this (m²) is the big Pigeon Rock, with its arch. */
         private const val ARCH_ROCK_AREA = 1500f
         /** Pieces a palm trunk is curved in, and panels along a frond. */
@@ -231,6 +233,13 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         private fun addHillsides() {
             val t = map.terrain
             val c = t.cell
+            val under = underRoads()
+            // The hillside under a road is drawn a little lower, out of sight: the road's surface is
+            // flat between its points, and the hill mustn't show through it where it bulges.
+            fun height(cc: Int, rr: Int): Float {
+                val ci = cc.coerceIn(0, t.cols - 1); val ri = rr.coerceIn(0, t.rows - 1)
+                return t.at(ci, ri) - if (under[ri * t.cols + ci]) ROAD_SINK else 0f
+            }
             lift.by(0f) {
                 for (r in 0 until t.rows - 1) for (k in 0 until t.cols - 1) {
                     val x0 = t.x0 + k * c
@@ -252,7 +261,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                         val nz = t.at(cc, rr - 1) - t.at(cc, rr + 1)
                         val ny = 2f * c
                         val len = sqrt(nx * nx + ny * ny + nz * nz)
-                        o.vertex(x, t.at(cc, rr), z, nx / len, ny / len, nz / len, (x - o.ox) / s, (z - o.oz) / s)
+                        o.vertex(x, height(cc, rr), z, nx / len, ny / len, nz / len, (x - o.ox) / s, (z - o.oz) / s)
                     }
                     // Two triangles, wound to face up.
                     v(k, r); v(k, r + 1); v(k + 1, r)
@@ -278,6 +287,30 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 }
                 i += 3
             }
+        }
+
+        /** Which of the height grid's points are under a road or its sidewalks (see [addHillsides]). */
+        private fun underRoads(): BooleanArray {
+            val t = map.terrain
+            val under = BooleanArray(t.cols * t.rows)
+            for (road in map.roads) {
+                if (road.kind == CityMap.ROAD_PIER) continue
+                // Short of the road's edge, so the lowered ground never shows beside it.
+                val reach = road.width / 2f + sidewalkWidth(road.kind) - 0.3f
+                if (reach <= 0f) continue
+                val p = road.pts
+                for (i in 0 until p.size / 2 - 1) {
+                    val ax = p[2 * i]; val az = p[2 * i + 1]; val bx = p[2 * i + 2]; val bz = p[2 * i + 3]
+                    val c0 = floor((minOf(ax, bx) - reach - t.x0) / t.cell).toInt().coerceAtLeast(0)
+                    val c1 = ceil((maxOf(ax, bx) + reach - t.x0) / t.cell).toInt().coerceAtMost(t.cols - 1)
+                    val r0 = floor((minOf(az, bz) - reach - t.z0) / t.cell).toInt().coerceAtLeast(0)
+                    val r1 = ceil((maxOf(az, bz) + reach - t.z0) / t.cell).toInt().coerceAtMost(t.rows - 1)
+                    for (r in r0..r1) for (c in c0..c1) {
+                        if (CityMap.segmentDistance(t.x0 + c * t.cell, t.z0 + r * t.cell, ax, az, bx, bz) <= reach) under[r * t.cols + c] = true
+                    }
+                }
+            }
+            return under
         }
 
         /** Whether the ground cell at (x0, z0), [c] metres square, is all inside one building's solid ground floor. */
@@ -358,7 +391,8 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 CityMap.ROAD_PEDESTRIAN -> Surface.ROAD_PEDESTRIAN
                 CityMap.ROAD_PIER -> Surface.ROAD_PIER
                 CityMap.ROAD_TRACK -> Surface.ROAD_TRACK
-                else -> Surface.ROAD_PATH
+                // Footpaths: earth and sand in a mountain village, paving slabs in the city.
+                else -> if (look == CityLook.VILLAGE) Surface.ROAD_PATH else Surface.SIDEWALK
             }
             val y = roadY(road.kind)
             // On hills, a point every few metres so the surface follows the ground between them.

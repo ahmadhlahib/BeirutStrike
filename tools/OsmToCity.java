@@ -269,8 +269,9 @@ public class OsmToCity {
                 case "residential", "unclassified", "living_street" -> { kind = R_MINOR; width = 6.5f; }
                 case "service" -> { kind = R_MINOR; width = 4.5f; }
                 case "pedestrian" -> { kind = R_PEDESTRIAN; width = 6f; }
-                // Farm tracks: dirt and sand roads, wide enough for a pickup truck.
-                case "track" -> { kind = R_TRACK; width = 4f; }
+                // Farm tracks: dirt and sand roads, wide enough for a pickup truck; in a city every
+                // street is asphalt, so a "track" there is just a narrow street.
+                case "track" -> { kind = URBAN || !TERRAIN ? R_MINOR : R_TRACK; width = 4f; }
                 case "footway", "path", "steps", "cycleway", "bridleway" -> { kind = R_PATH; width = 2.5f; }
                 default -> { continue; }
             }

@@ -19,7 +19,11 @@ class Terrain(
     val minHeight = if (flat) 0f else heights.min()
     val maxHeight = if (flat) 0f else heights.max()
 
-    /** The ground's height at (x, z); beyond the grid's edge, the edge's. */
+    /**
+     * The ground's height at (x, z); beyond the grid's edge, the edge's. Exactly the drawn ground:
+     * each grid square is two flat triangles split from its north-east to its south-west corner
+     * (as CityScene draws it), so people and things stand on the hillside you see.
+     */
     fun heightAt(x: Float, z: Float): Float {
         if (flat) return 0f
         val fc = ((x - x0) / cell).coerceIn(0f, cols - 1.001f)
@@ -29,9 +33,9 @@ class Terrain(
         val tx = fc - c
         val tz = fr - r
         val i = r * cols + c
-        val north = heights[i] + (heights[i + 1] - heights[i]) * tx
-        val south = heights[i + cols] + (heights[i + cols + 1] - heights[i + cols]) * tx
-        return north + (south - north) * tz
+        val h00 = heights[i]; val h10 = heights[i + 1]; val h01 = heights[i + cols]; val h11 = heights[i + cols + 1]
+        return if (tx + tz <= 1f) h00 + (h10 - h00) * tx + (h01 - h00) * tz
+        else h11 + (h01 - h11) * (1f - tx) + (h10 - h11) * (1f - tz)
     }
 
     /** The grid point's height (column [c], row [r]), for building the ground's mesh. */

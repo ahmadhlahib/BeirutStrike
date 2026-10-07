@@ -113,6 +113,54 @@ class TerrainTest {
         }
     }
 
+    /** People stand exactly on the hillside that's drawn: two flat triangles per grid square. */
+    @Test
+    fun theGroundIsTheDrawnGround() {
+        // A twisted square (a saddle): the middle of each triangle is the average of its corners.
+        val t = Terrain(0f, 0f, 4f, 2, 2, floatArrayOf(0f, 4f, 4f, 0f))
+        assertEquals((0f + 4f + 4f) / 3f, t.heightAt(4f / 3f, 4f / 3f), 0.001f)
+        assertEquals((4f + 4f + 0f) / 3f, t.heightAt(8f / 3f, 8f / 3f), 0.001f)
+        // Along the split from north-east to south-west, both triangles agree.
+        assertEquals(4f, t.heightAt(2f, 2f), 0.001f)
+        // At the corners, the corner heights.
+        assertEquals(0f, t.heightAt(0f, 0f), 0.001f)
+        assertEquals(4f, t.heightAt(4f, 0f), 0.01f)
+    }
+
+    /** Roads lie on top: the hillside under them is drawn lower than the road's own surface. */
+    @Test
+    fun roadsLieOnTopOfTheHillside() {
+        for (id in listOf("kfarnabrakh", "hamra")) {
+            val city = load(id)
+            val scene = com.example.beirutrun.city.CityScene.build(city)
+            val hill = scene.tiles.flatMap { tile ->
+                listOfNotNull(tile.parts[com.example.beirutrun.city.Surface.HILLSIDE], tile.parts[com.example.beirutrun.city.Surface.HILL_ROCK])
+            }
+            var under = 0
+            var below = 0
+            for (data in hill) {
+                var i = 0
+                while (i < data.size) {
+                    val x = data[i]; val y = data[i + 1]; val z = data[i + 2]
+                    i += 8
+                    val onRoad = city.roads.any { r ->
+                        r.kind != CityMap.ROAD_PATH && r.kind != CityMap.ROAD_PIER &&
+                            (0 until r.pts.size / 2 - 1).any { k ->
+                                CityMap.segmentDistance(x, z, r.pts[2 * k], r.pts[2 * k + 1], r.pts[2 * k + 2], r.pts[2 * k + 3]) < r.width / 2f - 1f
+                            }
+                    }
+                    if (!onRoad) continue
+                    under++
+                    if (y < city.groundAt(x, z) - 0.2f) below++
+                    if (under >= 400) break
+                }
+                if (under >= 400) break
+            }
+            assertTrue("$id: no hillside under roads checked", under > 50)
+            assertEquals("$id: hillside showing through roads", under, below)
+        }
+    }
+
     @Test
     fun hillsBlockTheView() {
         val t = Terrain(0f, 0f, 10f, 3, 2, floatArrayOf(0f, 20f, 0f, 0f, 20f, 0f))
