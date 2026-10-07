@@ -36,6 +36,8 @@ enum class Surface(
     ROAD_PATH(0xFFC8BA9F.toInt(), CityTextures.SAND, layer = 2), ROAD_TRACK(0xFFC9A86A.toInt(), CityTextures.SAND, layer = 2),
     // Hillsides (maps with hills): dry grass and scrub, and bare rock and earth where it's steep.
     HILLSIDE(0xFFB9B98A.toInt(), CityTextures.GRASS), HILL_ROCK(0xFFB4A288.toInt(), CityTextures.SAND),
+    // The mountain's sandy red-brown earth on the steeper slopes, between the dry grass and the rock.
+    HILL_EARTH(0xFFBF9F78.toInt(), CityTextures.SAND),
     // The city's bare ground on hills (as on flat maps): pale stone and dust, not grass.
     CITY_GROUND(0xFFDAD3C4.toInt(), CityTextures.GROUND),
     ROAD_PEDESTRIAN(0xFFDDCFB3.toInt(), CityTextures.PAVING, layer = 2),
@@ -107,8 +109,12 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         private const val ROAD_SINK = 0.3f
         /** City ground steeper than this (rise over run) is drawn as a stone retaining wall. */
         private const val CITY_WALL_SLOPE = 0.45f
-        /** Village ground steeper than this is a terrace riser's dry-stone wall. */
-        private const val VILLAGE_WALL_SLOPE = 0.5f
+        /** Hillside steeper than these (rise over run) is bare rock, or (in a village) sandy earth. */
+        private const val HILL_ROCK_SLOPE = 0.75f
+        private const val HILL_EARTH_SLOPE = 0.38f
+        /** Village terrace walls: one every this many metres up the hillside, out to this far from the houses. */
+        private const val FIELD_WALL_STEP = 3f
+        private const val FIELD_REACH = 250f
         /** The Corniche railing: one post every this many metres. And at most this many boats on a map. */
         private const val RAIL_STEP = 3f
         private const val MAX_BOATS = 80
@@ -259,6 +265,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 }
             }
             if (!map.terrain.flat) addHillsides()
+            if (look == CityLook.VILLAGE && !map.terrain.flat) addFieldWalls()
         }
 
         /**
@@ -282,44 +289,136 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     val z0 = t.z0 + r * c
                     val h00 = t.at(k, r); val h10 = t.at(k + 1, r); val h01 = t.at(k, r + 1); val h11 = t.at(k + 1, r + 1)
                     // Nobody sees the ground under the sea, or inside a building that stands on it.
-                    if (maxOf(h00, h10, h01, h11) <= 0f) continue
+                    // (Only by the sea is 0 sea level: inland, 0 is the start's height and the valleys go below it.)
+                    if (map.sea.isNotEmpty() && maxOf(h00, h10, h01, h11) <= 0f) continue
                     if (coveredByBuilding(x0, z0, c)) continue
-                    // How steep this cell is (rise over run), for grass or rock.
-                    val steep = maxOf(abs(h10 - h00), abs(h01 - h00), abs(h11 - h10), abs(h11 - h01)) / c
-                    // A village's hills are grass and rock; a city's bare ground is pale stone, rock only where steep.
-                    // In the city, where the ground steps steeply it's a stone retaining wall, as Beirut
-                    // builds its hillsides; in the village, bare rock.
-                    val surface = when {
-                        look != CityLook.VILLAGE && steep > CITY_WALL_SLOPE -> Surface.RETAINING_WALL
-                        // The village's terraces: a dry-stone wall up each riser (bare rock only on the steepest).
-                        look == CityLook.VILLAGE && steep > VILLAGE_WALL_SLOPE && steep < 1.2f -> Surface.RETAINING_WALL
-                        steep > 0.75f -> Surface.HILL_ROCK
-                        look == CityLook.VILLAGE -> Surface.HILLSIDE
-                        else -> Surface.CITY_GROUND
-                    }
-                    val o = out(x0 + c / 2f, z0 + c / 2f, surface)
-                    val s = span(surface)
-                    // A wall's stones stand upright: along the wall one way, up it the other.
-                    val wall = surface == Surface.RETAINING_WALL
-                    val alongZ = abs((h10 + h11) - (h00 + h01)) > abs((h01 + h11) - (h00 + h10))
-                    fun v(cc: Int, rr: Int) {
-                        val x = t.x0 + cc * c
-                        val z = t.z0 + rr * c
-                        // The slope's normal, from the heights either side.
-                        val nx = t.at(cc - 1, rr) - t.at(cc + 1, rr)
-                        val nz = t.at(cc, rr - 1) - t.at(cc, rr + 1)
-                        val ny = 2f * c
-                        val len = sqrt(nx * nx + ny * ny + nz * nz)
-                        val y = height(cc, rr)
-                        if (wall) o.vertex(x, y, z, nx / len, ny / len, nz / len, (if (alongZ) z - o.oz else x - o.ox) / s, -y / s)
-                        else o.vertex(x, y, z, nx / len, ny / len, nz / len, (x - o.ox) / s, (z - o.oz) / s)
-                    }
-                    // Two triangles, wound to face up.
-                    v(k, r); v(k, r + 1); v(k + 1, r)
-                    v(k + 1, r); v(k, r + 1); v(k + 1, r + 1)
+                    // Each of the cell's two triangles is chosen on its own (by its own slope), so a
+                    // flat triangle beside a steep one never takes a wall's or rock's texture.
+                    triangle(t, intArrayOf(k, r, k, r + 1, k + 1, r), ::height)
+                    triangle(t, intArrayOf(k + 1, r, k, r + 1, k + 1, r + 1), ::height)
                 }
             }
         }
+
+        /**
+         * One triangle of the hillside (grid corners [g]: column, row × 3, wound to face up), its
+         * surface by how steep it is: in a village dry grass, sandy earth and rock where steep; in
+         * the city pale stone ground, and a sandstone retaining wall where it steps steeply.
+         */
+        private fun triangle(t: Terrain, g: IntArray, height: (Int, Int) -> Float) {
+            val c = t.cell
+            val xs = FloatArray(3) { t.x0 + g[2 * it] * c }
+            val zs = FloatArray(3) { t.z0 + g[2 * it + 1] * c }
+            val hs = FloatArray(3) { t.at(g[2 * it], g[2 * it + 1]) }
+            // The triangle's own slope (rise over run), from its plane.
+            val e1x = xs[1] - xs[0]; val e1y = hs[1] - hs[0]; val e1z = zs[1] - zs[0]
+            val e2x = xs[2] - xs[0]; val e2y = hs[2] - hs[0]; val e2z = zs[2] - zs[0]
+            val fx = e1y * e2z - e1z * e2y; val fy = e1z * e2x - e1x * e2z; val fz = e1x * e2y - e1y * e2x
+            val steep = sqrt(fx * fx + fz * fz) / abs(fy).coerceAtLeast(1e-6f)
+            val surface = when {
+                look != CityLook.VILLAGE && steep > CITY_WALL_SLOPE -> Surface.RETAINING_WALL
+                steep > HILL_ROCK_SLOPE -> Surface.HILL_ROCK
+                look == CityLook.VILLAGE && steep > HILL_EARTH_SLOPE -> Surface.HILL_EARTH
+                look == CityLook.VILLAGE -> Surface.HILLSIDE
+                else -> Surface.CITY_GROUND
+            }
+            val o = out((xs[0] + xs[1] + xs[2]) / 3f, (zs[0] + zs[1] + zs[2]) / 3f, surface)
+            val s = span(surface)
+            // A wall's stones stand upright: along the wall one way (across its slope), up it the other.
+            val wall = surface == Surface.RETAINING_WALL
+            val al = sqrt(fx * fx + fz * fz).coerceAtLeast(1e-6f)
+            val ax = -fz / al; val az = fx / al
+            for (k in 0 until 3) {
+                val cc = g[2 * k]; val rr = g[2 * k + 1]
+                val x = xs[k]; val z = zs[k]
+                // The slope's normal, from the heights either side (smooth across the hillside).
+                val nx = t.at(cc - 1, rr) - t.at(cc + 1, rr)
+                val nz = t.at(cc, rr - 1) - t.at(cc, rr + 1)
+                val ny = 2f * c
+                val len = sqrt(nx * nx + ny * ny + nz * nz)
+                val y = height(cc, rr)
+                if (wall) o.vertex(x, y, z, nx / len, ny / len, nz / len, ((x - o.ox) * ax + (z - o.oz) * az) / s, -y / s)
+                else o.vertex(x, y, z, nx / len, ny / len, nz / len, (x - o.ox) / s, (z - o.oz) / s)
+            }
+        }
+
+        /**
+         * A mountain village's terraced fields: low dry-stone walls along the hillside's contours,
+         * one every [FIELD_WALL_STEP] metres up, on the moderate slopes round the houses (not across
+         * roads or into houses), as the Chouf's hillsides are terraced for olives and vegetables.
+         */
+        private fun addFieldWalls() {
+            val t = map.terrain
+            val c = t.cell
+            val houses = map.buildings.filter { it.kind == CityMap.BUILDING_GENERIC }
+            if (houses.isEmpty()) return
+            fun nearHouses(x: Float, z: Float) = houses.any { hypot(it.centerX - x, it.centerZ - z) < FIELD_REACH }
+            lift.by(0f) {
+                for (r in 0 until t.rows - 1) for (k in 0 until t.cols - 1) {
+                    val x0 = t.x0 + k * c; val z0 = t.z0 + r * c
+                    val h = floatArrayOf(t.at(k, r), t.at(k + 1, r), t.at(k + 1, r + 1), t.at(k, r + 1))
+                    val lo = h.min(); val hi = h.max()
+                    val slope = (hi - lo) / c
+                    if (slope < 0.1f || slope > 0.6f) continue
+                    val mx = x0 + c / 2f; val mz = z0 + c / 2f
+                    if (map.roadLevels?.heightAt(mx, mz) != null) continue
+                    if (map.isInsideBuilding(mx, map.groundAt(mx, mz) + 1f, mz, 3f)) continue
+                    if (!nearHouses(mx, mz)) continue
+                    // Corners round the cell: (x0,z0), (x0+c,z0), (x0+c,z0+c), (x0,z0+c).
+                    val cx = floatArrayOf(x0, x0 + c, x0 + c, x0); val cz = floatArrayOf(z0, z0, z0 + c, z0 + c)
+                    var level = ceil(lo / FIELD_WALL_STEP) * FIELD_WALL_STEP
+                    while (level < hi) {
+                        // Where the level crosses the cell's edges (marching squares).
+                        val pts = ArrayList<Float>(8)
+                        for (e in 0 until 4) {
+                            val a = h[e]; val b = h[(e + 1) % 4]
+                            if ((a < level) == (b < level)) continue
+                            val f = (level - a) / (b - a)
+                            pts += cx[e] + (cx[(e + 1) % 4] - cx[e]) * f
+                            pts += cz[e] + (cz[(e + 1) % 4] - cz[e]) * f
+                        }
+                        var i = 0
+                        while (i + 3 < pts.size) { fieldWall(pts[i], pts[i + 1], pts[i + 2], pts[i + 3]); i += 4 }
+                        level += FIELD_WALL_STEP
+                    }
+                }
+            }
+        }
+
+        /** One piece of a dry-stone terrace wall from (ax, az) to (bx, bz), standing on the ground. */
+        private fun fieldWall(ax: Float, az: Float, bx: Float, bz: Float) {
+            val len = hypot(bx - ax, bz - az)
+            if (len < 0.3f) return
+            val ux = (bx - ax) / len; val uz = (bz - az) / len
+            val w = 0.25f
+            val ga = map.terrain.heightAt(ax, az); val gb = map.terrain.heightAt(bx, bz)
+            val top = 0.85f
+            val o = out((ax + bx) / 2f, (az + bz) / 2f, Surface.RETAINING_WALL)
+            val s = span(Surface.RETAINING_WALL)
+            val ua = (ax * ux + az * uz) / s; val ub = (bx * ux + bz * uz) / s
+            for (side in floatArrayOf(1f, -1f)) {
+                val nx = uz * side; val nz = -ux * side
+                val pax = ax + nx * w; val paz = az + nz * w; val pbx = bx + nx * w; val pbz = bz + nz * w
+                // Seen from this side, b is on the left when side is 1.
+                val (lx, lz, lg, lu, rx, rz, rg, ru) = if (side > 0) Octet(pbx, pbz, gb, ub, pax, paz, ga, ua) else Octet(pax, paz, ga, ua, pbx, pbz, gb, ub)
+                o.vertex(lx, lg - 0.3f, lz, nx, 0f, nz, lu, (0.3f + top) / s)
+                o.vertex(rx, rg - 0.3f, rz, nx, 0f, nz, ru, (0.3f + top) / s)
+                o.vertex(rx, rg + top, rz, nx, 0f, nz, ru, 0f)
+                o.vertex(lx, lg - 0.3f, lz, nx, 0f, nz, lu, (0.3f + top) / s)
+                o.vertex(rx, rg + top, rz, nx, 0f, nz, ru, 0f)
+                o.vertex(lx, lg + top, lz, nx, 0f, nz, lu, 0f)
+            }
+            // The top, rough stones laid flat.
+            val px = uz * w; val pz = -ux * w
+            o.vertex(ax - px, ga + top, az - pz, 0f, 1f, 0f, ua, 0f)
+            o.vertex(bx + px, gb + top, bz + pz, 0f, 1f, 0f, ub, 0.1f)
+            o.vertex(ax + px, ga + top, az + pz, 0f, 1f, 0f, ua, 0.1f)
+            o.vertex(ax - px, ga + top, az - pz, 0f, 1f, 0f, ua, 0f)
+            o.vertex(bx - px, gb + top, bz - pz, 0f, 1f, 0f, ub, 0f)
+            o.vertex(bx + px, gb + top, bz + pz, 0f, 1f, 0f, ub, 0.1f)
+        }
+
+        private data class Octet(val a: Float, val b: Float, val c: Float, val d: Float, val e: Float, val f: Float, val g: Float, val h: Float)
 
         // ---- Flat things ---------------------------------------------------------------------
 

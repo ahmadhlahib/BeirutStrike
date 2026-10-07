@@ -735,8 +735,8 @@ public class OsmToCity {
             // In a city, squares, promenades, car parks and pitches are built as near-flat terraces
             // on the hillside (with a retaining wall where the ground steps), not tilted ramps.
             if (URBAN) { terraceAreas(); levelRoads(); easeRoads(); }
-            // A mountain village's farmland is stepped into terraces with dry-stone walls.
-            if (!URBAN) terraceFields();
+            // (A mountain village keeps its natural slopes: its terraces are drawn as dry-stone walls along
+            // the contours in the game, which a 4 m height grid couldn't step cleanly.)
             // The sea back at sea level, except under a road (the Corniche runs right along the water's edge).
             for (int i = 0; i < h.length; i++) if (water[i] && !onRoad[i]) h[i] = 0f;
             // By the sea, heights are from sea level (the sea is at 0 in the game); inland, from the start.
@@ -833,38 +833,6 @@ public class OsmToCity {
                 if (w > 0f) h[i] += (target[i] - h[i]) * smooth(w);
                 onRoad[i] = nearest[i] <= band[i];
             }
-        }
-
-        /** How high each farm terrace steps up the hillside, metres; and how far from the houses the fields reach. */
-        static final float FIELD_STEP = 2.2f;
-        static final float FIELD_REACH = 260f;
-
-        /**
-         * Farmland round a mountain village, stepped into terraces as the Chouf's hillsides are:
-         * flat treads with a steep riser (drawn as a dry-stone wall in the game) every
-         * [FIELD_STEP] metres up. Only on open, moderate slopes near the houses; roads, houses
-         * and steep wild ground are left as they are.
-         */
-        static void terraceFields() {
-            float[] out = h.clone();
-            for (int r = 1; r < rows - 1; r++) for (int c = 1; c < cols - 1; c++) {
-                int i = r * cols + c;
-                if (onRoad[i]) continue;
-                float x = x0 + c * CELL, z = z0 + r * CELL;
-                if (inAnyBuilding(x, z, 6f) || !inAnyBuilding(x, z, FIELD_REACH)) continue;
-                float sx = (h[i + 1] - h[i - 1]) / (2 * CELL), sz = (h[i + cols] - h[i - cols]) / (2 * CELL);
-                float slope = (float) Math.hypot(sx, sz);
-                if (slope < 0.08f || slope > 0.6f) continue;
-                float base = (float) Math.floor(h[i] / FIELD_STEP) * FIELD_STEP;
-                float frac = (h[i] - base) / FIELD_STEP;
-                // Flat for most of each step, then up the riser.
-                float riser = Math.max(0f, (frac - 0.7f) / 0.3f);
-                float stepped = base + FIELD_STEP * smooth(riser);
-                // Fade in from the edges of the fields (near the roads, the wild slopes).
-                float w = Math.min(1f, Math.min((slope - 0.08f) / 0.05f, (0.6f - slope) / 0.08f));
-                out[i] = h[i] + (stepped - h[i]) * Math.max(0f, w);
-            }
-            h = out;
         }
 
         /** How much of the hill's slope a city terrace keeps (0: dead flat, 1: as the hill). */
