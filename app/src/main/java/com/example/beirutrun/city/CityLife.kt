@@ -542,6 +542,8 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
      * and shifting over the foot it stands on, leaning into a run; standing, just breathing.
      */
     private fun person(w: Walker, detail: Boolean) {
+        // Where they stand (a hillside or a road), once for the whole body.
+        val ground = city.groundAt(w.drawX, w.drawZ)
         val moving = w.speed > 0.05f
         val run = w.speed > w.pace * 1.5f
         val swing = if (!moving) 0f else if (run) 0.8f else 0.38f + 0.08f * (w.speed - 1.1f)
@@ -616,7 +618,7 @@ class CityLife(private val city: CityMap, private val network: RoadNetwork, seed
                     else -> role
                 }
                 put(
-                    w.drawX + lx * ax + lz * w.drawFx, ly + city.groundAt(w.drawX, w.drawZ), w.drawZ + lx * az + lz * w.drawFz,
+                    w.drawX + lx * ax + lz * w.drawFx, ly + ground, w.drawZ + lx * az + lz * w.drawFz,
                     nx * ax + nz * w.drawFx, ny, nx * az + nz * w.drawFz, color,
                 )
             }

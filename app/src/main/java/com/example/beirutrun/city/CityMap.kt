@@ -112,11 +112,20 @@ class CityMap(
 
     // ---- Queries -------------------------------------------------------------------------------
 
-    /** The ground's height at (x, z): 0 on flat maps, the hillside on maps with hills. */
-    fun groundAt(x: Float, z: Float) = terrain.heightAt(x, z)
+    /** How roads lie on the hills (null on flat maps): level across, as drawn (see [RoadLevels]). */
+    val roadLevels: RoadLevels? by lazy { if (terrain.flat) null else RoadLevels(roads, terrain) }
+
+    /**
+     * The ground's height at (x, z): 0 on flat maps; on maps with hills the hillside, or on a road
+     * (or its sidewalks) the road, which lies level across as it's drawn.
+     */
+    fun groundAt(x: Float, z: Float): Float {
+        if (terrain.flat) return 0f
+        return roadLevels?.heightAt(x, z) ?: terrain.heightAt(x, z)
+    }
 
     /** True when (x, y, z) is under the ground (a bullet or grenade reaching a hillside or the street). */
-    fun underground(x: Float, y: Float, z: Float) = y <= terrain.heightAt(x, z)
+    fun underground(x: Float, y: Float, z: Float) = y <= groundAt(x, z)
 
     /** True when a body of radius [r] at ([x], [z]) would hit a building, a tree, water or the play area's edge. */
     fun isBlocked(x: Float, z: Float, r: Float): Boolean {
