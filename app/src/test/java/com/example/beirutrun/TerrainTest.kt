@@ -19,12 +19,32 @@ class TerrainTest {
 
     private fun load(id: String) = File("src/main/assets/maps/$id.bin").inputStream().use { CityMap.load(it) }
 
+    /** Beirut by the sea: heights from sea level, the sea flat at 0, the land rising from it. */
     @Test
-    fun flatMapsStayFlat() {
-        val city = load("downtown")
-        assertTrue(city.terrain.flat)
-        assertEquals(0f, city.groundAt(100f, -50f))
-        assertTrue(city.buildings.all { it.base == 0f && it.top == it.height })
+    fun beirutRisesFromTheSea() {
+        val heights = mapOf("downtown" to 23f, "hamra" to 66f, "ain_el_mreisseh" to 4f, "raouche" to 36f, "souks" to 15f)
+        for ((id, start) in heights) {
+            val city = load(id)
+            assertFalse("$id is flat", city.terrain.flat)
+            assertEquals("$id: the start's height above the sea", start, city.groundAt(city.spawnX, city.spawnZ), 3f)
+            // Out at sea (well inside a sea polygon): sea level.
+            val sea = city.sea.maxBy { CityMap.signedArea(it).let(::abs) }
+            val inSea = (0 until 400).asSequence().map { k ->
+                val x = city.minX + (k % 20 + 0.5f) * (city.maxX - city.minX) / 20f
+                val z = city.minZ + (k / 20 + 0.5f) * (city.maxZ - city.minZ) / 20f
+                x to z
+            }.firstOrNull { (x, z) -> CityMap.inside(sea, x, z) && CityMap.edgeDistance(sea, x, z) > 20f }
+            if (inSea != null) assertEquals("$id: the sea", 0f, city.groundAt(inSea.first, inSea.second), 0.01f)
+            // Every building stands on the ground, none below the sea.
+            assertTrue(city.buildings.all { it.base >= 0f && it.top == it.base + it.height })
+        }
+    }
+
+    @Test
+    fun flatGroundIsZero() {
+        assertTrue(Terrain.FLAT.flat)
+        assertEquals(0f, Terrain.FLAT.heightAt(100f, -50f))
+        assertEquals(0f, Terrain.FLAT.lowestUnder(floatArrayOf(0f, 0f, 10f, 0f, 10f, 10f)))
     }
 
     @Test
@@ -44,30 +64,38 @@ class TerrainTest {
 
     @Test
     fun roadsClimbEvenlyAndLieLevel() {
-        val city = load("kfarnabrakh")
-        var steepest = 0f
-        val tilts = ArrayList<Float>()
-        for (road in city.roads) {
-            if (road.kind == CityMap.ROAD_PATH) continue
-            val p = CityMap.densify(road.pts, 3f)
-            for (i in 0 until p.size / 2 - 1) {
-                val ax = p[2 * i]; val az = p[2 * i + 1]; val bx = p[2 * i + 2]; val bz = p[2 * i + 3]
-                val len = hypot(bx - ax, bz - az)
-                // (Roads run on past the map's edge, where there are no heights: only the map counts.)
-                if (len < 1f || ax < city.minX + 10f || ax > city.maxX - 10f || az < city.minZ + 10f || az > city.maxZ - 10f) continue
-                steepest = maxOf(steepest, abs(city.groundAt(bx, bz) - city.groundAt(ax, az)) / len)
-                // Across the road, a metre each side of the middle.
-                val nx = -(bz - az) / len; val nz = (bx - ax) / len
-                tilts += abs(city.groundAt(ax + nx, az + nz) - city.groundAt(ax - nx, az - nz)) / 2f
+        for (id in listOf("kfarnabrakh", "downtown", "souks", "hamra", "ain_el_mreisseh", "raouche")) {
+            val city = load(id)
+            val along = ArrayList<Float>()
+            val tilts = ArrayList<Float>()
+            for (road in city.roads) {
+                if (road.kind == CityMap.ROAD_PATH) continue
+                val p = CityMap.densify(road.pts, 3f)
+                for (i in 0 until p.size / 2 - 1) {
+                    val ax = p[2 * i]; val az = p[2 * i + 1]; val bx = p[2 * i + 2]; val bz = p[2 * i + 3]
+                    val len = hypot(bx - ax, bz - az)
+                    // (Roads run on past the map's edge, where there are no heights: only the map counts.)
+                    if (len < 1f || ax < city.minX + 10f || ax > city.maxX - 10f || az < city.minZ + 10f || az > city.maxZ - 10f) continue
+                    along += abs(city.terrain.heightAt(bx, bz) - city.terrain.heightAt(ax, az)) / len
+                    // Across the road, a metre each side of the middle.
+                    val nx = -(bz - az) / len; val nz = (bx - ax) / len
+                    tilts += abs(city.terrain.heightAt(ax + nx, az + nz) - city.terrain.heightAt(ax - nx, az - nz)) / 2f
+                }
             }
+            along.sort()
+            val typical = along[along.size / 2]
+            val steep = along.count { it > 0.3f } / along.size.toFloat()
+            val level = tilts.count { it < 0.15f } / tilts.size.toFloat()
+            println("$id roads: typical ${"%.0f".format(typical * 100)}%, steepest ${"%.0f".format(along.last() * 100)}%, " +
+                "${"%.1f".format(steep * 100)}% steeper than 30%; ${"%.1f".format(level * 100)}% level across")
+            // Streets mostly gentle; steep only in short stretches (mountain bends, city interchanges
+            // and flyovers, which here meet at street level), never a wall; level across almost
+            // everywhere (the rest: tight hairpins, and roads on the edge of the seafront cliffs).
+            assertTrue("$id typical $typical", typical < 0.08f)
+            assertTrue("$id steepest ${along.last()}", along.last() < 0.6f)
+            assertTrue("$id: $steep steeper than 30%", steep < 0.015f)
+            assertTrue("$id: only $level level", level > if (id == "kfarnabrakh") 0.99f else 0.93f)
         }
-        val level = tilts.count { it < 0.15f } / tilts.size.toFloat()
-        println("kfarnabrakh roads: steepest ${"%.0f".format(steepest * 100)}% along; ${"%.1f".format(level * 100)}% of the road level across (under 15%), worst ${"%.0f".format(tilts.max() * 100)}%")
-        // Mountain roads are steep, but not walls; they lie level across, except at a tight hairpin
-        // where the road doubles back past itself at another height.
-        assertTrue("steepest $steepest", steepest < 0.45f)
-        assertTrue("only $level level", level > 0.98f)
-        assertTrue("worst tilt ${tilts.max()}", tilts.max() < 0.5f)
     }
 
     @Test
@@ -82,6 +110,90 @@ class TerrainTest {
             assertEquals(city.groundAt(l.footX, l.footZ), l.footY, 0.01f)
             assertEquals(l.building.top, l.topY, 0.01f)
             assertTrue(l.height > 2f)
+        }
+    }
+
+    /** People stand exactly on the hillside that's drawn: two flat triangles per grid square. */
+    @Test
+    fun theGroundIsTheDrawnGround() {
+        // A twisted square (a saddle): the middle of each triangle is the average of its corners.
+        val t = Terrain(0f, 0f, 4f, 2, 2, floatArrayOf(0f, 4f, 4f, 0f))
+        assertEquals((0f + 4f + 4f) / 3f, t.heightAt(4f / 3f, 4f / 3f), 0.001f)
+        assertEquals((4f + 4f + 0f) / 3f, t.heightAt(8f / 3f, 8f / 3f), 0.001f)
+        // Along the split from north-east to south-west, both triangles agree.
+        assertEquals(4f, t.heightAt(2f, 2f), 0.001f)
+        // At the corners, the corner heights.
+        assertEquals(0f, t.heightAt(0f, 0f), 0.001f)
+        assertEquals(4f, t.heightAt(4f, 0f), 0.01f)
+    }
+
+    /** Roads lie on top: the hillside under them is drawn lower than the road's own surface. */
+    @Test
+    fun roadsLieOnTopOfTheHillside() {
+        for (id in listOf("kfarnabrakh", "hamra")) {
+            val city = load(id)
+            val scene = com.example.beirutrun.city.CityScene.build(city)
+            val hill = scene.tiles.flatMap { tile ->
+                listOfNotNull(tile.parts[com.example.beirutrun.city.Surface.HILLSIDE], tile.parts[com.example.beirutrun.city.Surface.HILL_ROCK], tile.parts[com.example.beirutrun.city.Surface.CITY_GROUND])
+            }
+            var under = 0
+            var below = 0
+            for (data in hill) {
+                var i = 0
+                while (i < data.size) {
+                    val x = data[i]; val y = data[i + 1]; val z = data[i + 2]
+                    i += 8
+                    val onRoad = city.roads.any { r ->
+                        r.kind != CityMap.ROAD_PATH && r.kind != CityMap.ROAD_PIER &&
+                            (0 until r.pts.size / 2 - 1).any { k ->
+                                CityMap.segmentDistance(x, z, r.pts[2 * k], r.pts[2 * k + 1], r.pts[2 * k + 2], r.pts[2 * k + 3]) < r.width / 2f - 1f
+                            }
+                    }
+                    if (!onRoad) continue
+                    under++
+                    if (y < city.groundAt(x, z) - 0.2f) below++
+                    if (under >= 400) break
+                }
+                if (under >= 400) break
+            }
+            assertTrue("$id: no hillside under roads checked", under > 50)
+            assertEquals("$id: hillside showing through roads", under, below)
+        }
+    }
+
+    /**
+     * Everything agrees on the ground: off the roads, where things stand is exactly the ground that's
+     * drawn; on a road, the ground drawn under it is below its surface; and roads climb gently,
+     * never jumping over a short distance.
+     */
+    @Test
+    fun groundRoadsAndPeopleAgree() {
+        for (id in listOf("downtown", "hamra", "raouche", "kfarnabrakh")) {
+            val city = load(id)
+            val levels = city.roadLevels!!
+            val rnd = kotlin.random.Random(5)
+            repeat(2000) {
+                val x = city.minX + 20f + rnd.nextFloat() * (city.maxX - city.minX - 40f)
+                val z = city.minZ + 20f + rnd.nextFloat() * (city.maxZ - city.minZ - 40f)
+                val road = levels.heightAt(x, z)
+                if (road == null) assertEquals("$id: off-road ground at ($x, $z)", city.drawnGround.heightAt(x, z), city.groundAt(x, z), 0.001f)
+                else assertEquals("$id: on a road, people stand on it", road, city.groundAt(x, z), 0.001f)
+            }
+            // Roads: almost never steeper than 30% from one point to the next.
+            var steep = 0
+            var total = 0
+            for (r in city.roads) {
+                if (r.kind == CityMap.ROAD_PIER || r.kind == CityMap.ROAD_PATH) continue
+                val p = levels.laid(r)
+                val prof = levels.profile(r)
+                for (i in 0 until p.size / 2 - 1) {
+                    val len = hypot(p[2 * i + 2] - p[2 * i], p[2 * i + 3] - p[2 * i + 1])
+                    if (len < 0.5f) continue
+                    total++
+                    if (abs(prof.atSegment(p[2 * i + 2], p[2 * i + 3], i) - prof.atSegment(p[2 * i], p[2 * i + 1], i)) / len > 0.301f) steep++
+                }
+            }
+            assertTrue("$id: $steep of $total road pieces steeper than 30%", steep <= total / 500)
         }
     }
 

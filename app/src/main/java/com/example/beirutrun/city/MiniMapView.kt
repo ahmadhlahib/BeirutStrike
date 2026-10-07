@@ -29,11 +29,15 @@ class MiniMapView @JvmOverloads constructor(
     var city: CityMap? = null
         set(value) {
             field = value
+            landmarks = null
             if (value != null && !full) renderMap(value, RectF(value.minX, value.minZ, value.maxX, value.maxZ), 1f)
             if (value != null && full && width > 0) renderFull(value)
         }
     /** Show the whole play area instead of following the player. Set before [city]. */
     var full = false
+    /** The map's landmarks for their badges (see MapLandmarks), found once. */
+    private var landmarks: List<MapLandmarks.Landmark>? = null
+
     var renderer: CityRenderer? = null
     var drops: List<PhotoDrop> = emptyList()
     var players: List<RemotePlayer> = emptyList()
@@ -281,6 +285,11 @@ class MiniMapView @JvmOverloads constructor(
             canvas.drawRect(sx(l.footX) - s - density, sz(l.footZ) - s - density, sx(l.footX) + s + density, sz(l.footZ) + s + density, paint)
             paint.color = 0xFFE5A823.toInt()
             canvas.drawRect(sx(l.footX) - s, sz(l.footZ) - s, sx(l.footX) + s, sz(l.footZ) + s, paint)
+        }
+        // The map's landmarks, each a badge with its picture (and its name on the full map).
+        val marks = landmarks ?: MapLandmarks.of(map).also { landmarks = it }
+        for (l in marks) {
+            MapLandmarks.draw(canvas, l, sx(l.x), sz(l.z), 7.5f * density * dot, label = full, density = density)
         }
         // Arms stores: a green "$" badge.
         for (s in r.stores) {

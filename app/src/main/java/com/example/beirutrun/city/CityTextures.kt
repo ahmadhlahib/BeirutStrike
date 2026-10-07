@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
 import kotlin.random.Random
 
 /**
@@ -33,7 +34,13 @@ object CityTextures {
     const val PALM_BARK = 14
     const val LEAF = 15
     const val FROND = 16
-    const val COUNT = 17
+    /** Beirut sandstone blocks: retaining walls where the city steps down a hillside. */
+    const val STONE_WALL = 17
+    /** Red clay roof tiles (Lebanese pitched roofs). */
+    const val TILES = 18
+    /** Shop signs, Arabic and English (an atlas of [SIGN_COUNT] signs, see [signUv]). */
+    const val SIGNS = 19
+    const val COUNT = 20
 
     /** Metres a facade texture covers, across (two windows) and up (two floors). */
     const val FACADE_SPAN = 6.4f
@@ -44,6 +51,7 @@ object CityTextures {
     /** Metres one repeat of each ground material covers (a power of two, so tiles meet seamlessly). */
     fun groundSpan(style: Int) = when (style) {
         ASPHALT, GRASS, SAND -> 8f
+        STONE_WALL, TILES -> 4f
         GROUND -> 16f
         else -> 4f
     }
@@ -65,6 +73,9 @@ object CityTextures {
         PALM_BARK -> palmBark()
         LEAF -> leaves()
         FROND -> frond()
+        STONE_WALL -> stoneWall()
+        TILES -> tiles()
+        SIGNS -> signs()
         else -> plain(style, 0.08f, 0.06f, 0.06f)
     }
 
@@ -333,6 +344,110 @@ object CityTextures {
         fill(c, 0f, 0f, 256f, 256f, 0xFFE6E6E6.toInt())
         for (k in 0 until 4) fill(c, 0f, k * 64f, 256f, k * 64f + 2f, 0xFFF8F8F8.toInt())
         weather(b, 89, 0.12f, 32 to 0.06f, 8 to 0.04f)
+        return b
+    }
+
+    /** Retaining walls: courses of pale Beirut sandstone blocks of mixed widths, weathered (256 px = 4 m). */
+    private fun stoneWall(): Bitmap {
+        val (b, c) = canvas(256, 256)
+        val rnd = Random(131)
+        val mortar = 0xFFB9AD97.toInt()
+        fill(c, 0f, 0f, 256f, 256f, mortar)
+        var y = 0f
+        while (y < 256f) {
+            val h = 30f + rnd.nextInt(3) * 4f
+            var x = -rnd.nextInt(40).toFloat()
+            while (x < 256f) {
+                val w = 44f + rnd.nextInt(5) * 10f
+                val tone = 0.9f + rnd.nextFloat() * 0.16f
+                fill(c, x + 2f, y + 2f, x + w - 2f, minOf(y + h - 2f, 256f), shade(0xFFDCCBAA.toInt(), tone))
+                // A darker lower edge on each block, as the light falls from above.
+                fill(c, x + 2f, minOf(y + h - 5f, 256f), x + w - 2f, minOf(y + h - 2f, 256f), shade(0xFFDCCBAA.toInt(), tone * 0.86f))
+                x += w
+            }
+            y += h
+        }
+        weather(b, 131, 0.08f, 64 to 0.07f, 16 to 0.05f)
+        return b
+    }
+
+    /** Red clay roof tiles in rows (256 px = 4 m), for the pitched roofs of old houses. */
+    private fun tiles(): Bitmap {
+        val (b, c) = canvas(256, 256)
+        val rnd = Random(149)
+        fill(c, 0f, 0f, 256f, 256f, 0xFF8E3F27.toInt())
+        for (row in 0 until 16) {
+            val y = row * 16f
+            val offset = if (row % 2 == 0) 0f else 8f
+            var x = -offset
+            while (x < 256f) {
+                val tone = 0.88f + rnd.nextFloat() * 0.22f
+                fill(c, x + 1f, y, x + 15f, y + 14f, shade(0xFFB4553A.toInt(), tone))
+                // The round top of each tile catches the light.
+                fill(c, x + 5f, y + 1f, x + 11f, y + 9f, shade(0xFFC8694A.toInt(), tone))
+                x += 16f
+            }
+            fill(c, 0f, y + 14f, 256f, y + 16f, 0xFF5E2A1C.toInt())
+        }
+        weather(b, 149, 0.1f, 64 to 0.06f, 16 to 0.04f)
+        return b
+    }
+
+    /** How many signs are in the [SIGNS] atlas (4 across, 8 down, each twice as wide as high). */
+    const val SIGN_COUNT = 32
+
+    /** Texture coordinates (left, top, right, bottom) of sign [i] in the [SIGNS] atlas. */
+    fun signUv(i: Int): FloatArray {
+        val k = ((i % SIGN_COUNT) + SIGN_COUNT) % SIGN_COUNT
+        val col = k % 4; val row = k / 4
+        val pad = 1f / 512f
+        return floatArrayOf(col / 4f + pad, row / 8f + pad, (col + 1) / 4f - pad, (row + 1) / 8f - pad)
+    }
+
+    /**
+     * Beirut shop signs: Arabic over French or English, as the street signs are (pharmacy, bakery,
+     * manakish, exchange, shawarma, café, mobile phones...), each its own colours.
+     */
+    private fun signs(): Bitmap {
+        val (b, c) = canvas(512, 512)
+        val signs = listOf(
+            Triple("صيدلية", "PHARMACIE", 0xFF1B7A3E), Triple("فرن", "BOULANGERIE", 0xFF8B4A1C),
+            Triple("منقوشة", "MANAKISH", 0xFFB5341F), Triple("صيرفة", "EXCHANGE", 0xFF1F4E8C),
+            Triple("شاورما", "SHAWARMA", 0xFFC0392B), Triple("مقهى", "CAFÉ", 0xFF5B3A29),
+            Triple("خليوي", "MOBILE", 0xFF2C3E50), Triple("مكتبة", "LIBRAIRIE", 0xFF34495E),
+            Triple("حلاق", "COIFFEUR", 0xFF16212C), Triple("مطعم", "RESTAURANT", 0xFF7B241C),
+            Triple("ميني ماركت", "MINI MARKET", 0xFF1E8449), Triple("مجوهرات", "BIJOUTERIE", 0xFF7D6608),
+            Triple("أحذية", "CHAUSSURES", 0xFF4A235A), Triple("حلويات", "PÂTISSERIE", 0xFFAF601A),
+            Triple("فول وحمص", "FOUL & HOMMOS", 0xFF6E2C00), Triple("بنك", "BANQUE", 0xFF154360),
+            Triple("ألبسة", "BOUTIQUE", 0xFF922B21), Triple("نظارات", "OPTICIEN", 0xFF0E6655),
+            Triple("كهربائيات", "ÉLECTRONIQUE", 0xFF1A5276), Triple("عصير", "COCKTAIL", 0xFFD35400),
+            Triple("لحام", "BOUCHERIE", 0xFF943126), Triple("خضار وفواكه", "FRUITS", 0xFF239B56),
+            Triple("تنظيف", "PRESSING", 0xFF2471A3), Triple("فندق", "HOTEL", 0xFF283747),
+            Triple("سناك", "SNACK", 0xFFCB4335), Triple("عطور", "PARFUMS", 0xFF76448A),
+            Triple("ساعات", "MONTRES", 0xFF1C2833), Triple("قهوة", "COFFEE", 0xFF4E342E),
+            Triple("كتب", "BOOKS", 0xFF1F618D), Triple("محمصة", "ROASTERY", 0xFF784212),
+            Triple("سوبرماركت", "SUPERMARKET", 0xFF117A65), Triple("كوافير", "BEAUTY", 0xFFA93226),
+        )
+        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = 0xFFFFFFFF.toInt() }
+        for ((i, s) in signs.withIndex()) {
+            val col = i % 4; val row = i / 4
+            val l = col * 128f; val t = row * 64f
+            val bg = s.third.toInt()
+            fill(c, l, t, l + 128f, t + 64f, shade(bg, 0.7f))
+            fill(c, l + 3f, t + 3f, l + 125f, t + 61f, bg)
+            // A pale panel for the light signs, every few.
+            val light = i % 5 == 3
+            if (light) { fill(c, l + 3f, t + 3f, l + 125f, t + 61f, 0xFFF2EBDD.toInt()); text.color = bg } else text.color = 0xFFFFFFFF.toInt()
+            text.typeface = Typeface.DEFAULT_BOLD
+            text.textSize = 26f
+            val arabic = s.first
+            while (text.measureText(arabic) > 116f && text.textSize > 12f) text.textSize -= 1f
+            c.drawText(arabic, l + 64f, t + 31f, text)
+            text.textSize = 15f
+            val latin = s.second
+            while (text.measureText(latin) > 116f && text.textSize > 8f) text.textSize -= 1f
+            c.drawText(latin, l + 64f, t + 54f, text)
+        }
         return b
     }
 

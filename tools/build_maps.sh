@@ -16,6 +16,6 @@ for id in "${ids[@]}"; do
   read -r _ south west north east lat lon source terrain <<< "$(grep -E "^$id[[:space:]]" "$here/maps.txt")"
   [ -n "${source:-}" ] && [ "$source" != "-" ] || source="$id"
   bash "$here/fetch_osm.sh" "$source"
-  [ "${terrain:-}" = "terrain" ] && bash "$here/fetch_elevation.sh" "$id"
+  [ "${terrain:-}" = "terrain" ] || [ "${terrain:-}" = "city" ] && bash "$here/fetch_elevation.sh" "$id"
   java -cp "$gson" "$here/OsmToCity.java" "$id" "$south" "$west" "$north" "$east" "$lat" "$lon" "$source" "${terrain:-flat}"
 done

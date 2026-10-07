@@ -29,6 +29,10 @@ class CityShader {
     val uFogColor = GLES20.glGetUniformLocation(program, "uFogColor")
     val uFog = GLES20.glGetUniformLocation(program, "uFog")
     val uTex = GLES20.glGetUniformLocation(program, "uTex")
+    /** The ground's height (maps with hills), for darkening walls near the ground under them. */
+    val uGroundMap = GLES20.glGetUniformLocation(program, "uGroundMap")
+    val uGround = GLES20.glGetUniformLocation(program, "uGround")
+    val uGroundBase = GLES20.glGetUniformLocation(program, "uGroundBase")
 
     companion object {
         private const val VERTEX = """
@@ -42,6 +46,8 @@ class CityShader {
             varying vec2 vUv;
             varying vec3 vFromEye;
             varying float vHeight;
+            varying highp vec2 vGround;
+            uniform vec4 uGround;
             void main() {
                 vec4 world = uModel * vec4(aPos, 1.0);
                 gl_Position = uMvp * vec4(aPos, 1.0);
@@ -51,6 +57,8 @@ class CityShader {
                 // triangles (like the ground), a distance does not.
                 vFromEye = world.xyz - uEye;
                 vHeight = world.y;
+                // Where this is on the ground's height map (hills; unused on flat maps).
+                vGround = (world.xz - uGround.xy) * uGround.zw;
             }
         """
 
@@ -76,11 +84,17 @@ class CityShader {
             varying vec3 vNormal;
             #ifdef GL_FRAGMENT_PRECISION_HIGH
             varying highp vec2 vUv;
+            varying highp vec2 vGround;
             #else
             varying vec2 vUv;
+            varying vec2 vGround;
             #endif
             varying vec3 vFromEye;
             varying float vHeight;
+            // The ground's height map (hills): decimetres above [uGroundBase] in red (high byte) and
+            // green (low byte); [uGroundBase] < -9000 when the map is flat.
+            uniform sampler2D uGroundMap;
+            uniform float uGroundBase;
             void main() {
                 vec4 base = uColor;
                 if (uUseTex > 0.5) base *= texture2D(uTex, vUv);
@@ -94,7 +108,13 @@ class CityShader {
                     float sky = 0.5 + 0.5 * n.y;
                     vec3 light = vec3(0.38, 0.41, 0.46) + vec3(0.14, 0.15, 0.17) * sky + vec3(0.58, 0.52, 0.42) * sun;
                     if (uAo > 0.5) {
-                        float ao = mix(0.62, 1.0, smoothstep(0.0, 2.6, vHeight));
+                        // Height above the ground under this spot of wall (on hills, read from the map).
+                        float above = vHeight;
+                        if (uGroundBase > -9000.0) {
+                            vec4 g = texture2D(uGroundMap, vGround);
+                            above -= uGroundBase + (g.r * 65280.0 + g.g * 255.0) * 0.1;
+                        }
+                        float ao = mix(0.62, 1.0, smoothstep(0.0, 2.6, above));
                         light *= mix(1.0, ao, 1.0 - abs(n.y));
                     }
                     color *= light;

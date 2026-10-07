@@ -47,8 +47,8 @@ class CityMapTest {
         val b = map.buildings.filter { it.blocksWalking && it.area > 400f }
             .first { CityMap.inside(it.pts, it.centerX, it.centerZ) }
         assertTrue(map.isBlocked(b.centerX, b.centerZ, 0.35f))
-        assertTrue(map.isInsideBuilding(b.centerX, 1.5f, b.centerZ, 0f))
-        assertFalse(map.isInsideBuilding(b.centerX, b.height + 2f, b.centerZ, 0f))
+        assertTrue(map.isInsideBuilding(b.centerX, b.base + 1.5f, b.centerZ, 0f))
+        assertFalse(map.isInsideBuilding(b.centerX, b.top + 2f, b.centerZ, 0f))
     }
 
     @Test

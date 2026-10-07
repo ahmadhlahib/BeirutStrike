@@ -94,8 +94,18 @@ class CityMap(
     private val treeCells = Array(cols * rows) { ArrayList<Tree>(4) }
     private val waterCells = Array(cols * rows) { ArrayList<FloatArray>(1) }
 
+    /** How roads lie on the hills (null on flat maps): level across, as drawn (see [RoadLevels]). */
+    val roadLevels: RoadLevels? by lazy { if (terrain.flat) null else RoadLevels(roads, terrain, coastal = sea.isNotEmpty()) }
+
+    /**
+     * The ground exactly as it's drawn: the hillside shaped round the roads (under them, and their
+     * banks, see [RoadLevels.drawnGround]); the terrain itself on flat maps.
+     */
+    val drawnGround: Terrain by lazy { roadLevels?.drawnGround ?: terrain }
+
     init {
-        if (!terrain.flat) for (b in buildings) b.base = terrain.lowestUnder(b.pts)
+        // On the ground as drawn (shaped round the roads), so walls reach down to the street.
+        if (!terrain.flat) for (b in buildings) b.base = drawnGround.lowestUnder(b.pts)
         for (b in buildings) forCells(b.minX, b.minZ, b.maxX, b.maxZ) { buildingCells[it] += b }
         for (t in trees) forCells(t.x, t.z, t.x, t.z) { treeCells[it] += t }
         val water = sea + areas.filter { it.kind == AREA_WATER }.map { it.pts }
@@ -112,11 +122,19 @@ class CityMap(
 
     // ---- Queries -------------------------------------------------------------------------------
 
-    /** The ground's height at (x, z): 0 on flat maps, the hillside on maps with hills. */
-    fun groundAt(x: Float, z: Float) = terrain.heightAt(x, z)
+
+    /**
+     * The ground's height at (x, z): 0 on flat maps; on maps with hills the hillside, or on a road
+     * (or its sidewalks) the road, which lies level across as it's drawn.
+     */
+    fun groundAt(x: Float, z: Float): Float {
+        if (terrain.flat) return 0f
+        return roadLevels?.heightAt(x, z) ?: drawnGround.heightAt(x, z)
+    }
+
 
     /** True when (x, y, z) is under the ground (a bullet or grenade reaching a hillside or the street). */
-    fun underground(x: Float, y: Float, z: Float) = y <= terrain.heightAt(x, z)
+    fun underground(x: Float, y: Float, z: Float) = y <= groundAt(x, z)
 
     /** True when a body of radius [r] at ([x], [z]) would hit a building, a tree, water or the play area's edge. */
     fun isBlocked(x: Float, z: Float, r: Float): Boolean {
@@ -194,6 +212,16 @@ class CityMap(
         const val BUILDING_CONSTRUCTION = 3
         /** A sea rock such as Pigeon Rocks at Raouche: an island extruded from the coastline. */
         const val BUILDING_ROCK = 4
+        // Landmarks, each drawn as itself (see CityScene's landmark builders).
+        const val BUILDING_GRAND_MOSQUE = 5
+        const val BUILDING_CLOCK_TOWER = 6
+        const val BUILDING_EGG = 7
+        const val BUILDING_MURR = 8
+        const val BUILDING_HOLIDAY_INN = 9
+        const val BUILDING_LIGHTHOUSE = 10
+        const val BUILDING_STATUE = 11
+        const val BUILDING_COLUMNS = 12
+        const val BUILDING_COLLEGE_HALL = 13
 
         const val ROAD_MAJOR = 0
         const val ROAD_MEDIUM = 1
@@ -215,6 +243,10 @@ class CityMap(
 
         const val TREE_LEAFY = 0
         const val TREE_PALM = 1
+        /** A stone pine (umbrella pine), the Chouf's hillsides. */
+        const val TREE_PINE = 2
+        /** An olive tree, round the village houses. */
+        const val TREE_OLIVE = 3
 
         /** Reads the file written by tools/OsmToCity.java. */
         fun load(input: InputStream): CityMap = DataInputStream(input.buffered()).use { d ->

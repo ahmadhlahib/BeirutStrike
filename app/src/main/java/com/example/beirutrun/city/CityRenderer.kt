@@ -683,6 +683,18 @@ class CityRenderer(
         // Through the scope the haze is pushed back, so distant streets and enemies show.
         val fogScale = if (zoomed) SCOPE_RANGE_SCALE else 1f
         GLES20.glUniform2f(shader.uFog, FOG_START * fogScale, FOG_END * fogScale)
+        // The ground's height map, so walls darken near the ground under them on hills.
+        val t = city.drawnGround
+        if (groundTexture != 0) {
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, groundTexture)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glUniform1i(shader.uGroundMap, 1)
+            GLES20.glUniform4f(shader.uGround, t.x0 - t.cell / 2f, t.z0 - t.cell / 2f, 1f / (t.cols * t.cell), 1f / (t.rows * t.cell))
+            GLES20.glUniform1f(shader.uGroundBase, t.minHeight)
+        } else {
+            GLES20.glUniform1f(shader.uGroundBase, NO_GROUND_MAP)
+        }
 
         drawWorld()
         for (visual in dropVisuals.values) drawDrop(visual)
@@ -2239,6 +2251,7 @@ class CityRenderer(
             hillSkirts(land, m)
         }
         ground = land.build()
+        groundTexture = uploadGroundMap()
         openSea = water.build()
         if (city.limited) border = MeshBuilder().apply {
             val t = 0.08f
@@ -2272,6 +2285,35 @@ class CityRenderer(
                 0f, 0f, 1f,
             )
         }.build()
+    }
+
+    /** The ground's height map as a texture (see the shader's uGroundMap): 0 on a flat map. */
+    private var groundTexture = 0
+
+    /**
+     * The ground's heights as a texture, one texel per grid point: decimetres above the lowest
+     * point, high byte in red and low in green. Sampled exactly (no blending between texels, which
+     * would mix the bytes up).
+     */
+    private fun uploadGroundMap(): Int {
+        val t = city.drawnGround
+        if (t.flat) return 0
+        val pixels = IntArray(t.cols * t.rows)
+        for (r in 0 until t.rows) for (c in 0 until t.cols) {
+            val v = ((t.at(c, r) - t.minHeight) * 10f).toInt().coerceIn(0, 65535)
+            pixels[r * t.cols + c] = (0xFF shl 24) or ((v shr 8) shl 16) or ((v and 0xFF) shl 8)
+        }
+        val bitmap = Bitmap.createBitmap(pixels, t.cols, t.rows, Bitmap.Config.ARGB_8888)
+        val ids = IntArray(1)
+        GLES20.glGenTextures(1, ids, 0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+        bitmap.recycle()
+        return ids[0]
     }
 
     /**
@@ -2309,7 +2351,8 @@ class CityRenderer(
     private fun buildMurals() {
         if (streetPhotos.isEmpty()) return
         val nearest = city.buildings
-            .filter { it.blocksWalking && it.height > 6f }
+            // Ordinary buildings only: not a mosque, church or landmark.
+            .filter { it.blocksWalking && it.height > 6f && it.kind == CityMap.BUILDING_GENERIC }
             .sortedBy { hypot(it.centerX - city.spawnX, it.centerZ - city.spawnZ) }
         streetPhotos.take(MAX_MURALS).forEachIndexed { i, file ->
             val b = nearest.getOrNull(i) ?: return
@@ -2505,7 +2548,14 @@ class CityRenderer(
 
     private fun drawSurface(surface: Surface, mesh: Mesh) {
         val texture = if (surface.texture >= 0) surfaceTextures[surface.texture] else 0
+        // Things laid on the ground are pulled towards the camera a little (more for each layer up),
+        // so on hills the ground never pokes through them where it bulges.
+        if (surface.layer > 0) {
+            GLES20.glEnable(GLES20.GL_POLYGON_OFFSET_FILL)
+            GLES20.glPolygonOffset(-1f, -DECAL_UNITS * surface.layer)
+        }
         draw(mesh, identity, surface.color, texture, surface.lit, surface.shine, surface.ao, surface.cutout)
+        if (surface.layer > 0) GLES20.glDisable(GLES20.GL_POLYGON_OFFSET_FILL)
     }
 
     // ---- Photo drops --------------------------------------------------------------------------
@@ -2859,8 +2909,7 @@ class CityRenderer(
     /** Sets how much the sky is reflected, whether walls darken at their foot and whether see-through texels are cut away, if changed. */
     private fun finish(shine: Float, ao: Boolean, cutout: Boolean = false) {
         if (shine != shineSet) { GLES20.glUniform1f(shader.uShine, shine); shineSet = shine }
-        // (The darkening is measured from height 0, so on a map with hills it's left off.)
-        val a = if (ao && city.terrain.flat) 1f else 0f
+        val a = if (ao) 1f else 0f
         if (a != aoSet) { GLES20.glUniform1f(shader.uAo, a); aoSet = a }
         val c = if (cutout) 0.5f else 0f
         if (c != cutoutSet) { GLES20.glUniform1f(shader.uCutout, c); cutoutSet = c }
@@ -2918,6 +2967,10 @@ class CityRenderer(
         /** Hilly maps: the land past the edge, and the play-area border, in pieces this long (metres). */
         private const val SKIRT_PIECE = 8f
         private const val BORDER_PIECE = 4f
+        /** uGroundBase when there's no ground height map (a flat map). */
+        private const val NO_GROUND_MAP = -10000f
+        /** Depth pulled towards the camera per ground layer (see Surface.layer), in the depth buffer's smallest steps. */
+        private const val DECAL_UNITS = 4f
         private val GROUND_SPAN = CityTextures.groundSpan(CityTextures.GROUND)
         private const val FOG_START = 70f
         private const val FOG_END = 230f
