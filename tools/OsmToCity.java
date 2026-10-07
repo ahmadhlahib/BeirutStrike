@@ -43,6 +43,8 @@ public class OsmToCity {
     static String ID = "downtown";
     /** Hills: the ground's real height (elevation tiles in tools/data/elevation, see Terrain). Flat without. */
     static boolean TERRAIN = false;
+    /** A city with hills: the elevation data partly measures rooftops there, so buildings are filtered out of it (see Terrain). */
+    static boolean URBAN = false;
     /** Which map's downloaded data to read (this map may be cut out of a bigger one). */
     static String SOURCE = "downtown";
     static final double M_PER_DEG_LAT = 110574.0;
@@ -78,7 +80,8 @@ public class OsmToCity {
             LAT0 = Double.parseDouble(args[5]); LON0 = Double.parseDouble(args[6]);
             M_PER_DEG_LON = 111320.0 * Math.cos(Math.toRadians(LAT0));
             SOURCE = args.length >= 8 && !args[7].equals("-") ? args[7] : ID;
-            TERRAIN = args.length >= 9 && args[8].equals("terrain");
+            TERRAIN = args.length >= 9 && (args[8].equals("terrain") || args[8].equals("city"));
+            URBAN = args.length >= 9 && args[8].equals("city");
         }
         File data = new File("tools/data");
         readBuildings(load(new File(data, SOURCE + "_buildings.json")));
@@ -86,7 +89,7 @@ public class OsmToCity {
         readAreas(load(new File(data, SOURCE + "_areas.json")));
         keepInsideMap();
         // Palms line Beirut's avenues; a mountain village gets its pines and oaks on open ground instead.
-        if (TERRAIN) addCountryTrees(); else addStreetPalms();
+        if (TERRAIN && !URBAN) addCountryTrees(); else addStreetPalms();
 
         float[] spawn = findSpawn();
         if (TERRAIN) Terrain.build(spawn);
@@ -219,7 +222,7 @@ public class OsmToCity {
         // residential towers, Hamra dense mid-rise blocks, the Souks low stone buildings, and
         // Downtown restored four-to-ten storey blocks. {min, spread} floors by footprint size.
         // A mountain village (a map with hills): houses of one to four storeys.
-        int[][] profile = TERRAIN ? new int[][]{{1, 2}, {2, 2}, {2, 2}, {3, 2}} : switch (ID) {
+        int[][] profile = TERRAIN && !URBAN ? new int[][]{{1, 2}, {2, 2}, {2, 2}, {3, 2}} : switch (ID) {
             case "raouche", "ain_el_mreisseh" -> new int[][]{{3, 5}, {6, 7}, {9, 10}, {12, 12}};
             case "hamra" -> new int[][]{{3, 4}, {5, 5}, {7, 6}, {9, 7}};
             case "souks" -> new int[][]{{2, 2}, {2, 3}, {3, 3}, {3, 4}};
@@ -658,14 +661,34 @@ public class OsmToCity {
                 double lon = LON0 + (x0 + c * CELL) / M_PER_DEG_LON;
                 h[r * cols + c] = (float) elevation(lat, lon);
             }
+            // The sea: the data has the sea floor (hundreds of metres down); in the game it's sea level.
+            boolean[] water = waterMask();
+            boolean coast = false;
+            for (int i = 0; i < h.length; i++) {
+                if (water[i]) { h[i] = 0f; coast = true; }
+                else h[i] = Math.max(h[i], 0f);
+            }
+            // In a city the data partly measures rooftops: an "opening" (lowest within OPENING
+            // metres, then highest of those) takes away anything narrower than a block, leaving
+            // the hills the streets are built on.
+            if (URBAN) h = dilate(erode(h, OPENING_CELLS), OPENING_CELLS);
             // Smooth away the data's steps (about 3 passes of a 5-cell box ≈ a 10 m Gaussian).
-            for (int i = 0; i < 3; i++) h = blur(h, 2);
+            // (In a city, wider: about 20 m, as the rooftop filter leaves the data rougher.)
+            for (int i = 0; i < 3; i++) h = blur(h, URBAN ? 4 : 2);
+            // Land stays above the sea, and the sea stays flat.
+            for (int i = 0; i < h.length; i++) h[i] = water[i] ? 0f : Math.max(h[i], COAST_HEIGHT);
             levelRoads();
-            float base = at(spawn[0], spawn[1]);
+            // In a city: ease the steps where roads clash, then level the roads again on the eased ground.
+            if (URBAN) { easeRoads(); levelRoads(); easeRoads(); }
+            // The sea back at sea level, except under a road (the Corniche runs right along the water's edge).
+            for (int i = 0; i < h.length; i++) if (water[i] && !onRoad[i]) h[i] = 0f;
+            // By the sea, heights are from sea level (the sea is at 0 in the game); inland, from the start.
+            float base = coast ? 0f : at(spawn[0], spawn[1]);
+            float start = at(spawn[0], spawn[1]);
             float lo = Float.MAX_VALUE, hi = -Float.MAX_VALUE;
             for (int i = 0; i < h.length; i++) { h[i] -= base; lo = Math.min(lo, h[i]); hi = Math.max(hi, h[i]); }
-            System.out.printf(Locale.US, "terrain %dx%d (%.0f m cells), start at %.0f m above sea, ground %.0f..%.0f m around it%n",
-                    cols, rows, CELL, base, lo, hi);
+            System.out.printf(Locale.US, "terrain %dx%d (%.0f m cells), start %.0f m above sea, ground %.0f..%.0f m (%s)%n",
+                    cols, rows, CELL, start, lo, hi, coast ? "from sea level" : "from the start");
         }
 
         /** Each road follows the hill but evenly: its height along it is smoothed, and the ground across it made level with it. */
@@ -675,6 +698,7 @@ public class OsmToCity {
             float[] nearest = new float[h.length];
             float[] band = new float[h.length];
             java.util.Arrays.fill(nearest, Float.MAX_VALUE);
+            onRoad = new boolean[h.length];
             final float fade = 8f;
             // Busier roads are settled first; each quieter road then meets them at their height
             // where they join, ramping into it, so junctions don't step.
@@ -700,7 +724,7 @@ public class OsmToCity {
                 // Smooth the height along the road over about 30 m.
                 float[] along = new float[samples.size()];
                 for (int i = 0; i < along.length; i++) along[i] = samples.get(i)[2];
-                for (int pass = 0; pass < 3; pass++) along = blur1(along, 5);
+                for (int pass = 0; pass < 3; pass++) along = blur1(along, URBAN ? 8 : 5);
                 // Where it meets a road already settled, take that road's height, easing in over JOIN_RAMP metres.
                 float[] dist = new float[along.length];
                 for (int i = 1; i < along.length; i++) {
@@ -717,7 +741,10 @@ public class OsmToCity {
                     for (int i = 0; i < along.length; i++) {
                         float sum = 0f, weights = 0f;
                         for (float[] j : joins) {
-                            float w = Math.max(0f, 1f - Math.abs(dist[i] - j[0]) / JOIN_RAMP);
+                            // Long enough that the ramp is never steeper than MAX_JOIN_GRADE (a crossing
+                            // where one road really passes over the other comes down to meet it).
+                            float ramp = Math.max(JOIN_RAMP, Math.abs(j[1]) / MAX_JOIN_GRADE);
+                            float w = Math.max(0f, 1f - Math.abs(dist[i] - j[0]) / ramp);
                             sum += j[1] * w; weights += w;
                         }
                         if (weights > 0f) fixed[i] = along[i] + sum / Math.max(1f, weights);
@@ -747,11 +774,92 @@ public class OsmToCity {
                 if (nearest[i] == Float.MAX_VALUE) continue;
                 float w = nearest[i] <= band[i] ? 1f : 1f - (nearest[i] - band[i]) / fade;
                 if (w > 0f) h[i] += (target[i] - h[i]) * smooth(w);
+                onRoad[i] = nearest[i] <= band[i];
             }
+        }
+
+        /** Grid points under a road (inside its level band), set by levelRoads. */
+        static boolean[] onRoad;
+        /** The steepest step between neighbouring grid points under a road, after easing (rise over run). */
+        static final float MAX_ROAD_GRADE = 0.35f;
+
+        /**
+         * Where two roads at different heights meet in a city (an interchange, a flyover, rough
+         * data), the ground under them can step sharply. Points under roads that are much higher
+         * or lower than a neighbour are eased towards their neighbours, again and again, until no
+         * step is steeper than MAX_ROAD_GRADE. Ground away from roads (hillsides, cliffs) is left alone.
+         */
+        static void easeRoads() {
+            float maxStep = MAX_ROAD_GRADE * CELL;
+            for (int pass = 0; pass < 60; pass++) {
+                float[] next = h.clone();
+                int changed = 0;
+                for (int r = 1; r < rows - 1; r++) for (int c = 1; c < cols - 1; c++) {
+                    int i = r * cols + c;
+                    if (!onRoad[i]) continue;
+                    // Only against other road points: a cliff or bank beside the road mustn't drag it down.
+                    float sum = 0f, worst = 0f;
+                    int count = 0;
+                    for (int j : new int[]{i - 1, i + 1, i - cols, i + cols}) {
+                        if (!onRoad[j]) continue;
+                        sum += h[j]; count++;
+                        worst = Math.max(worst, Math.abs(h[i] - h[j]));
+                    }
+                    if (count == 0 || worst <= maxStep) continue;
+                    next[i] = (h[i] + sum / count) / 2f;
+                    changed++;
+                }
+                h = next;
+                if (changed == 0) break;
+            }
+        }
+
+        /** The opening filter's reach (cells either side): removes rooftops up to ~40 m across. */
+        static final int OPENING_CELLS = 5;
+        /** The lowest land beside the sea, metres above it. */
+        static final float COAST_HEIGHT = 0.6f;
+
+        /** Which grid points are in the sea or other water, drawn at the grid's scale. */
+        static boolean[] waterMask() {
+            BufferedImage img = new BufferedImage(cols, rows, BufferedImage.TYPE_BYTE_GRAY);
+            Graphics2D g = img.createGraphics();
+            g.scale(1.0 / CELL, 1.0 / CELL);
+            g.translate(-x0, -z0);
+            g.setColor(Color.WHITE);
+            for (float[] s : sea) g.fill(path(s, true));
+            // Harbour basins and marinas are sea; a fountain or pool up in the town is not.
+            for (Area a : areas) if (a.kind() == A_PIER || (a.kind() == A_WATER && Math.abs(signedArea(a.pts())) > 2000.0)) g.fill(path(a.pts(), true));
+            g.dispose();
+            boolean[] m = new boolean[cols * rows];
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) m[r * cols + c] = (img.getRGB(c, r) & 0xFF) > 127;
+            return m;
+        }
+
+        /** Each point's lowest neighbour within [radius] cells (two passes, rows then columns). */
+        static float[] erode(float[] src, int radius) { return extreme(src, radius, true); }
+
+        /** Each point's highest neighbour within [radius] cells. */
+        static float[] dilate(float[] src, int radius) { return extreme(src, radius, false); }
+
+        static float[] extreme(float[] src, int radius, boolean min) {
+            float[] tmp = new float[src.length], out = new float[src.length];
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {
+                float v = src[r * cols + c];
+                for (int k = -radius; k <= radius; k++) { int cc = c + k; if (cc < 0 || cc >= cols) continue; float s = src[r * cols + cc]; v = min ? Math.min(v, s) : Math.max(v, s); }
+                tmp[r * cols + c] = v;
+            }
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {
+                float v = tmp[r * cols + c];
+                for (int k = -radius; k <= radius; k++) { int rr = r + k; if (rr < 0 || rr >= rows) continue; float s = tmp[rr * cols + c]; v = min ? Math.min(v, s) : Math.max(v, s); }
+                out[r * cols + c] = v;
+            }
+            return out;
         }
 
         /** How far a quieter road eases into a busier one's height where they join, metres. */
         static final float JOIN_RAMP = 25f;
+        /** The steepest a road may be made to meet another (rise over run). */
+        static final float MAX_JOIN_GRADE = 0.12f;
 
         static long cellKey(float x, float z) { return ((long) Math.floor(x / 8f) << 32) ^ ((long) Math.floor(z / 8f) & 0xffffffffL); }
 

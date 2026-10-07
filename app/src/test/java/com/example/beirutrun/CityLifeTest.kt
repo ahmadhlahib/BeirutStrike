@@ -46,11 +46,13 @@ class CityLifeTest {
         repeat(60) { life.update(1f / 60f, px, pz, floatArrayOf(px, pz)) }
         val target = life.nearest(px, pz, 1, 1000f).first()
         // A bullet at chest height, through them from the front, kills them.
-        assertTrue(life.shoot(target.x, 1.2f, target.z, -kotlin.math.sin(target.heading), kotlin.math.cos(target.heading)))
+        // Chest high above the ground they stand on (the maps have hills).
+        val chest = map.groundAt(target.x, target.z) + 1.2f
+        assertTrue(life.shoot(target.x, chest, target.z, -kotlin.math.sin(target.heading), kotlin.math.cos(target.heading)))
         val dead = life.nearest(px, pz, 100, 1000f).first { it.id == target.id }
         assertTrue("should be dead", dead.death in 1..3)
         // A second bullet in the same place goes through the body.
-        assertFalse(life.shoot(target.x, 1.2f, target.z, 1f, 0f))
+        assertFalse(life.shoot(target.x, chest, target.z, 1f, 0f))
         // Bodies lie still, are drawn without NaNs, and are cleared away after a while.
         repeat(60 * 5) { life.update(1f / 60f, px, pz, floatArrayOf(px, pz)) }
         val still = life.nearest(px, pz, 100, 1000f).first { it.id == target.id }

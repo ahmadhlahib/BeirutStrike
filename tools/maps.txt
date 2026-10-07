@@ -7,12 +7,13 @@
 #
 # An optional column names another map whose downloaded data this map is cut from (it must
 # lie inside that map), so it needs no download of its own ("-" for none). After it, "terrain"
-# gives the map its real hills (tools/fetch_elevation.sh downloads the heights).
+# gives the map its real hills (tools/fetch_elevation.sh downloads the heights); "city" does the
+# same for a city, filtering the rooftops out of the elevation data.
 #
 # id              south    west     north    east     startLat startLon  cutFrom  hills
-downtown          33.8905  35.4935  33.9040  35.5115  33.8962  35.5077
-souks             33.8955  35.4970  33.9038  35.5080  33.8996  35.5027   downtown
-hamra             33.8910  35.4745  33.9030  35.4905  33.8963  35.4830
-ain_el_mreisseh   33.8960  35.4800  33.9060  35.4965  33.90167 35.48824
-raouche           33.8835  35.4640  33.8975  35.4790  33.89034 35.47208
+downtown          33.8905  35.4935  33.9040  35.5115  33.8962  35.5077  -          city
+souks             33.8955  35.4970  33.9038  35.5080  33.8996  35.5027   downtown   city
+hamra             33.8910  35.4745  33.9030  35.4905  33.8963  35.4830  -          city
+ain_el_mreisseh   33.8960  35.4800  33.9060  35.4965  33.90167 35.48824 -          city
+raouche           33.8835  35.4640  33.8975  35.4790  33.89034 35.47208 -          city
 kfarnabrakh       33.68467 35.60712 33.69817 35.62332 33.691424 35.615219 -   terrain

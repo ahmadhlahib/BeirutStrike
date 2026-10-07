@@ -39,8 +39,10 @@ shots and scores sync live between phones, and teammates can talk over voice cha
 - **Real Lebanese maps:** Downtown, Beirut Souks, Hamra, Ain El Mreisseh and Raouche, and the
   Chouf mountain village of Kfarnabrakh, built from OpenStreetMap data (building footprints and
   heights, roads, parks, squares, the sea and trees).
-- **Real hills:** Kfarnabrakh has its true ground, from 160 m below the start to 73 m above it
-  (elevation data, every 4 m). Roads climb the slopes evenly and lie level across, houses stand on
+- **Real hills on every map:** the true ground from elevation data, a height every 4 m. Beirut
+  rises from the sea (the Corniche at a few metres, Martyrs' Square 24 m, Hamra 67 m, the Raouche
+  cliffs dropping to Pigeon Rocks); Kfarnabrakh runs from a valley 160 m below the start to a
+  ridge 73 m above it. Roads climb the slopes evenly and lie level across, buildings stand on
   the hillside, sand and dirt tracks run between the fields, and hills block sight and bullets.
   The minimap is hill-shaded.
 - **A realistic city:** textured facades (sandstone, plaster, concrete, glass) with shop fronts,
@@ -378,7 +380,8 @@ The database layout, and what each part stores, is described in
 ## Maps
 
 Maps are defined in [`tools/maps.txt`](tools/maps.txt): a bounding box, a start point, an
-optional parent map to cut from, and `terrain` for a map with real hills. To add or rebuild a map:
+optional parent map to cut from, and its hills: `terrain` (countryside) or `city`. To add or
+rebuild a map:
 
 1. Add a line to `tools/maps.txt`.
 2. Run the pipeline. It needs Java 17+, and Gson from the Gradle cache, so build the app once first:
@@ -388,11 +391,18 @@ optional parent map to cut from, and `terrain` for a map with real hills. To add
 3. Register the map in `city/CityMaps.kt`.
 
 The script downloads the area from OpenStreetMap and writes `assets/maps/<id>.bin` and a
-top-down preview image. With `terrain`, it also downloads the ground's height (the free
-Terrarium elevation tiles from AWS Open Data, `tools/fetch_elevation.sh`). It smooths the heights
-and levels them along the roads, busier roads first so junctions meet, and stores them in the map
-(version 2, see `city/Terrain.kt`). Flat maps are unchanged. Elevation data: Mapzen Terrain
-Tiles on AWS Open Data, from SRTM (NASA) and other public sources.
+top-down preview image. With hills, it also downloads the ground's height (the free Terrarium
+elevation tiles from AWS Open Data, `tools/fetch_elevation.sh`) and stores it in the map
+(version 2, see `city/Terrain.kt`). Along the way it:
+- sets the sea to sea level (the data has the sea floor), and measures heights from it on
+  coastal maps;
+- for `city`, filters out rooftops, which the data partly measures in dense streets, with an
+  opening filter that keeps the hills;
+- smooths the heights, then levels them along the roads, busier roads first, so junctions meet;
+  a road meeting another at a different height (a flyover, which the game puts at street level)
+  ramps at no more than 12%, and the remaining steps under city roads are eased.
+
+Elevation data: Mapzen Terrain Tiles on AWS Open Data, from SRTM (NASA) and other public sources.
 
 ## Characters
 
