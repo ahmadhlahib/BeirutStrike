@@ -48,7 +48,77 @@ class RoadLevels(
 
     /** [road]'s height along its middle. */
     fun profile(road: CityMap.Road): RoadProfile = synchronized(profiles) {
-        profiles.getOrPut(road) { RoadProfile(laid(road), terrain) { x, z -> junctionHeights[pointKey(x, z)] } }
+        profiles.getOrPut(road) {
+            RoadProfile(laid(road), terrain, { x, z -> junctionHeights[pointKey(x, z)] }) { x, z, dx, dz -> partnerLevel(road, x, z, dx, dz) }
+        }
+    }
+
+    /** Each road's height smoothed along it, before junctions and partners: what partners meet halfway. */
+    private val bases = HashMap<CityMap.Road, RoadProfile>()
+
+    private fun base(road: CityMap.Road): RoadProfile = synchronized(bases) { bases.getOrPut(road) { RoadProfile(laid(road), terrain) } }
+
+    private val gaps = HashMap<CityMap.Road, Float>()
+
+    /**
+     * How far apart [road] and the other half of its divided road are (middle to middle, the
+     * typical distance along it), or null when it has none: so the two can be drawn with a strip
+     * between them rather than overlapping.
+     */
+    fun partnerGap(road: CityMap.Road): Float? = synchronized(gaps) {
+        if (road in gaps) return gaps[road]!!.takeIf { it > 0f }
+        val p = road.pts
+        val found = ArrayList<Float>()
+        for (i in 0 until p.size / 2 - 1) {
+            val ax = p[2 * i]; val az = p[2 * i + 1]; val bx = p[2 * i + 2]; val bz = p[2 * i + 3]
+            val len = hypot(bx - ax, bz - az)
+            if (len < 1f) continue
+            val steps = (len / 5f).toInt().coerceAtLeast(1)
+            for (k in 0 until steps) {
+                val x = ax + (bx - ax) * (k + 0.5f) / steps; val z = az + (bz - az) * (k + 0.5f) / steps
+                partnerDistance(road, x, z, (bx - ax) / len, (bz - az) / len)?.let { found += it }
+            }
+        }
+        val gap = if (found.size < 3) 0f else found.sorted()[found.size / 2]
+        gaps[road] = gap
+        gap.takeIf { it > 0f }
+    }
+
+    /** How far (x, z) is from the other half of [road]'s divided road (heading (dx, dz)), or null. */
+    private fun partnerDistance(road: CityMap.Road, x: Float, z: Float, dx: Float, dz: Float): Float? =
+        partner(road, x, z, dx, dz)?.second
+
+    /**
+     * The other half of a divided road beside (x, z): a street running the same way (or the
+     * opposite way) within [PAIR_DISTANCE] metres, not joined to [road] there; its height there, or null.
+     */
+    private fun partnerLevel(road: CityMap.Road, x: Float, z: Float, dx: Float, dz: Float): Float? =
+        partner(road, x, z, dx, dz)?.let { base(it.first).at(x, z) }
+
+    /** The other half of [road]'s divided road beside (x, z) and how far its middle is, or null. */
+    private fun partner(road: CityMap.Road, x: Float, z: Float, dx: Float, dz: Float): Pair<CityMap.Road, Float>? {
+        if (road.kind > CityMap.ROAD_MINOR) return null
+        val cx = floor(x / CELL).toInt(); val cz = floor(z / CELL).toInt()
+        var best: CityMap.Road? = null
+        var bestD = PAIR_DISTANCE
+        for (ox in -1..1) for (oz in -1..1) {
+            val list = cells[key(cx + ox, cz + oz)] ?: continue
+            for (index in list) {
+                val other = roads[index]
+                if (other === road || other.kind > CityMap.ROAD_MINOR) continue
+                val p = other.pts
+                for (i in 0 until p.size / 2 - 1) {
+                    val ex = p[2 * i + 2] - p[2 * i]; val ez = p[2 * i + 3] - p[2 * i + 1]
+                    val el = hypot(ex, ez).takeIf { it > 1e-3f } ?: continue
+                    if (abs((ex * dx + ez * dz) / el) < PARALLEL) continue
+                    val d = CityMap.segmentDistance(x, z, p[2 * i], p[2 * i + 1], p[2 * i + 2], p[2 * i + 3])
+                    // Not a road that's joined to this one right here (a side street, a U-turn).
+                    if (d < 1f) continue
+                    if (d < bestD) { bestD = d; best = other }
+                }
+            }
+        }
+        return best?.let { it to bestD }
     }
 
     /**
@@ -60,7 +130,7 @@ class RoadLevels(
         val counts = HashMap<Long, Int>()
         for (r in roads) {
             if (r.kind == CityMap.ROAD_PIER) continue
-            val smooth = RoadProfile(laid(r), terrain)
+            val smooth = base(r)
             for (i in 0 until r.pts.size / 2) {
                 val x = r.pts[2 * i]; val z = r.pts[2 * i + 1]
                 val k = pointKey(x, z)
@@ -176,6 +246,10 @@ class RoadLevels(
         /** A road's bank: how far it reaches past the road's edge, and how steeply it rises or falls. */
         const val BANK_WIDTH = 6f
         const val BANK_SLOPE = 0.7f
+        /** Two streets this close (metres, middle to middle) running the same way are the halves of a divided road. */
+        const val PAIR_DISTANCE = 26f
+        /** How closely they must run the same way (the cosine of the angle between them). */
+        const val PARALLEL = 0.9f
         /**
          * Laying roads and squares over hills: how far the ground may bend away from a straight
          * line before a point is added (metres), how often it's checked, and the shortest piece
@@ -229,7 +303,13 @@ class RoadLevels(
  * road ([anchored]) keep the ground's height, so the roads meet exactly. Anywhere beside the road
  * takes the height of the nearest point of its middle, so it lies level from side to side.
  */
-class RoadProfile(private val pts: FloatArray, terrain: Terrain, junction: (Float, Float) -> Float? = { _, _ -> null }) {
+class RoadProfile(
+    private val pts: FloatArray,
+    terrain: Terrain,
+    junction: (Float, Float) -> Float? = { _, _ -> null },
+    /** The height of a road running alongside this one at (x, z), heading (dx, dz) (the other half of a divided road), or null. */
+    partner: (Float, Float, Float, Float) -> Float? = { _, _, _, _ -> null },
+) {
     private val heights: FloatArray
     /** Which segments pass near each [CELL]-metre square, so the nearest is found quickly. */
     private val cells = HashMap<Long, MutableList<Int>>()
@@ -255,6 +335,15 @@ class RoadProfile(private val pts: FloatArray, terrain: Terrain, junction: (Floa
                 next[i] = sum / (hi - lo + 1)
             }
             h = next
+        }
+        // The two halves of a divided road meet halfway, so they run side by side at one level and
+        // the strip between them (the palms on the Corniche) is flat, not a step.
+        for (i in 0 until n) {
+            val j = if (i + 1 < n) i + 1 else i - 1
+            if (j < 0) break
+            val dx = pts[2 * j] - pts[2 * i]; val dz = pts[2 * j + 1] - pts[2 * i + 1]
+            val l = hypot(dx, dz).takeIf { it > 1e-3f } ?: continue
+            partner(pts[2 * i], pts[2 * i + 1], dx / l, dz / l)?.let { h[i] = (h[i] + it) / 2f }
         }
         // Then eased to each junction's shared height, over [JOIN] metres either side
         // (so every road meeting there meets at the same height, without a step).
