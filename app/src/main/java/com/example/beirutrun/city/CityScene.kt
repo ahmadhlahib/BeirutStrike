@@ -116,6 +116,9 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         /** The Corniche railing: one post every this many metres. And at most this many boats on a map. */
         private const val RAIL_STEP = 3f
         private const val MAX_BOATS = 80
+        /** A divided road: the planted strip left between its halves at the least, and the narrowest a half is drawn. */
+        private const val MEDIAN = 3f
+        private const val MIN_HALF = 3.2f
         /** A sea rock bigger than this (m²) is the big Pigeon Rock, with its arch. */
         private const val ARCH_ROCK_AREA = 1500f
         /** Pieces a palm trunk is curved in, and panels along a frond. */
@@ -494,7 +497,8 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             val y = roadY(road.kind)
             // On hills, a point every few metres so the surface follows the ground between them.
             val p = laid(road)
-            val half = road.width / 2f
+            val half = drawnHalf(road)
+            val width = half * 2f
             val sidewalk = sidewalkWidth(road.kind)
             if (sidewalk > 0f) {
                 band(p, Surface.SIDEWALK, half + sidewalk, SIDEWALK_Y)
@@ -512,12 +516,22 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     // A double solid line down the middle, and dashed lanes on wide avenues.
                     line(p, 0.14f, 0.06f, paint)
                     line(p, -0.14f, 0.06f, paint)
-                    if (road.width >= 12f) {
-                        line(p, road.width / 4f, 0.07f, paint, dash = 3f, gap = 6f)
-                        line(p, -road.width / 4f, 0.07f, paint, dash = 3f, gap = 6f)
+                    if (width >= 12f) {
+                        line(p, width / 4f, 0.07f, paint, dash = 3f, gap = 6f)
+                        line(p, -width / 4f, 0.07f, paint, dash = 3f, gap = 6f)
                     }
                 }
             }
+        }
+
+        /**
+         * How wide each side of [road]'s middle it's drawn: half its width; but the two halves of a
+         * divided road are drawn narrower where they're close, so a planted strip at least [MEDIAN]
+         * wide runs between them rather than their asphalt overlapping.
+         */
+        private fun drawnHalf(road: CityMap.Road): Float {
+            val gap = map.roadLevels?.partnerGap(road) ?: return road.width / 2f
+            return minOf(road.width / 2f, (gap - MEDIAN) / 2f).coerceAtLeast(MIN_HALF)
         }
 
         /** A strip [half] wide each side of the line [p], with round joins at its bends and ends. */
@@ -617,7 +631,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 lift.road = profileOf(road)
                 val p = road.pts
                 val n = p.size / 2
-                val half = road.width / 2f
+                val half = drawnHalf(road)
                 val y = roadY(road.kind) + 0.012f
                 for (step in intArrayOf(-1, 1)) {
                     val next = stop.vertex + step
