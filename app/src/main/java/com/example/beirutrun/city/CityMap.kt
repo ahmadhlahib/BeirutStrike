@@ -203,6 +203,16 @@ class CityMap(
         const val BUILDING_CONSTRUCTION = 3
         /** A sea rock such as Pigeon Rocks at Raouche: an island extruded from the coastline. */
         const val BUILDING_ROCK = 4
+        // Landmarks, each drawn as itself (see CityScene's landmark builders).
+        const val BUILDING_GRAND_MOSQUE = 5
+        const val BUILDING_CLOCK_TOWER = 6
+        const val BUILDING_EGG = 7
+        const val BUILDING_MURR = 8
+        const val BUILDING_HOLIDAY_INN = 9
+        const val BUILDING_LIGHTHOUSE = 10
+        const val BUILDING_STATUE = 11
+        const val BUILDING_COLUMNS = 12
+        const val BUILDING_COLLEGE_HALL = 13
 
         const val ROAD_MAJOR = 0
         const val ROAD_MEDIUM = 1
@@ -224,6 +234,10 @@ class CityMap(
 
         const val TREE_LEAFY = 0
         const val TREE_PALM = 1
+        /** A stone pine (umbrella pine), the Chouf's hillsides. */
+        const val TREE_PINE = 2
+        /** An olive tree, round the village houses. */
+        const val TREE_OLIVE = 3
 
         /** Reads the file written by tools/OsmToCity.java. */
         fun load(input: InputStream): CityMap = DataInputStream(input.buffered()).use { d ->

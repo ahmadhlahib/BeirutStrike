@@ -45,6 +45,22 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   ridge 73 m above it. Roads climb the slopes evenly and lie level across, buildings stand on
   the hillside, sand and dirt tracks run between the fields, and hills block sight and bullets.
   The minimap is hill-shaded.
+- **Each map looks like its place** (landmarks found by name in the map data, on their real
+  footprints and at their real heights):
+  - *Beirut Downtown:* the Mohammad Al-Amin Mosque (blue dome, four 72 m minarets) beside
+    St George's Cathedral, the Martyrs' statue on its pedestal, the Al-Abed clock tower in
+    Nejmeh Square and the Hamidiyyeh tower by the Grand Serail, The Egg, the bare 40-storey Murr
+    Tower, the war-scarred Holiday Inn, Roman columns at the Roman Baths, sandstone with red tile
+    roofs, and the Zaitunay Bay waterfront.
+  - *Beirut Souks:* old stone with red tile roofs, the clock towers, shop signs.
+  - *Hamra:* a shop sign over nearly every shop (Arabic with French or English), AUB's
+    College Hall clock tower.
+  - *Ain El Mreisseh and Raouche:* the Corniche's blue railing along the sea wall, palms,
+    fishing boats at the piers, the Holiday Inn shell, Pigeon Rocks.
+  - *Kfarnabrakh:* stone houses with red tile roofs, terraced fields stepped up the hillsides
+    with dry-stone walls, olive groves round the houses and stone pines on the slopes.
+  - On every hilly city map, squares and promenades are level terraces, with sandstone retaining
+    walls where the ground steps.
 - **Pigeon Rocks:** the Raouche sea stacks rise about 60 m out of the sea as real rock: rough
   limestone cliffs worn into vertical grooves, a wave-cut notch at the waterline, scrub on top,
   and the big rock's sea arch facing the Corniche, with the sea showing through (`city/SeaStack.kt`).

@@ -77,7 +77,7 @@ class RoadLevels(private val roads: List<CityMap.Road>, private val terrain: Ter
          * line before a point is added (metres), how often it's checked, and the shortest piece
          * worth splitting.
          */
-        const val GROUND_TOLERANCE = 0.08f
+        const val GROUND_TOLERANCE = 0.1f
         private const val BEND_CHECK = 1f
         const val MIN_GROUND_STEP = 2f
 

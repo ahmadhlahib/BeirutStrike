@@ -52,12 +52,16 @@ public class OsmToCity {
 
     // Building kinds (must match CityMap.kt).
     static final int B_GENERIC = 0, B_MOSQUE = 1, B_CHURCH = 2, B_CONSTRUCTION = 3, B_ROCK = 4;
+    // Landmarks, each drawn as itself (see the app's CityScene and Landmarks): found by name in the
+    // map data, or added where the real one stands (see addLandmarks).
+    static final int B_GRAND_MOSQUE = 5, B_CLOCK_TOWER = 6, B_EGG = 7, B_MURR = 8, B_HOLIDAY_INN = 9,
+            B_LIGHTHOUSE = 10, B_STATUE = 11, B_COLUMNS = 12, B_COLLEGE_HALL = 13;
     // Road kinds.
     static final int R_MAJOR = 0, R_MEDIUM = 1, R_MINOR = 2, R_PEDESTRIAN = 3, R_PATH = 4, R_PIER = 5, R_TRACK = 6;
     // Area kinds.
     static final int A_PARK = 0, A_PITCH = 1, A_PARKING = 2, A_WATER = 3, A_PLAZA = 4, A_SAND = 5, A_PIER = 6, A_CONSTRUCTION = 7;
     // Tree kinds.
-    static final int T_LEAFY = 0, T_PALM = 1;
+    static final int T_LEAFY = 0, T_PALM = 1, T_PINE = 2, T_OLIVE = 3;
 
     record Building(float height, float minHeight, int kind, float[] pts, String name) {}
     record Road(int kind, float width, float[] pts) {}
@@ -87,6 +91,7 @@ public class OsmToCity {
         readBuildings(load(new File(data, SOURCE + "_buildings.json")));
         readRoads(load(new File(data, SOURCE + "_roads.json")));
         readAreas(load(new File(data, SOURCE + "_areas.json")));
+        addLandmarks();
         keepInsideMap();
         // Palms line Beirut's avenues; a mountain village gets its pines and oaks on open ground instead.
         if (TERRAIN && !URBAN) addCountryTrees(); else addStreetPalms();
@@ -200,9 +205,20 @@ public class OsmToCity {
         else if ("church".equals(b) || "cathedral".equals(b) || "chapel".equals(b) || "christian".equals(religion)
                 || lname.contains("church") || lname.contains("cathedral") || lname.contains("église") || lname.contains("eglise")) kind = B_CHURCH;
         else if ("construction".equals(b)) kind = B_CONSTRUCTION;
+        // Landmarks by name (any language the map data gives), with their real heights.
+        String names = (lname + " " + String.valueOf(tag(e, "name:en")) + " " + String.valueOf(tag(e, "name:fr"))).toLowerCase(Locale.ROOT);
+        float landmarkHeight = Float.NaN;
+        if (names.contains("al-amin") || names.contains("al amin")) { kind = B_GRAND_MOSQUE; landmarkHeight = 30f; }
+        else if (names.contains("horloge") || names.contains("clock tower") || names.contains("al-abed")) { kind = B_CLOCK_TOWER; landmarkHeight = 22f; }
+        else if (names.contains("the egg")) { kind = B_EGG; landmarkHeight = 11f; }
+        else if (names.contains("murr tower")) { kind = B_MURR; landmarkHeight = 140f; }
+        else if (names.contains("holiday inn")) { kind = B_HOLIDAY_INN; landmarkHeight = 82f; }
+        else if (names.contains("lighthouse") || "lighthouse".equals(tag(e, "man_made"))) { kind = B_LIGHTHOUSE; landmarkHeight = 25f; }
+        else if (names.contains("college hall")) { kind = B_COLLEGE_HALL; landmarkHeight = 16f; }
 
         long id = e.get("id").getAsLong();
         float height = number(tag(e, "height"));
+        if (!Float.isNaN(landmarkHeight)) height = landmarkHeight;
         float levels = number(tag(e, "building:levels"));
         if (Float.isNaN(height) && !Float.isNaN(levels)) height = levels * 3.3f + 1.5f;
         if (Float.isNaN(height)) height = estimateHeight(area, kind, id);
@@ -622,6 +638,36 @@ public class OsmToCity {
     }
 
     /**
+     * Landmarks that are points in the map data rather than buildings, added where the real ones
+     * stand (tools/data/beirut_landmarks.json, an Overpass download): the Martyrs' statue on its
+     * pedestal in Martyrs' Square, and the row of Roman columns at the Roman Baths.
+     */
+    static void addLandmarks() throws IOException {
+        File f = new File("tools/data/beirut_landmarks.json");
+        if (!f.exists()) return;
+        float minX = x(WEST), maxX = x(EAST), minZ = z(NORTH), maxZ = z(SOUTH);
+        for (JsonElement el : load(f)) {
+            JsonObject e = el.getAsJsonObject();
+            if (!e.has("lat")) continue;
+            String name = String.valueOf(tag(e, "name:en") != null ? tag(e, "name:en") : tag(e, "name"));
+            float px = x(e.get("lon").getAsDouble()), pz = z(e.get("lat").getAsDouble());
+            if (px < minX + 5 || px > maxX - 5 || pz < minZ + 5 || pz > maxZ - 5) continue;
+            if (name.equals("Martyr's Monument")) {
+                // The 4 m bronze group on its stepped stone pedestal (about 7 m square).
+                buildings.add(new Building(7.5f, 0f, B_STATUE, square(px, pz, 3.5f, 3.5f), name));
+            } else if (name.equals("Roman Baths") && "attraction".equals(tag(e, "tourism"))) {
+                // A row of standing columns, east to west.
+                buildings.add(new Building(8f, 0f, B_COLUMNS, square(px, pz, 9f, 1.4f), name));
+            }
+        }
+    }
+
+    /** A rectangle ring (counter-clockwise as drawn north-up) [hx] × [hz] each side of (cx, cz). */
+    static float[] square(float cx, float cz, float hx, float hz) {
+        return ring(new float[]{cx - hx, cz - hz, cx + hx, cz - hz, cx + hx, cz + hz, cx - hx, cz + hz, cx - hx, cz - hz});
+    }
+
+    /**
      * A mountain village's trees: OpenStreetMap rarely maps them, so pines and oaks are scattered
      * over open ground (not on roads, in buildings or right next to them), thicker away from houses.
      */
@@ -635,7 +681,11 @@ public class OsmToCity {
             if (inAnyBuilding(px, pz, 3f) || onAnyRoad(px, pz, 2.5f)) continue;
             // Gardens near houses are sparser than the hillside.
             if (inAnyBuilding(px, pz, 15f) && rnd.nextFloat() < 0.6f) continue;
-            trees.add(new Tree(T_LEAFY, px, pz, 0.8f + rnd.nextFloat() * 0.7f));
+            // Olive groves round the houses, stone pines on the open hillside, the odd oak.
+            boolean nearHouses = inAnyBuilding(px, pz, 60f);
+            float pick = rnd.nextFloat();
+            int kind = nearHouses ? (pick < 0.55f ? T_OLIVE : pick < 0.8f ? T_PINE : T_LEAFY) : (pick < 0.7f ? T_PINE : T_LEAFY);
+            trees.add(new Tree(kind, px, pz, 0.8f + rnd.nextFloat() * 0.7f));
         }
     }
 
@@ -685,6 +735,8 @@ public class OsmToCity {
             // In a city, squares, promenades, car parks and pitches are built as near-flat terraces
             // on the hillside (with a retaining wall where the ground steps), not tilted ramps.
             if (URBAN) { terraceAreas(); levelRoads(); easeRoads(); }
+            // A mountain village's farmland is stepped into terraces with dry-stone walls.
+            if (!URBAN) terraceFields();
             // The sea back at sea level, except under a road (the Corniche runs right along the water's edge).
             for (int i = 0; i < h.length; i++) if (water[i] && !onRoad[i]) h[i] = 0f;
             // By the sea, heights are from sea level (the sea is at 0 in the game); inland, from the start.
@@ -781,6 +833,38 @@ public class OsmToCity {
                 if (w > 0f) h[i] += (target[i] - h[i]) * smooth(w);
                 onRoad[i] = nearest[i] <= band[i];
             }
+        }
+
+        /** How high each farm terrace steps up the hillside, metres; and how far from the houses the fields reach. */
+        static final float FIELD_STEP = 2.2f;
+        static final float FIELD_REACH = 260f;
+
+        /**
+         * Farmland round a mountain village, stepped into terraces as the Chouf's hillsides are:
+         * flat treads with a steep riser (drawn as a dry-stone wall in the game) every
+         * [FIELD_STEP] metres up. Only on open, moderate slopes near the houses; roads, houses
+         * and steep wild ground are left as they are.
+         */
+        static void terraceFields() {
+            float[] out = h.clone();
+            for (int r = 1; r < rows - 1; r++) for (int c = 1; c < cols - 1; c++) {
+                int i = r * cols + c;
+                if (onRoad[i]) continue;
+                float x = x0 + c * CELL, z = z0 + r * CELL;
+                if (inAnyBuilding(x, z, 6f) || !inAnyBuilding(x, z, FIELD_REACH)) continue;
+                float sx = (h[i + 1] - h[i - 1]) / (2 * CELL), sz = (h[i + cols] - h[i - cols]) / (2 * CELL);
+                float slope = (float) Math.hypot(sx, sz);
+                if (slope < 0.08f || slope > 0.6f) continue;
+                float base = (float) Math.floor(h[i] / FIELD_STEP) * FIELD_STEP;
+                float frac = (h[i] - base) / FIELD_STEP;
+                // Flat for most of each step, then up the riser.
+                float riser = Math.max(0f, (frac - 0.7f) / 0.3f);
+                float stepped = base + FIELD_STEP * smooth(riser);
+                // Fade in from the edges of the fields (near the roads, the wild slopes).
+                float w = Math.min(1f, Math.min((slope - 0.08f) / 0.05f, (0.6f - slope) / 0.08f));
+                out[i] = h[i] + (stepped - h[i]) * Math.max(0f, w);
+            }
+            h = out;
         }
 
         /** How much of the hill's slope a city terrace keeps (0: dead flat, 1: as the hill). */

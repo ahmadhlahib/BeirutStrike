@@ -2351,7 +2351,8 @@ class CityRenderer(
     private fun buildMurals() {
         if (streetPhotos.isEmpty()) return
         val nearest = city.buildings
-            .filter { it.blocksWalking && it.height > 6f }
+            // Ordinary buildings only: not a mosque, church or landmark.
+            .filter { it.blocksWalking && it.height > 6f && it.kind == CityMap.BUILDING_GENERIC }
             .sortedBy { hypot(it.centerX - city.spawnX, it.centerZ - city.spawnZ) }
         streetPhotos.take(MAX_MURALS).forEachIndexed { i, file ->
             val b = nearest.getOrNull(i) ?: return
