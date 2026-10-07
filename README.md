@@ -45,6 +45,9 @@ shots and scores sync live between phones, and teammates can talk over voice cha
   ridge 73 m above it. Roads climb the slopes evenly and lie level across, buildings stand on
   the hillside, sand and dirt tracks run between the fields, and hills block sight and bullets.
   The minimap is hill-shaded.
+- **Pigeon Rocks:** the Raouche sea stacks rise about 60 m out of the sea as real rock: rough
+  limestone cliffs worn into vertical grooves, a wave-cut notch at the waterline, scrub on top,
+  and the big rock's sea arch facing the Corniche, with the sea showing through (`city/SeaStack.kt`).
 - **A realistic city:** textured facades (sandstone, plaster, concrete, glass) with shop fronts,
   asphalt streets with sidewalks, lane markings, zebra crossings and street lamps, palm and leafy
   trees, warm sunlight and sky reflections on glass and sea.

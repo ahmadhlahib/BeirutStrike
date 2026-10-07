@@ -434,7 +434,8 @@ public class OsmToCity {
                 boolean inside = true;
                 for (int i = 0; i < r.length; i += 2) inside &= r[i] > minX && r[i] < maxX && r[i + 1] > minZ && r[i + 1] < maxZ;
                 if (inside && area > 20) {
-                    float h = (float) Math.min(55.0, 6.0 + Math.sqrt(area) * 0.9);
+                    // Pigeon Rocks stand about 60 m high; a small islet is just a low rock.
+                    float h = (float) (area < 300 ? 2.0 + Math.sqrt(area) * 0.7 : Math.min(60.0, 6.0 + Math.sqrt(area) * 1.25));
                     buildings.add(new Building(h, 0f, B_ROCK, r, "rock"));
                 }
                 continue;

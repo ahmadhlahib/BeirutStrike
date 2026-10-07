@@ -45,7 +45,9 @@ enum class Surface(
     CORNICE(0xFFE4DACA.toInt()),
     ROOF(0xFFBDB2A0.toInt(), CityTextures.ROOF), ROOF_TOWER(0xFF5E6870.toInt(), CityTextures.ROOF),
     DOME(0xFF2F6DB5.toInt()), GOLD(0xFFD4AF37.toInt()), MINARET(0xFFE8E0CC.toInt()), TERRACOTTA(0xFFA4553A.toInt()),
-    ROCK(0xFF9C8A74.toInt()),
+    // Sea stacks (Pigeon Rocks, see SeaStack): sunlit limestone, dark wet rock at the waterline, scrub on top.
+    ROCK(0xFFD9C6A2.toInt(), CityTextures.SAND), ROCK_WET(0xFF7D705E.toInt(), CityTextures.SAND),
+    SCRUB(0xFF5E7340.toInt(), CityTextures.GRASS),
     TRUNK(0xFF8E6E52.toInt(), CityTextures.BARK), PALM_TRUNK(0xFFAA9474.toInt(), CityTextures.PALM_BARK),
     LEAVES(0xFF74B654.toInt(), CityTextures.LEAF), LEAVES_DARK(0xFF559A4A.toInt(), CityTextures.LEAF),
     LEAVES_OLIVE(0xFF98AE58.toInt(), CityTextures.LEAF),
@@ -86,6 +88,8 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
          */
         private const val GROUND_TOLERANCE = 0.1f
         private const val MIN_GROUND_STEP = 2f
+        /** A sea rock bigger than this (m²) is the big Pigeon Rock, with its arch. */
+        private const val ARCH_ROCK_AREA = 1500f
         /** Pieces a palm trunk is curved in, and panels along a frond. */
         private const val PALM_SEGMENTS = 3
         private const val FROND_PANELS = 3
@@ -565,9 +569,33 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             }
         }
 
-        // ---- Buildings -----------------------------------------------------------------------
+        /**
+         * A rock in the sea, shaped like a real sea stack (see [SeaStack]); the biggest, the big
+         * Pigeon Rock, has its arch. Textured in world space: across on the cliffs, flat on top.
+         */
+        private fun addSeaStack(b: CityMap.Building, index: Int) {
+            val stack = SeaStack(b.pts, b.height, arch = b.area > ARCH_ROCK_AREA, viewX = map.spawnX, viewZ = map.spawnZ, seed = index)
+            for (t in stack.triangles()) {
+                val surface = when (t.part) {
+                    SeaStack.Part.CLIFF -> Surface.ROCK
+                    SeaStack.Part.WET -> Surface.ROCK_WET
+                    SeaStack.Part.SCRUB -> Surface.SCRUB
+                }
+                val o = out(t.p[0], t.p[2], surface)
+                val s = span(surface).takeIf { it > 0f } ?: 4f
+                for (k in 0 until 3) {
+                    val x = t.p[3 * k]; val y = t.p[3 * k + 1]; val z = t.p[3 * k + 2]
+                    val nx = t.n[3 * k]; val ny = t.n[3 * k + 1]; val nz = t.n[3 * k + 2]
+                    // Steep faces take the texture up the cliff, gentle ones across the top.
+                    val u = if (abs(ny) > 0.7f) (x - o.ox) / s else ((x - o.ox) * abs(nz) + (z - o.oz) * abs(nx)) / s
+                    val v = if (abs(ny) > 0.7f) (z - o.oz) / s else y / s
+                    o.vertex(x, y, z, nx, ny, nz, u, v)
+                }
+            }
+        }
 
         private fun addBuilding(b: CityMap.Building, index: Int) {
+            if (b.kind == CityMap.BUILDING_ROCK) return addSeaStack(b, index)
             val rnd = Random(index * 7919L + 17)
             val wall = when {
                 b.kind == CityMap.BUILDING_MOSQUE || b.kind == CityMap.BUILDING_CHURCH -> Surface.WALL_SANDSTONE
