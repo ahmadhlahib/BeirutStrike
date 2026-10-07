@@ -55,6 +55,20 @@ enum class Surface(
     // Sea stacks (Pigeon Rocks, see SeaStack): sunlit limestone, dark wet rock at the waterline, scrub on top.
     ROCK(0xFFD9C6A2.toInt(), CityTextures.SAND), ROCK_WET(0xFF7D705E.toInt(), CityTextures.SAND),
     SCRUB(0xFF5E7340.toInt(), CityTextures.GRASS),
+    // Local identity (see Landmarks and the builders below): retaining walls, red tile roofs,
+    // shop signs, the Corniche's blue railing, fishing boats, and the landmarks' materials.
+    RETAINING_WALL(0xFFFFFFFF.toInt(), CityTextures.STONE_WALL),
+    ROOF_TILES(0xFFFFFFFF.toInt(), CityTextures.TILES),
+    SIGN(0xFFFFFFFF.toInt(), CityTextures.SIGNS),
+    RAILING(0xFF3D8FC7.toInt(), shine = 0.2f),
+    BOAT_HULL(0xFFF1F0EA.toInt()), BOAT_BLUE(0xFF1F5FA8.toInt()), BOAT_RED(0xFFB03A2E.toInt()), BOAT_WOOD(0xFF8A6A48.toInt()),
+    BRONZE(0xFF6B5636.toInt(), shine = 0.25f),
+    STRIPE_BLACK(0xFF262626.toInt()), STRIPE_WHITE(0xFFF2F1EC.toInt()),
+    BARE_CONCRETE(0xFFA8A49A.toInt(), CityTextures.CONCRETE),
+    RAW_CONCRETE(0xFFB0ADA5.toInt()), SHELL_DARK(0xFF2B2926.toInt()),
+    MARBLE(0xFFDCD5C6.toInt()), CLOCK_FACE(0xFFF4F0E2.toInt(), lit = false), CLOCK_HANDS(0xFF1E1E1E.toInt()),
+    DOME_LIGHT(0xFF3F86CC.toInt(), shine = 0.35f),
+    PINE(0xFF2E4F2E.toInt(), CityTextures.LEAF),
     TRUNK(0xFF8E6E52.toInt(), CityTextures.BARK), PALM_TRUNK(0xFFAA9474.toInt(), CityTextures.PALM_BARK),
     LEAVES(0xFF74B654.toInt(), CityTextures.LEAF), LEAVES_DARK(0xFF559A4A.toInt(), CityTextures.LEAF),
     LEAVES_OLIVE(0xFF98AE58.toInt(), CityTextures.LEAF),
@@ -91,6 +105,8 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         private const val LAMP_HEIGHT = 7.5f
         /** How far the hillside under a road is drawn below it (out of sight), metres. */
         private const val ROAD_SINK = 0.3f
+        /** City ground steeper than this (rise over run) is drawn as a stone retaining wall. */
+        private const val CITY_WALL_SLOPE = 0.45f
         /** A sea rock bigger than this (m²) is the big Pigeon Rock, with its arch. */
         private const val ARCH_ROCK_AREA = 1500f
         /** Pieces a palm trunk is curved in, and panels along a frond. */
@@ -259,13 +275,19 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     // How steep this cell is (rise over run), for grass or rock.
                     val steep = maxOf(abs(h10 - h00), abs(h01 - h00), abs(h11 - h10), abs(h11 - h01)) / c
                     // A village's hills are grass and rock; a city's bare ground is pale stone, rock only where steep.
+                    // In the city, where the ground steps steeply it's a stone retaining wall, as Beirut
+                    // builds its hillsides; in the village, bare rock.
                     val surface = when {
+                        look != CityLook.VILLAGE && steep > CITY_WALL_SLOPE -> Surface.RETAINING_WALL
                         steep > 0.75f -> Surface.HILL_ROCK
                         look == CityLook.VILLAGE -> Surface.HILLSIDE
                         else -> Surface.CITY_GROUND
                     }
                     val o = out(x0 + c / 2f, z0 + c / 2f, surface)
                     val s = span(surface)
+                    // A wall's stones stand upright: along the wall one way, up it the other.
+                    val wall = surface == Surface.RETAINING_WALL
+                    val alongZ = abs((h10 + h11) - (h00 + h01)) > abs((h01 + h11) - (h00 + h10))
                     fun v(cc: Int, rr: Int) {
                         val x = t.x0 + cc * c
                         val z = t.z0 + rr * c
@@ -274,7 +296,9 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                         val nz = t.at(cc, rr - 1) - t.at(cc, rr + 1)
                         val ny = 2f * c
                         val len = sqrt(nx * nx + ny * ny + nz * nz)
-                        o.vertex(x, height(cc, rr), z, nx / len, ny / len, nz / len, (x - o.ox) / s, (z - o.oz) / s)
+                        val y = height(cc, rr)
+                        if (wall) o.vertex(x, y, z, nx / len, ny / len, nz / len, (if (alongZ) z - o.oz else x - o.ox) / s, -y / s)
+                        else o.vertex(x, y, z, nx / len, ny / len, nz / len, (x - o.ox) / s, (z - o.oz) / s)
                     }
                     // Two triangles, wound to face up.
                     v(k, r); v(k, r + 1); v(k + 1, r)

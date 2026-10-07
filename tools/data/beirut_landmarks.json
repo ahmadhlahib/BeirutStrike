@@ -1,0 +1,1296 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-10-07T08:16:16Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 291364668,
+  "lat": 33.9000392,
+  "lon": 35.4698382,
+  "tags": {
+    "man_made": "lighthouse",
+    "name": "منارة بيروت",
+    "name:ar": "منارة بيروت",
+    "name:de": "See Leuchturm von Beirut",
+    "name:en": "Lighthouse of Beirut",
+    "name:fr": "Phare de Beyrouth",
+    "seamark:light:character": "Fl",
+    "seamark:light:colour": "white",
+    "seamark:light:group": "2",
+    "seamark:light:height": "52",
+    "seamark:light:period": "10",
+    "seamark:light:range": "22",
+    "seamark:light:reference": "E 5934",
+    "seamark:light:sequence": "0.1+(2.4)+0.1+(7.4)",
+    "seamark:name": "Ra's Bayrut",
+    "seamark:type": "light_major",
+    "wikidata": "Q55399424"
+  }
+},
+{
+  "type": "node",
+  "id": 385894313,
+  "lat": 33.8958095,
+  "lon": 35.5020792,
+  "tags": {
+    "artwork_type": "statue",
+    "historic": "memorial",
+    "name": "عمر الأنسي",
+    "name:ar": "عمر الأنسي",
+    "name:en": "Omar Onsi",
+    "name:fr": "Omar Onsi"
+  }
+},
+{
+  "type": "node",
+  "id": 386082226,
+  "lat": 33.9015029,
+  "lon": 35.4945897,
+  "tags": {
+    "historic": "memorial",
+    "name": "اغتيال رفيق الحريري",
+    "name:ar": "اغتيال رفيق الحريري",
+    "name:en": "Rafik Hariri Memorial",
+    "name:fr": "Mémorial de Rafic Hariri",
+    "wikidata": "Q757965",
+    "wikipedia": "ar:اغتيال رفيق الحريري"
+  }
+},
+{
+  "type": "node",
+  "id": 392325527,
+  "lat": 33.8839361,
+  "lon": 35.4958577,
+  "tags": {
+    "amenity": "place_of_worship",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 392326017,
+  "lat": 33.8856601,
+  "lon": 35.4950009,
+  "tags": {
+    "amenity": "place_of_worship",
+    "religion": "muslim"
+  }
+},
+{
+  "type": "node",
+  "id": 392326018,
+  "lat": 33.8861725,
+  "lon": 35.4981095,
+  "tags": {
+    "addr:city": "بيروت",
+    "amenity": "place_of_worship",
+    "denomination": "sunni",
+    "name": "مسجد سليم سلام",
+    "name:ar": "مسجد سليم سلام",
+    "religion": "muslim"
+  }
+},
+{
+  "type": "node",
+  "id": 392813906,
+  "lat": 33.8845738,
+  "lon": 35.5028557,
+  "tags": {
+    "amenity": "place_of_worship",
+    "religion": "muslim"
+  }
+},
+{
+  "type": "node",
+  "id": 449677251,
+  "lat": 33.8967927,
+  "lon": 35.5049260,
+  "tags": {
+    "historic": "monument",
+    "name": "أسد سان ماركو",
+    "name:ar": "أسد سان ماركو",
+    "name:de": "Lion of San Marco",
+    "name:en": "Lion of San Marco",
+    "name:fr": "Lion de San Marco"
+  }
+},
+{
+  "type": "node",
+  "id": 2112089714,
+  "lat": 33.8963807,
+  "lon": 35.5071533,
+  "tags": {
+    "artwork_type": "sculpture",
+    "name": "تمثال الشهداء",
+    "name:ar": "تمثال الشهداء",
+    "name:en": "Martyr's Monument",
+    "name:fr": "Statue des Martyrs",
+    "tourism": "artwork",
+    "wikidata": "Q22948464",
+    "wikimedia_commons": "Category:Martyrs’ Monument, Beirut",
+    "wikipedia": "en:Martyrs’ Monument, Beirut"
+  }
+},
+{
+  "type": "node",
+  "id": 3367899469,
+  "lat": 33.8944388,
+  "lon": 35.4914847,
+  "tags": {
+    "amenity": "place_of_worship",
+    "name": "Adler",
+    "name:fr": "Adler"
+  }
+},
+{
+  "type": "node",
+  "id": 3670401474,
+  "lat": 33.8865659,
+  "lon": 35.5064411,
+  "tags": {
+    "historic": "monument",
+    "name": "تمثال بشارة الخوري",
+    "name:en": "Statue Bechara El-Khoury",
+    "name:fr": "Statue Béchara El-Khoury"
+  }
+},
+{
+  "type": "node",
+  "id": 4107259789,
+  "lat": 33.8978471,
+  "lon": 35.5079721,
+  "tags": {
+    "name": "Quartier Scout",
+    "name:en": "Quartier Scout",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 4502408497,
+  "lat": 33.9012522,
+  "lon": 35.5005449,
+  "tags": {
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 4758002228,
+  "lat": 33.8977954,
+  "lon": 35.5066937,
+  "tags": {
+    "historic": "memorial",
+    "name": "Samir Kassir Statue",
+    "name:de": "Statue von Samir Kassir",
+    "name:en": "Samir Kassir Statue",
+    "name:fr": "Statue de Samir Kassir"
+  }
+},
+{
+  "type": "node",
+  "id": 4759264473,
+  "lat": 33.8938778,
+  "lon": 35.5100465,
+  "tags": {
+    "access": "private",
+    "historic": "archaeological_site",
+    "historic:civilization": "ancient_roman",
+    "name": "Bains Romains",
+    "name:en": "Roman Baths",
+    "name:fr": "Bains Romains"
+  }
+},
+{
+  "type": "node",
+  "id": 4801274808,
+  "lat": 33.8972054,
+  "lon": 35.4999211,
+  "tags": {
+    "historic": "archaeological_site",
+    "historic:civilization": "ancient_roman",
+    "name": "مضمار سباق الخيل الروماني",
+    "name:ar": "مضمار سباق الخيل الروماني",
+    "name:de": "Hippodrom von Berytus",
+    "name:en": "Hippodrome of Berytus",
+    "name:fr": "Hippodrome de Béryte",
+    "wikidata": "Q28220436",
+    "wikipedia": "ar:مضمار سباق الخيل الروماني في بيروت"
+  }
+},
+{
+  "type": "node",
+  "id": 4815020860,
+  "lat": 33.8952402,
+  "lon": 35.5010740,
+  "tags": {
+    "artwork_type": "statue",
+    "name": "رفيق الحريري",
+    "name:ar": "رفيق الحريري",
+    "name:en": "Rafiq Hariri",
+    "name:fr": "Rafiq Hariri",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 4815020861,
+  "lat": 33.8950806,
+  "lon": 35.5029396,
+  "tags": {
+    "artwork_type": "statue",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 5028538622,
+  "lat": 33.8960406,
+  "lon": 35.4783285,
+  "tags": {
+    "artwork_type": "mural",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 5047965024,
+  "lat": 33.8994744,
+  "lon": 35.5057969,
+  "tags": {
+    "historic": "memorial",
+    "name": "بناية البنك الدولي بيروت",
+    "name:ar": "بناية البنك الدولي بيروت",
+    "name:en": "Word bank baerut belding",
+    "name:fr": "Bâtiment de la Banque Mondiale de Beyrouth"
+  }
+},
+{
+  "type": "node",
+  "id": 5247437824,
+  "lat": 33.9010303,
+  "lon": 35.4899250,
+  "tags": {
+    "artwork_type": "statue",
+    "name": "تمثال جمال عبد الناصر",
+    "name:ar": "تمثال جمال عبد الناصر",
+    "name:fr": "Statue de Gamal Abdel Nasser",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 5559922621,
+  "lat": 33.8900053,
+  "lon": 35.5112285,
+  "tags": {
+    "name": "Immeuble WARDE",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 5659857421,
+  "lat": 33.8989286,
+  "lon": 35.4959891,
+  "tags": {
+    "name": "بولا",
+    "name:ar": "بولا",
+    "name:en": "Paula",
+    "name:fr": "Paula",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 5923332585,
+  "lat": 33.8992090,
+  "lon": 35.5018872,
+  "tags": {
+    "name": "Groupe Aman",
+    "name:fr": "Groupe Aman",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 6164446685,
+  "lat": 33.8892327,
+  "lon": 35.5067089,
+  "tags": {
+    "historic": "memorial",
+    "name": "Rue Damas (ligne verte)",
+    "name:fr": "Rue Damas (ligne verte)"
+  }
+},
+{
+  "type": "node",
+  "id": 6229018085,
+  "lat": 33.9001636,
+  "lon": 35.4868499,
+  "tags": {
+    "historic": "ruins",
+    "name": "قنطرة عين المريسة",
+    "name:ar": "قنطرة عين المريسة"
+  }
+},
+{
+  "type": "node",
+  "id": 6274993184,
+  "lat": 33.9010251,
+  "lon": 35.4908759,
+  "tags": {
+    "historic": "memorial",
+    "memorial": "statue",
+    "name": "تمثال جمال عبد الناصر",
+    "name:ar": "تمثال جمال عبد الناصر",
+    "name:fr": "Statue de Gamal Abdel Nasser"
+  }
+},
+{
+  "type": "node",
+  "id": 6353779308,
+  "lat": 33.8965749,
+  "lon": 35.4921652,
+  "tags": {
+    "amenity": "place_of_worship",
+    "name": "كنيسة الأرز",
+    "name:ar": "كنيسة الأرز",
+    "name:fr": "Église de Cèdre",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 6844054599,
+  "lat": 33.8893598,
+  "lon": 35.4719012,
+  "tags": {
+    "addr:city": "Beyrouth",
+    "addr:city:ar": "بيروت",
+    "addr:city:fr": "Beyrouth",
+    "addr:street": "Corniche",
+    "amenity": "place_of_worship",
+    "name": "Werner Hänsel Memorial",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 7008056488,
+  "lat": 33.8930301,
+  "lon": 35.4749998,
+  "tags": {
+    "name": "قصر الداعوق",
+    "name:en": "Daouk Villa",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 7166852253,
+  "lat": 33.8954093,
+  "lon": 35.5068933,
+  "tags": {
+    "artwork_type": "sculpture",
+    "ele": "6",
+    "name": "قبضة الثورة",
+    "name:en": "Revolution Fist",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 7444739285,
+  "lat": 33.8986012,
+  "lon": 35.5042859,
+  "tags": {
+    "addr:city": "Beyrouth",
+    "addr:city:fr": "Beyrouth",
+    "addr:floor": "1",
+    "addr:street": "Rue Weygand",
+    "addr:street:fr": "Rue Weygand",
+    "name": "Souks de Beyrouth",
+    "name:ar": "أسواق بيروت",
+    "name:arz": "أسواق بيروت",
+    "name:en": "Beirut Souks",
+    "name:fa": "بازار بیروت",
+    "name:fr": "Souks de Beyrouth",
+    "name:hyw": "Պէյրութ Սուքս",
+    "tourism": "attraction",
+    "wikidata": "Q3491599",
+    "wikipedia": "fr:Souks de Beyrouth"
+  }
+},
+{
+  "type": "node",
+  "id": 7592586158,
+  "lat": 33.8943656,
+  "lon": 35.4817284,
+  "tags": {
+    "addr:city": "بيروت",
+    "addr:city:ar": "بيروت",
+    "amenity": "place_of_worship",
+    "denomination": "evangelical",
+    "name": "كنيسة الله",
+    "name:ar": "كنيسة الله",
+    "name:en": "Church of God",
+    "name:fr": "Église de Dieu",
+    "religion": "christian"
+  }
+},
+{
+  "type": "node",
+  "id": 7592586159,
+  "lat": 33.8913665,
+  "lon": 35.4770624,
+  "tags": {
+    "amenity": "place_of_worship",
+    "denomination": "protestant",
+    "name": "Temple Protestant Francais",
+    "religion": "christian",
+    "service_times": "Dimanche"
+  }
+},
+{
+  "type": "node",
+  "id": 7820214174,
+  "lat": 33.8850708,
+  "lon": 35.4998070,
+  "tags": {
+    "addr:city": "بيروت",
+    "amenity": "place_of_worship",
+    "denomination": "sunni",
+    "name": "مسجد برج أبي حيدر",
+    "name:ar": "مسجد برج أبي حيدر",
+    "religion": "muslim"
+  }
+},
+{
+  "type": "node",
+  "id": 8709325317,
+  "lat": 33.8961060,
+  "lon": 35.5090496,
+  "tags": {
+    "name": "نصب بيروت التذكاري للانفجار",
+    "name:en": "Beirut Blast Memorial-#theymatter",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 9213700295,
+  "lat": 33.8988938,
+  "lon": 35.4786578,
+  "tags": {
+    "historic": "city_gate"
+  }
+},
+{
+  "type": "node",
+  "id": 11195455637,
+  "lat": 33.8990664,
+  "lon": 35.4883075,
+  "tags": {
+    "name:en": "Maison Mortalis",
+    "tourism": "attraction"
+  }
+},
+{
+  "type": "node",
+  "id": 12554000420,
+  "lat": 33.8927324,
+  "lon": 35.5111349,
+  "tags": {
+    "artwork_type": "sculpture",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 12554607527,
+  "lat": 33.8994090,
+  "lon": 35.4814080,
+  "tags": {
+    "artwork_type": "bust",
+    "name": "John Wortabet. M.D.",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 12699753633,
+  "lat": 33.8970169,
+  "lon": 35.5066599,
+  "tags": {
+    "addr:city": "بيروت",
+    "historic": "yes",
+    "name": "شارع فوش",
+    "name:ar": "شارع فوش",
+    "name:en": "Foch Street",
+    "name:fr": "Rue Foch",
+    "tourism": "attraction",
+    "wikidata": "Q22948544",
+    "wikipedia": "ar:شارع فوش"
+  }
+},
+{
+  "type": "node",
+  "id": 12700355415,
+  "lat": 33.8986295,
+  "lon": 35.5090312,
+  "tags": {
+    "addr:city": "Beirut",
+    "historic": "yes",
+    "name": "تل قديم: بوابة الكنعانيين",
+    "name:ar": "تل قديم: بوابة الكنعانيين",
+    "name:en": "Ancient Tell: Canaanite Gate",
+    "name:fr": "Tell antique : Porte cananéenne",
+    "tourism": "attraction",
+    "wikidata": "Q22948812"
+  }
+},
+{
+  "type": "node",
+  "id": 12700444851,
+  "lat": 33.8967302,
+  "lon": 35.5025342,
+  "tags": {
+    "addr:city": "Beirut",
+    "historic": "yes",
+    "name": "Cisterns of the Roman Baths",
+    "name:en": "Cisterns of the Roman Baths",
+    "tourism": "attraction"
+  }
+},
+{
+  "type": "node",
+  "id": 12701493504,
+  "lat": 33.8969617,
+  "lon": 35.5026168,
+  "tags": {
+    "archaeological_site": "baths",
+    "historic": "archaeological_site",
+    "name": "حمامات الرومان",
+    "name:ar": "حمامات الرومان",
+    "name:en": "Roman Baths",
+    "name:fr": "Thermes romains",
+    "tourism": "attraction",
+    "website": "http://www.beirutheritagetrail.com"
+  }
+},
+{
+  "type": "node",
+  "id": 12703124269,
+  "lat": 33.8995280,
+  "lon": 35.5070438,
+  "tags": {
+    "addr:city": "بيروت",
+    "historic": "castle",
+    "name": "قلعة بيروت البحرية",
+    "name:ar": "قلعة بيروت البحرية",
+    "name:en": "Ancient Tell: Beirut Castle",
+    "tourism": "attraction",
+    "wikidata": "Q64729570",
+    "wikipedia": "ar:قلعة بيروت البحرية"
+  }
+},
+{
+  "type": "node",
+  "id": 12703211802,
+  "lat": 33.8970110,
+  "lon": 35.5069016,
+  "tags": {
+    "addr:city": "Beirut",
+    "historic": "yes",
+    "name": "Cinema Opera and Ezzeddine Building",
+    "name:en": "Cinema Opera and Ezzeddine Building",
+    "tourism": "attraction",
+    "wikidata": "Q22948683"
+  }
+},
+{
+  "type": "node",
+  "id": 12703384030,
+  "lat": 33.8998052,
+  "lon": 35.5045780,
+  "tags": {
+    "addr:city": "بيروت",
+    "historic": "yes",
+    "name": "الحي الفينيقي الفارسي",
+    "name:ar": "الحي الفينيقي الفارسي",
+    "name:en": "Phoenico-Persian Quarter",
+    "tourism": "attraction",
+    "wikidata": "Q22949259"
+  }
+},
+{
+  "type": "node",
+  "id": 12703399451,
+  "lat": 33.9010154,
+  "lon": 35.5036419,
+  "tags": {
+    "addr:city": "Beirut",
+    "historic": "yes",
+    "name": "Restoration",
+    "name:en": "Restoration",
+    "tourism": "attraction"
+  }
+},
+{
+  "type": "node",
+  "id": 12703426855,
+  "lat": 33.8950399,
+  "lon": 35.5048184,
+  "tags": {
+    "addr:city": "Beirut",
+    "historic": "yes",
+    "historic:civilization": "roman",
+    "name": "Cardo Decumanus Crossing",
+    "name:ar": "معبر كاردو ديكومانوس",
+    "name:en": "Cardo Decumanus Crossing",
+    "tourism": "attraction",
+    "wikidata": "Q22948590"
+  }
+},
+{
+  "type": "node",
+  "id": 12703474580,
+  "lat": 33.8995112,
+  "lon": 35.5057975,
+  "tags": {
+    "addr:city": "بيروت",
+    "historic": "yes",
+    "name": "منطقة فوش-ألنبي",
+    "name:ar": "منطقة فوش-ألنبي",
+    "name:en": "Foch-Allenby District",
+    "tourism": "attraction"
+  }
+},
+{
+  "type": "node",
+  "id": 12703521636,
+  "lat": 33.8986324,
+  "lon": 35.5031570,
+  "tags": {
+    "addr:city": "بيروت",
+    "historic": "yes",
+    "name": "مزاييك بيزانطيين",
+    "name:ar": "مزاييك بيزانطيين",
+    "name:en": "Byzantine Mosaics",
+    "tourism": "attraction"
+  }
+},
+{
+  "type": "node",
+  "id": 12703535000,
+  "lat": 33.8996032,
+  "lon": 35.5068623,
+  "tags": {
+    "addr:city": "بيروت",
+    "historic": "castle",
+    "name": "ساحة القصر",
+    "name:ar": "ساحة القصر",
+    "name:en": "Castle Square",
+    "tourism": "attraction"
+  }
+},
+{
+  "type": "node",
+  "id": 12860466616,
+  "lat": 33.8970907,
+  "lon": 35.4801720,
+  "tags": {
+    "name": "Octopus",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "way",
+  "id": 5044815,
+  "center": {
+    "lat": 33.8963710,
+    "lon": 35.5051681
+  },
+  "tags": {
+    "amenity": "place_of_worship",
+    "building": "church",
+    "denomination": "greek_orthodox",
+    "historic": "yes",
+    "name": "كاتدرائية القديس جاورجيوس للروم الأرثوذكس",
+    "name:ar": "كاتدرائية القديس جاورجيوس للروم الأرثوذكس",
+    "name:en": "Saint George Orthodox Cathedral",
+    "name:fr": "Église Orthodoxe Saint George",
+    "religion": "christian",
+    "tourism": "attraction",
+    "wikimedia_commons": "Category:St. George Greek Orthodox Cathedral, Beirut",
+    "wikipedia": "ar:كاتدرائية القديس جاورجيوس للروم الأرثوذكس"
+  }
+},
+{
+  "type": "way",
+  "id": 23856429,
+  "center": {
+    "lat": 33.8946353,
+    "lon": 35.5032810
+  },
+  "tags": {
+    "architect": "Jean Nouvel",
+    "contact:website": "http://www.landmarklb.com/",
+    "historic": "ruins",
+    "name": "ذي لاندمارك",
+    "name:ar": "ذي لاندمارك",
+    "name:en": "The Landmark",
+    "name:fr": "The Landmark"
+  }
+},
+{
+  "type": "way",
+  "id": 200175781,
+  "center": {
+    "lat": 33.9030008,
+    "lon": 35.4975261
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 200175782,
+  "center": {
+    "lat": 33.9034151,
+    "lon": 35.4970466
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 200175783,
+  "center": {
+    "lat": 33.9023944,
+    "lon": 35.4970245
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 200175784,
+  "center": {
+    "lat": 33.9026993,
+    "lon": 35.4966862
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 200175785,
+  "center": {
+    "lat": 33.9021975,
+    "lon": 35.4966147
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 200175786,
+  "center": {
+    "lat": 33.9024865,
+    "lon": 35.4962887
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 200175787,
+  "center": {
+    "lat": 33.9022127,
+    "lon": 35.4961343
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 200175788,
+  "center": {
+    "lat": 33.9026245,
+    "lon": 35.4957199
+  },
+  "tags": {
+    "man_made": "pier",
+    "source": "Bing"
+  }
+},
+{
+  "type": "way",
+  "id": 201251184,
+  "center": {
+    "lat": 33.8970605,
+    "lon": 35.5073524
+  },
+  "tags": {
+    "alt_name": "Petit Sérail",
+    "alt_name:ar": "السراي الصغير",
+    "alt_name:fr": "Petit Sérail",
+    "barrier": "fence",
+    "historic": "archaeological_site",
+    "name": "Agora Hellénistique et Romaine",
+    "name:ar": "أغورا الهلنستية والرومانية",
+    "name:de": "Hellenistische und Römische Agora",
+    "name:en": "Roman Agora",
+    "name:fr": "Agora Hellénistique et Romaine",
+    "wikidata": "Q15266061",
+    "wikipedia": "ar:السراي الصغير"
+  }
+},
+{
+  "type": "way",
+  "id": 223137125,
+  "center": {
+    "lat": 33.8957790,
+    "lon": 35.5062064
+  },
+  "tags": {
+    "building": "yes",
+    "height": "1",
+    "historic": "monument",
+    "name": "ضريح رفيق الحريري",
+    "name:ar": "ضريح رفيق الحريري",
+    "name:en": "Mausoleum of Rafik Hariri",
+    "wikidata": "Q192778",
+    "wikipedia": "ar:رفيق الحريري"
+  }
+},
+{
+  "type": "way",
+  "id": 275970596,
+  "center": {
+    "lat": 33.9031285,
+    "lon": 35.4967103
+  },
+  "tags": {
+    "alt_name": "زيتونة بي;زيتونة باي",
+    "alt_name:ar": "زيتونة بي;زيتونة باي",
+    "contact:phone": "+9611762814",
+    "contact:website": "http://zaitunaybay.com/",
+    "leisure": "marina",
+    "name": "خليج الزيتونة",
+    "name:ar": "خليج الزيتونة",
+    "name:en": "Zaitunay Bay",
+    "name:fr": "Baie d'Olive",
+    "natural": "water",
+    "operator": "سوليدير",
+    "operator:ar": "سوليدير",
+    "seamark:harbour:category": "marina",
+    "seamark:type": "harbour_basin",
+    "water": "harbour"
+  }
+},
+{
+  "type": "way",
+  "id": 276061185,
+  "center": {
+    "lat": 33.9023990,
+    "lon": 35.4907956
+  },
+  "tags": {
+    "area": "yes",
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 276078519,
+  "center": {
+    "lat": 33.8995428,
+    "lon": 35.4695437
+  },
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 276078520,
+  "center": {
+    "lat": 33.8998899,
+    "lon": 35.4693880
+  },
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 276078652,
+  "center": {
+    "lat": 33.8997589,
+    "lon": 35.4693434
+  },
+  "tags": {
+    "leisure": "marina",
+    "seamark:harbour:category": "marina",
+    "seamark:type": "harbour"
+  }
+},
+{
+  "type": "way",
+  "id": 276083380,
+  "center": {
+    "lat": 33.8834525,
+    "lon": 35.4729814
+  },
+  "tags": {
+    "leisure": "marina",
+    "seamark:harbour:category": "marina",
+    "seamark:type": "harbour"
+  }
+},
+{
+  "type": "way",
+  "id": 276560105,
+  "center": {
+    "lat": 33.8986715,
+    "lon": 35.4690639
+  },
+  "tags": {
+    "leisure": "marina",
+    "seamark:harbour:category": "marina",
+    "seamark:type": "harbour"
+  }
+},
+{
+  "type": "way",
+  "id": 276561403,
+  "center": {
+    "lat": 33.8961776,
+    "lon": 35.4689206
+  },
+  "tags": {
+    "leisure": "marina",
+    "seamark:harbour:category": "marina",
+    "seamark:type": "harbour"
+  }
+},
+{
+  "type": "way",
+  "id": 478036518,
+  "center": {
+    "lat": 33.8945654,
+    "lon": 35.5042785
+  },
+  "tags": {
+    "building": "ruins",
+    "building:levels": "5",
+    "historic": "theatre",
+    "name": "المسرح الكبير",
+    "name:ar": "المسرح الكبير",
+    "name:en": "Beirut’s Grand Theater",
+    "name:fr": "Grand Théatre de Beirut",
+    "start_date": "1929",
+    "wikidata": "Q22948705",
+    "wikipedia": "ar:المسرح الكبير (لبنان)"
+  }
+},
+{
+  "type": "way",
+  "id": 484353642,
+  "center": {
+    "lat": 33.8985461,
+    "lon": 35.5077330
+  },
+  "tags": {
+    "historic": "archaeological_site",
+    "landuse": "brownfield",
+    "name": "Forteresse Croisée",
+    "name:ar": "القلعة الصليبية",
+    "name:de": "Kreuzritterburg",
+    "name:en": "Crusader Castle",
+    "name:fr": "Forteresse Croisée",
+    "wikidata": "Q22948597",
+    "wikipedia": "en:Castle Square, Beirut"
+  }
+},
+{
+  "type": "way",
+  "id": 484353643,
+  "center": {
+    "lat": 33.8995038,
+    "lon": 35.5070858
+  },
+  "tags": {
+    "barrier": "fence",
+    "historic": "archaeological_site",
+    "name": "القلعة الصليبية",
+    "name:ar": "القلعة الصليبية",
+    "name:de": "Kreuzritterburg",
+    "name:en": "Crusader Castle",
+    "name:fr": "Forteresse Croisée",
+    "wikidata": "Q22948597"
+  }
+},
+{
+  "type": "way",
+  "id": 485319585,
+  "center": {
+    "lat": 33.8944135,
+    "lon": 35.4958501
+  },
+  "tags": {
+    "addr:street": "شارع عبد القادر",
+    "building": "yes",
+    "historic": "ruins"
+  }
+},
+{
+  "type": "way",
+  "id": 489215435,
+  "center": {
+    "lat": 33.8997985,
+    "lon": 35.5034100
+  },
+  "tags": {
+    "historic": "archaeological_site",
+    "name": "سور مدينة القرون الوسطى",
+    "name:ar": "سور مدينة القرون الوسطى",
+    "name:de": "Mittelalterliche Stadtmauer",
+    "name:en": "Medieval city wall",
+    "name:fr": "Mur de la Ville Médiévale"
+  }
+},
+{
+  "type": "way",
+  "id": 489217366,
+  "center": {
+    "lat": 33.8985596,
+    "lon": 35.5040227
+  },
+  "tags": {
+    "addr:city": "بيروت",
+    "building": "yes",
+    "historic": "building",
+    "name": "زاوية ابن عراق",
+    "name:ar": "زاوية ابن عراق",
+    "name:en": "Zawiyat Ibn 'Arraq",
+    "wikidata": "Q22949317",
+    "wikipedia": "ar:زاوية ابن عراق"
+  }
+},
+{
+  "type": "way",
+  "id": 585168672,
+  "center": {
+    "lat": 33.8923228,
+    "lon": 35.4790718
+  },
+  "tags": {
+    "building": "yes",
+    "castle_type": "palace",
+    "historic": "castle",
+    "name": "قصر الحريري",
+    "name:ar": "قصر الحريري",
+    "name:fr": "Palais Hariri"
+  }
+},
+{
+  "type": "way",
+  "id": 591998665,
+  "center": {
+    "lat": 33.9016928,
+    "lon": 35.4728918
+  },
+  "tags": {
+    "leisure": "marina",
+    "seamark:harbour:category": "marina",
+    "seamark:type": "harbour"
+  }
+},
+{
+  "type": "way",
+  "id": 633016577,
+  "center": {
+    "lat": 33.8975226,
+    "lon": 35.4724547
+  },
+  "tags": {
+    "alt_name": "Phare de Beyrouth",
+    "alt_name:ar": "منارة بيروت القديمة",
+    "alt_name:fr": "Phare de Beyrouth",
+    "building": "yes",
+    "man_made": "lighthouse",
+    "name": "المنارة القديمة",
+    "name:ar": "المنارة القديمة",
+    "name:en": "Old Lighthouse",
+    "name:fr": "Ancien Phare",
+    "tourism": "attraction",
+    "wikidata": "Q55398565",
+    "wikipedia": "fr:Phare de Beyrouth (1957)"
+  }
+},
+{
+  "type": "way",
+  "id": 633016589,
+  "center": {
+    "lat": 33.9017611,
+    "lon": 35.4732057
+  },
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 633016590,
+  "center": {
+    "lat": 33.9016689,
+    "lon": 35.4727843
+  },
+  "tags": {
+    "area": "yes",
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 633016591,
+  "center": {
+    "lat": 33.9022818,
+    "lon": 35.4753446
+  },
+  "tags": {
+    "leisure": "marina",
+    "seamark:harbour:category": "marina",
+    "seamark:type": "harbour"
+  }
+},
+{
+  "type": "way",
+  "id": 674077306,
+  "center": {
+    "lat": 33.8836802,
+    "lon": 35.4741510
+  },
+  "tags": {
+    "man_made": "breakwater"
+  }
+},
+{
+  "type": "way",
+  "id": 674077308,
+  "center": {
+    "lat": 33.8833957,
+    "lon": 35.4722048
+  },
+  "tags": {
+    "man_made": "breakwater"
+  }
+},
+{
+  "type": "way",
+  "id": 674077309,
+  "center": {
+    "lat": 33.8956454,
+    "lon": 35.4677121
+  },
+  "tags": {
+    "man_made": "breakwater"
+  }
+},
+{
+  "type": "way",
+  "id": 674077310,
+  "center": {
+    "lat": 33.8978089,
+    "lon": 35.4685442
+  },
+  "tags": {
+    "man_made": "breakwater"
+  }
+},
+{
+  "type": "way",
+  "id": 674077312,
+  "center": {
+    "lat": 33.8999373,
+    "lon": 35.4689961
+  },
+  "tags": {
+    "man_made": "breakwater"
+  }
+},
+{
+  "type": "way",
+  "id": 674077313,
+  "center": {
+    "lat": 33.9016114,
+    "lon": 35.4726527
+  },
+  "tags": {
+    "man_made": "breakwater"
+  }
+},
+{
+  "type": "way",
+  "id": 674077314,
+  "center": {
+    "lat": 33.9042689,
+    "lon": 35.4955949
+  },
+  "tags": {
+    "man_made": "breakwater"
+  }
+},
+{
+  "type": "way",
+  "id": 931260855,
+  "center": {
+    "lat": 33.8996249,
+    "lon": 35.5107023
+  },
+  "tags": {
+    "area": "yes",
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 1299041878,
+  "center": {
+    "lat": 33.8850219,
+    "lon": 35.4999629
+  },
+  "tags": {
+    "building": "yes",
+    "description": "Saint",
+    "historic": "tomb",
+    "name": "مقام الإمام عبد الله الهرري",
+    "name:en": "Al Imam Abdullah Al Harari Tomb"
+  }
+}
+
+  ]
+}

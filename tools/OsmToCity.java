@@ -682,6 +682,9 @@ public class OsmToCity {
             levelRoads();
             // In a city: ease the steps where roads clash, then level the roads again on the eased ground.
             if (URBAN) { easeRoads(); levelRoads(); easeRoads(); }
+            // In a city, squares, promenades, car parks and pitches are built as near-flat terraces
+            // on the hillside (with a retaining wall where the ground steps), not tilted ramps.
+            if (URBAN) { terraceAreas(); levelRoads(); easeRoads(); }
             // The sea back at sea level, except under a road (the Corniche runs right along the water's edge).
             for (int i = 0; i < h.length; i++) if (water[i] && !onRoad[i]) h[i] = 0f;
             // By the sea, heights are from sea level (the sea is at 0 in the game); inland, from the start.
@@ -777,6 +780,35 @@ public class OsmToCity {
                 float w = nearest[i] <= band[i] ? 1f : 1f - (nearest[i] - band[i]) / fade;
                 if (w > 0f) h[i] += (target[i] - h[i]) * smooth(w);
                 onRoad[i] = nearest[i] <= band[i];
+            }
+        }
+
+        /** How much of the hill's slope a city terrace keeps (0: dead flat, 1: as the hill). */
+        static final float TERRACE_KEEP = 0.2f;
+
+        /** Squares, promenades, car parks and pitches made near-flat: each drawn on the grid and pulled to its own average height. */
+        static void terraceAreas() {
+            for (Area a : areas) {
+                if (a.kind() != A_PLAZA && a.kind() != A_PARKING && a.kind() != A_PITCH) continue;
+                BufferedImage img = new BufferedImage(cols, rows, BufferedImage.TYPE_BYTE_GRAY);
+                Graphics2D g = img.createGraphics();
+                g.scale(1.0 / CELL, 1.0 / CELL);
+                g.translate(-x0, -z0);
+                g.setColor(Color.WHITE);
+                g.fill(path(a.pts(), true));
+                g.dispose();
+                List<Integer> inside = new ArrayList<>();
+                float sum = 0f;
+                for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {
+                    if ((img.getRGB(c, r) & 0xFF) < 128) continue;
+                    int i = r * cols + c;
+                    if (h[i] <= 0f || onRoad[i]) continue; // the sea stays the sea, and roads keep their levels
+                    inside.add(i);
+                    sum += h[i];
+                }
+                if (inside.size() < 2) continue;
+                float mean = sum / inside.size();
+                for (int i : inside) h[i] = mean + (h[i] - mean) * TERRACE_KEEP;
             }
         }
 

@@ -48,22 +48,23 @@ class RoadLevels(private val roads: List<CityMap.Road>, private val terrain: Ter
 
     /**
      * The height of the road surface at (x, z), or null when that's not on a road (or its
-     * sidewalks). Where roads overlap (a junction), the one whose middle is nearest.
+     * sidewalks). Where roads overlap, the highest: that's the surface that's seen, and stood on.
      */
     fun heightAt(x: Float, z: Float): Float? {
         val list = cells[key(floor(x / CELL).toInt(), floor(z / CELL).toInt())] ?: return null
-        var best = Float.MAX_VALUE
-        var road: CityMap.Road? = null
+        var top: Float? = null
         for (index in list) {
             val r = roads[index]
             val p = r.pts
             val reach = reach(r) - 0.5f
             for (i in 0 until p.size / 2 - 1) {
-                val d = CityMap.segmentDistance(x, z, p[2 * i], p[2 * i + 1], p[2 * i + 2], p[2 * i + 3])
-                if (d <= reach && d < best) { best = d; road = r }
+                if (CityMap.segmentDistance(x, z, p[2 * i], p[2 * i + 1], p[2 * i + 2], p[2 * i + 3]) > reach) continue
+                val h = profile(r).at(x, z)
+                if (top == null || h > top) top = h
+                break
             }
         }
-        return road?.let { profile(it).at(x, z) }
+        return top
     }
 
     private fun key(cx: Int, cz: Int) = (cx.toLong() shl 32) xor (cz.toLong() and 0xffffffffL)

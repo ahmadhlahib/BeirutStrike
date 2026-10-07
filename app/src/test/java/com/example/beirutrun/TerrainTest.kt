@@ -22,7 +22,7 @@ class TerrainTest {
     /** Beirut by the sea: heights from sea level, the sea flat at 0, the land rising from it. */
     @Test
     fun beirutRisesFromTheSea() {
-        val heights = mapOf("downtown" to 24f, "hamra" to 67f, "ain_el_mreisseh" to 3f, "raouche" to 37f, "souks" to 15f)
+        val heights = mapOf("downtown" to 23f, "hamra" to 66f, "ain_el_mreisseh" to 4f, "raouche" to 36f, "souks" to 15f)
         for ((id, start) in heights) {
             val city = load(id)
             assertFalse("$id is flat", city.terrain.flat)
@@ -76,10 +76,10 @@ class TerrainTest {
                     val len = hypot(bx - ax, bz - az)
                     // (Roads run on past the map's edge, where there are no heights: only the map counts.)
                     if (len < 1f || ax < city.minX + 10f || ax > city.maxX - 10f || az < city.minZ + 10f || az > city.maxZ - 10f) continue
-                    along += abs(city.groundAt(bx, bz) - city.groundAt(ax, az)) / len
+                    along += abs(city.terrain.heightAt(bx, bz) - city.terrain.heightAt(ax, az)) / len
                     // Across the road, a metre each side of the middle.
                     val nx = -(bz - az) / len; val nz = (bx - ax) / len
-                    tilts += abs(city.groundAt(ax + nx, az + nz) - city.groundAt(ax - nx, az - nz)) / 2f
+                    tilts += abs(city.terrain.heightAt(ax + nx, az + nz) - city.terrain.heightAt(ax - nx, az - nz)) / 2f
                 }
             }
             along.sort()
