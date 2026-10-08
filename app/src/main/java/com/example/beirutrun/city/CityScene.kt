@@ -110,9 +110,6 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         /** Hillside steeper than these (rise over run) is bare rock, or (in a village) sandy earth. */
         private const val HILL_ROCK_SLOPE = 0.75f
         private const val HILL_EARTH_SLOPE = 0.38f
-        /** Village terrace walls: one every this many metres up the hillside, out to this far from the houses. */
-        private const val FIELD_WALL_STEP = 3f
-        private const val FIELD_REACH = 250f
         /** The Corniche railing: one post every this many metres. And at most this many boats on a map. */
         private const val RAIL_STEP = 3f
         private const val MAX_BOATS = 80
@@ -197,7 +194,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         private val withLadder = Ladders.place(map).mapTo(HashSet()) { it.building }
         private val network = RoadNetwork(map.roads)
         /** Raises everything onto the hills (see [Lift]). */
-        private val lift = Lift(map.terrain)
+        private val lift = Lift(map.drawnGround)
 
         private fun out(x: Float, z: Float, s: Surface): Floats {
             val c = floor((x - map.minX) / TILE).toInt().coerceIn(0, cols - 1)
@@ -269,7 +266,6 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 }
             }
             if (!map.terrain.flat) addHillsides()
-            if (look == CityLook.VILLAGE && !map.terrain.flat) addFieldWalls()
         }
 
         /**
@@ -343,84 +339,6 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             }
         }
 
-        /**
-         * A mountain village's terraced fields: low dry-stone walls along the hillside's contours,
-         * one every [FIELD_WALL_STEP] metres up, on the moderate slopes round the houses (not across
-         * roads or into houses), as the Chouf's hillsides are terraced for olives and vegetables.
-         */
-        private fun addFieldWalls() {
-            val t = map.terrain
-            val c = t.cell
-            val houses = map.buildings.filter { it.kind == CityMap.BUILDING_GENERIC }
-            if (houses.isEmpty()) return
-            fun nearHouses(x: Float, z: Float) = houses.any { hypot(it.centerX - x, it.centerZ - z) < FIELD_REACH }
-            lift.by(0f) {
-                for (r in 0 until t.rows - 1) for (k in 0 until t.cols - 1) {
-                    val x0 = t.x0 + k * c; val z0 = t.z0 + r * c
-                    val h = floatArrayOf(t.at(k, r), t.at(k + 1, r), t.at(k + 1, r + 1), t.at(k, r + 1))
-                    val lo = h.min(); val hi = h.max()
-                    val slope = (hi - lo) / c
-                    if (slope < 0.1f || slope > 0.6f) continue
-                    val mx = x0 + c / 2f; val mz = z0 + c / 2f
-                    if (map.roadLevels?.heightAt(mx, mz) != null) continue
-                    if (map.isInsideBuilding(mx, map.groundAt(mx, mz) + 1f, mz, 3f)) continue
-                    if (!nearHouses(mx, mz)) continue
-                    // Corners round the cell: (x0,z0), (x0+c,z0), (x0+c,z0+c), (x0,z0+c).
-                    val cx = floatArrayOf(x0, x0 + c, x0 + c, x0); val cz = floatArrayOf(z0, z0, z0 + c, z0 + c)
-                    var level = ceil(lo / FIELD_WALL_STEP) * FIELD_WALL_STEP
-                    while (level < hi) {
-                        // Where the level crosses the cell's edges (marching squares).
-                        val pts = ArrayList<Float>(8)
-                        for (e in 0 until 4) {
-                            val a = h[e]; val b = h[(e + 1) % 4]
-                            if ((a < level) == (b < level)) continue
-                            val f = (level - a) / (b - a)
-                            pts += cx[e] + (cx[(e + 1) % 4] - cx[e]) * f
-                            pts += cz[e] + (cz[(e + 1) % 4] - cz[e]) * f
-                        }
-                        var i = 0
-                        while (i + 3 < pts.size) { fieldWall(pts[i], pts[i + 1], pts[i + 2], pts[i + 3]); i += 4 }
-                        level += FIELD_WALL_STEP
-                    }
-                }
-            }
-        }
-
-        /** One piece of a dry-stone terrace wall from (ax, az) to (bx, bz), standing on the ground. */
-        private fun fieldWall(ax: Float, az: Float, bx: Float, bz: Float) {
-            val len = hypot(bx - ax, bz - az)
-            if (len < 0.3f) return
-            val ux = (bx - ax) / len; val uz = (bz - az) / len
-            val w = 0.25f
-            val ga = map.terrain.heightAt(ax, az); val gb = map.terrain.heightAt(bx, bz)
-            val top = 0.85f
-            val o = out((ax + bx) / 2f, (az + bz) / 2f, Surface.RETAINING_WALL)
-            val s = span(Surface.RETAINING_WALL)
-            val ua = (ax * ux + az * uz) / s; val ub = (bx * ux + bz * uz) / s
-            for (side in floatArrayOf(1f, -1f)) {
-                val nx = uz * side; val nz = -ux * side
-                val pax = ax + nx * w; val paz = az + nz * w; val pbx = bx + nx * w; val pbz = bz + nz * w
-                // Seen from this side, b is on the left when side is 1.
-                val (lx, lz, lg, lu, rx, rz, rg, ru) = if (side > 0) Octet(pbx, pbz, gb, ub, pax, paz, ga, ua) else Octet(pax, paz, ga, ua, pbx, pbz, gb, ub)
-                o.vertex(lx, lg - 0.3f, lz, nx, 0f, nz, lu, (0.3f + top) / s)
-                o.vertex(rx, rg - 0.3f, rz, nx, 0f, nz, ru, (0.3f + top) / s)
-                o.vertex(rx, rg + top, rz, nx, 0f, nz, ru, 0f)
-                o.vertex(lx, lg - 0.3f, lz, nx, 0f, nz, lu, (0.3f + top) / s)
-                o.vertex(rx, rg + top, rz, nx, 0f, nz, ru, 0f)
-                o.vertex(lx, lg + top, lz, nx, 0f, nz, lu, 0f)
-            }
-            // The top, rough stones laid flat.
-            val px = uz * w; val pz = -ux * w
-            o.vertex(ax - px, ga + top, az - pz, 0f, 1f, 0f, ua, 0f)
-            o.vertex(bx + px, gb + top, bz + pz, 0f, 1f, 0f, ub, 0.1f)
-            o.vertex(ax + px, ga + top, az + pz, 0f, 1f, 0f, ua, 0.1f)
-            o.vertex(ax - px, ga + top, az - pz, 0f, 1f, 0f, ua, 0f)
-            o.vertex(bx - px, gb + top, bz - pz, 0f, 1f, 0f, ub, 0f)
-            o.vertex(bx + px, gb + top, bz + pz, 0f, 1f, 0f, ub, 0.1f)
-        }
-
-        private data class Octet(val a: Float, val b: Float, val c: Float, val d: Float, val e: Float, val f: Float, val g: Float, val h: Float)
-
         // ---- Flat things ---------------------------------------------------------------------
 
         private fun flatPolygon(o: Floats, ring: FloatArray, y: Float, span: Float = 0f) {
@@ -460,7 +378,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             val ca = hypot(ax - cx, az - cz)
             val longest = maxOf(ab, bc, ca)
             // Flat enough: along each side, and from each corner to the middle of the side opposite.
-            val t = map.terrain
+            val t = map.drawnGround
             val fits = !RoadLevels.bends(ax, az, bx, bz, t) && !RoadLevels.bends(bx, bz, cx, cz, t) && !RoadLevels.bends(cx, cz, ax, az, t) &&
                 !RoadLevels.bends(ax, az, (bx + cx) / 2f, (bz + cz) / 2f, t)
             if (longest <= RoadLevels.MIN_GROUND_STEP || fits || depth > 16) {

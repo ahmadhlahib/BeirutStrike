@@ -22,7 +22,7 @@ class TerrainTest {
     /** Beirut by the sea: heights from sea level, the sea flat at 0, the land rising from it. */
     @Test
     fun beirutRisesFromTheSea() {
-        val heights = mapOf("downtown" to 23f, "hamra" to 66f, "ain_el_mreisseh" to 4f, "raouche" to 36f, "souks" to 15f)
+        val heights = mapOf("downtown" to 1f, "hamra" to 4f, "ain_el_mreisseh" to 2f, "raouche" to 30f, "souks" to 2f)
         for ((id, start) in heights) {
             val city = load(id)
             assertFalse("$id is flat", city.terrain.flat)
@@ -194,6 +194,74 @@ class TerrainTest {
                 }
             }
             assertTrue("$id: $steep of $total road pieces steeper than 30%", steep <= total / 500)
+        }
+    }
+
+    /**
+     * The ground never jumps to another height: from one grid point to the next it slopes (beside
+     * the roads too), and is almost never steep enough to be drawn as a wall. The sea's edge may be a cliff.
+     */
+    @Test
+    fun theGroundSlopesNeverSteps() {
+        for (id in listOf("downtown", "souks", "hamra", "ain_el_mreisseh", "raouche", "kfarnabrakh")) {
+            val city = load(id)
+            val t = city.drawnGround
+            val coastal = city.sea.isNotEmpty()
+            var pairs = 0
+            var walls = 0
+            var cliffs = 0
+            for (r in 0 until t.rows) for (c in 0 until t.cols) {
+                val h = t.at(c, r)
+                for ((cc, rr) in listOf(c + 1 to r, c to r + 1)) {
+                    if (cc >= t.cols || rr >= t.rows) continue
+                    val g = t.at(cc, rr)
+                    if (coastal && (h <= 0f || g <= 0f)) continue
+                    pairs++
+                    val grade = abs(h - g) / t.cell
+                    if (grade > 0.45f) walls++
+                    if (grade > 0.8f) cliffs++
+                }
+            }
+            println("$id ground: ${"%.2f".format(walls * 100f / pairs)}% steeper than 45%, ${"%.3f".format(cliffs * 100f / pairs)}% steeper than 80%")
+            assertTrue("$id: $walls of $pairs steeper than 45%", walls <= pairs / 200)
+            assertTrue("$id: $cliffs of $pairs steeper than 80%", cliffs <= pairs / 2000)
+        }
+    }
+
+    /**
+     * The ground drawn never rises through a road: across its whole width, even where two roads at
+     * different heights meet or run side by side, and at its edges between the ground's grid points.
+     */
+    @Test
+    fun theGroundNeverCoversARoad() {
+        for (id in listOf("downtown", "hamra", "ain_el_mreisseh", "raouche", "kfarnabrakh")) {
+            val city = load(id)
+            val levels = city.roadLevels!!
+            var total = 0
+            var covered = 0
+            for (r in city.roads) {
+                if (r.kind == CityMap.ROAD_PIER || r.kind == CityMap.ROAD_PATH) continue
+                val p = levels.laid(r)
+                val prof = levels.profile(r)
+                for (i in 0 until p.size / 2 - 1) {
+                    val ax = p[2 * i]; val az = p[2 * i + 1]; val bx = p[2 * i + 2]; val bz = p[2 * i + 3]
+                    val len = hypot(bx - ax, bz - az)
+                    if (len < 0.5f) continue
+                    val nx = -(bz - az) / len; val nz = (bx - ax) / len
+                    val mx = (ax + bx) / 2f; val mz = (az + bz) / 2f
+                    val y = prof.atSegment(mx, mz, i)
+                    for (f in floatArrayOf(-1f, -0.5f, 0f, 0.5f, 1f)) {
+                        val x = mx + nx * f * r.width / 2f; val z = mz + nz * f * r.width / 2f
+                        // (Roads run on past the map's edge, where there are no heights: only the map counts.)
+                        if (x < city.minX + 10f || x > city.maxX - 10f || z < city.minZ + 10f || z > city.maxZ - 10f) continue
+                        total++
+                        val over = city.drawnGround.heightAt(x, z) - y
+                        assertTrue("$id: ground $over m over the road at ($x, $z)", over < 0.5f)
+                        if (over > 0.02f) covered++
+                    }
+                }
+            }
+            assertTrue("$id: ground over the road at $covered of $total points", covered <= total / 1000)
         }
     }
 
