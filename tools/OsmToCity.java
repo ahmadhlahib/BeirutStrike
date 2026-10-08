@@ -57,7 +57,7 @@ public class OsmToCity {
     // Landmarks, each drawn as itself (see the app's CityScene and Landmarks): found by name in the
     // map data, or added where the real one stands (see addLandmarks).
     static final int B_GRAND_MOSQUE = 5, B_CLOCK_TOWER = 6, B_EGG = 7, B_MURR = 8, B_HOLIDAY_INN = 9,
-            B_LIGHTHOUSE = 10, B_STATUE = 11, B_COLUMNS = 12, B_COLLEGE_HALL = 13;
+            B_LIGHTHOUSE = 10, B_STATUE = 11, B_COLUMNS = 12, B_COLLEGE_HALL = 13, B_HAMIDIYYEH = 14;
     // Road kinds.
     static final int R_MAJOR = 0, R_MEDIUM = 1, R_MINOR = 2, R_PEDESTRIAN = 3, R_PATH = 4, R_PIER = 5, R_TRACK = 6;
     // Area kinds.
@@ -214,10 +214,12 @@ public class OsmToCity {
         String names = (lname + " " + String.valueOf(tag(e, "name:en")) + " " + String.valueOf(tag(e, "name:fr"))).toLowerCase(Locale.ROOT);
         float landmarkHeight = Float.NaN;
         if (names.contains("al-amin") || names.contains("al amin")) { kind = B_GRAND_MOSQUE; landmarkHeight = 30f; }
-        else if (names.contains("horloge") || names.contains("clock tower") || names.contains("al-abed")) { kind = B_CLOCK_TOWER; landmarkHeight = 22f; }
-        else if (names.contains("the egg")) { kind = B_EGG; landmarkHeight = 11f; }
+        // The Grand Serail's Ottoman clock tower (1897, 25 m) first: it looks nothing like Nejmeh Square's Art Deco one (1934, 24 m).
+        else if (names.contains("hamidiyyeh") || (name != null && name.contains("الحميدية"))) { kind = B_HAMIDIYYEH; landmarkHeight = 25f; }
+        else if (names.contains("horloge") || names.contains("clock tower") || names.contains("al-abed")) { kind = B_CLOCK_TOWER; landmarkHeight = 24f; }
+        else if (names.contains("the egg")) { kind = B_EGG; landmarkHeight = 21f; } // an 11 m shell on a 10 m concrete frame
         else if (names.contains("murr tower")) { kind = B_MURR; landmarkHeight = 140f; }
-        else if (names.contains("holiday inn")) { kind = B_HOLIDAY_INN; landmarkHeight = 82f; }
+        else if (names.contains("holiday inn")) { kind = B_HOLIDAY_INN; landmarkHeight = 100f; } // 26 storeys over its podium
         else if (names.contains("lighthouse") || "lighthouse".equals(tag(e, "man_made"))) { kind = B_LIGHTHOUSE; landmarkHeight = 25f; }
         else if (names.contains("college hall")) { kind = B_COLLEGE_HALL; landmarkHeight = 16f; }
 
@@ -456,8 +458,8 @@ public class OsmToCity {
                 boolean inside = true;
                 for (int i = 0; i < r.length; i += 2) inside &= r[i] > minX && r[i] < maxX && r[i + 1] > minZ && r[i + 1] < maxZ;
                 if (inside && area > 20) {
-                    // Pigeon Rocks stand about 60 m high; a small islet is just a low rock.
-                    float h = (float) (area < 300 ? 2.0 + Math.sqrt(area) * 0.7 : Math.min(60.0, 6.0 + Math.sqrt(area) * 1.25));
+                    // The big Pigeon Rock stands about 50 m high (the other about 40); a small islet is just a low rock.
+                    float h = (float) (area < 300 ? 2.0 + Math.sqrt(area) * 0.7 : Math.min(50.0, 6.0 + Math.sqrt(area) * 1.25));
                     buildings.add(new Building(h, 0f, B_ROCK, r, "rock"));
                 }
                 continue;
@@ -849,8 +851,8 @@ public class OsmToCity {
 
         /** Ground steeper than this (rise over run, over about 16 m) is a big slope a city keeps; gentler is made level. */
         static final float BIG_SLOPE = 0.2f;
-        /** The smallest level area (grid squares, here about 4 hectares) that keeps a height of its own; smaller ones are part of the slope round them. */
-        static final int MIN_LEVEL_CELLS = 2500;
+        /** The smallest level area (grid squares, here about 16 hectares) that keeps a height of its own; smaller ones are levelled with the land round them. */
+        static final int MIN_LEVEL_CELLS = 10000;
         /** The shore: land within this many grid squares (60 m) of the sea; a level with at least SHORE_CELLS of it takes its height from there. */
         static final int SHORE_REACH = 15;
         static final int SHORE_CELLS = 200;
