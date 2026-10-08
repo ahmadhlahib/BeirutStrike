@@ -45,6 +45,8 @@ public class OsmToCity {
     static boolean TERRAIN = false;
     /** A city with hills: the elevation data partly measures rooftops there, so buildings are filtered out of it (see Terrain). */
     static boolean URBAN = false;
+    /** A city whose seafront stands this high above the sea (metres; Raouche on its cliffs), not as low as most of its shore. NaN: from the shore. */
+    static float SEAFRONT = Float.NaN;
     /** Which map's downloaded data to read (this map may be cut out of a bigger one). */
     static String SOURCE = "downtown";
     static final double M_PER_DEG_LAT = 110574.0;
@@ -84,8 +86,9 @@ public class OsmToCity {
             LAT0 = Double.parseDouble(args[5]); LON0 = Double.parseDouble(args[6]);
             M_PER_DEG_LON = 111320.0 * Math.cos(Math.toRadians(LAT0));
             SOURCE = args.length >= 8 && !args[7].equals("-") ? args[7] : ID;
-            TERRAIN = args.length >= 9 && (args[8].equals("terrain") || args[8].equals("city"));
-            URBAN = args.length >= 9 && args[8].equals("city");
+            TERRAIN = args.length >= 9 && (args[8].equals("terrain") || args[8].startsWith("city"));
+            URBAN = args.length >= 9 && args[8].startsWith("city");
+            if (URBAN && args[8].startsWith("city:")) SEAFRONT = Float.parseFloat(args[8].substring(5));
         }
         File data = new File("tools/data");
         readBuildings(load(new File(data, SOURCE + "_buildings.json")));
@@ -93,6 +96,8 @@ public class OsmToCity {
         readAreas(load(new File(data, SOURCE + "_areas.json")));
         addLandmarks();
         keepInsideMap();
+        // A seafront up on its cliffs (Raouche) has no piers running out from it.
+        if (!Float.isNaN(SEAFRONT)) roads.removeIf(r -> r.kind() == R_PIER);
         // Palms line Beirut's avenues; a mountain village gets its pines and oaks on open ground instead.
         if (TERRAIN && !URBAN) addCountryTrees(); else addStreetPalms();
 
@@ -727,16 +732,23 @@ public class OsmToCity {
             // Smooth away the data's steps (about 3 passes of a 5-cell box ≈ a 10 m Gaussian).
             // (In a city, wider: about 20 m, as the rooftop filter leaves the data rougher.)
             for (int i = 0; i < 3; i++) h = blur(h, URBAN ? 4 : 2);
+            if (URBAN) {
+                // A city is level: its ground only changes height where the real one has a big slope.
+                flattenCity(water);
+                // Where it does change, a ramp no steeper than maxGrade, not a bank.
+                limitSlope(water, new boolean[h.length]);
+            } else {
+                // A mountain village keeps its hills, simpler than the real ones: small bumps and dips
+                // go, and nowhere is steeper than maxGrade, so the ground changes height as a slope, never a step.
+                flattenSmallRelief(water);
+                limitSlope(water, new boolean[h.length]);
+            }
             // Land stays above the sea, and the sea stays flat.
             for (int i = 0; i < h.length; i++) h[i] = water[i] ? 0f : Math.max(h[i], COAST_HEIGHT);
             levelRoads();
-            // In a city: ease the steps where roads clash, then level the roads again on the eased ground.
-            if (URBAN) { easeRoads(); levelRoads(); easeRoads(); }
-            // In a city, squares, promenades, car parks and pitches are built as near-flat terraces
-            // on the hillside (with a retaining wall where the ground steps), not tilted ramps.
-            if (URBAN) { terraceAreas(); levelRoads(); easeRoads(); }
-            // (A mountain village keeps its natural slopes: its terraces are drawn as dry-stone walls along
-            // the contours in the game, which a 4 m height grid couldn't step cleanly.)
+            // Where a road cuts into the hill or runs on a bank above it, the ground slopes gently
+            // away from it (the roads stay where they are), not a wall at the road's side.
+            limitSlope(water, onRoad);
             // The sea back at sea level, except under a road (the Corniche runs right along the water's edge).
             for (int i = 0; i < h.length; i++) if (water[i] && !onRoad[i]) h[i] = 0f;
             // By the sea, heights are from sea level (the sea is at 0 in the game); inland, from the start.
@@ -835,70 +847,169 @@ public class OsmToCity {
             }
         }
 
-        /** How much of the hill's slope a city terrace keeps (0: dead flat, 1: as the hill). */
-        static final float TERRACE_KEEP = 0.2f;
+        /** Ground steeper than this (rise over run, over about 16 m) is a big slope a city keeps; gentler is made level. */
+        static final float BIG_SLOPE = 0.2f;
+        /** The smallest level area (grid squares, here about 4 hectares) that keeps a height of its own; smaller ones are part of the slope round them. */
+        static final int MIN_LEVEL_CELLS = 2500;
+        /** The shore: land within this many grid squares (60 m) of the sea; a level with at least SHORE_CELLS of it takes its height from there. */
+        static final int SHORE_REACH = 15;
+        static final int SHORE_CELLS = 200;
 
-        /** Squares, promenades, car parks and pitches made near-flat: each drawn on the grid and pulled to its own average height. */
-        static void terraceAreas() {
-            for (Area a : areas) {
-                if (a.kind() != A_PLAZA && a.kind() != A_PARKING && a.kind() != A_PITCH) continue;
-                BufferedImage img = new BufferedImage(cols, rows, BufferedImage.TYPE_BYTE_GRAY);
-                Graphics2D g = img.createGraphics();
-                g.scale(1.0 / CELL, 1.0 / CELL);
-                g.translate(-x0, -z0);
-                g.setColor(Color.WHITE);
-                g.fill(path(a.pts(), true));
-                g.dispose();
-                List<Integer> inside = new ArrayList<>();
-                float sum = 0f;
-                for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {
-                    if ((img.getRGB(c, r) & 0xFF) < 128) continue;
-                    int i = r * cols + c;
-                    if (h[i] <= 0f || onRoad[i]) continue; // the sea stays the sea, and roads keep their levels
-                    inside.add(i);
-                    sum += h[i];
+        /**
+         * A city made level: each stretch of ground gentler than BIG_SLOPE (it may be the whole
+         * map) is made flat, at its typical height; only where the real ground is steeper does the
+         * height change, smoothly from one level to the next. The sea's edge is kept: the land
+         * stands above it (as Raouche's cliffs do over Pigeon Rocks).
+         */
+        static void flattenCity(boolean[] water) {
+            // How steep the ground is at each point, over two grid squares either way.
+            boolean[] steep = new boolean[h.length];
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {
+                int i = r * cols + c;
+                if (water[i]) continue;
+                int c0 = Math.max(0, c - 2), c1 = Math.min(cols - 1, c + 2), r0 = Math.max(0, r - 2), r1 = Math.min(rows - 1, r + 2);
+                float gx = (h[r * cols + c1] - h[r * cols + c0]) / ((c1 - c0) * CELL);
+                float gz = (h[r1 * cols + c] - h[r0 * cols + c]) / ((r1 - r0) * CELL);
+                steep[i] = Math.hypot(gx, gz) > BIG_SLOPE;
+            }
+            // The land along the shore: within SHORE_REACH grid squares of the sea.
+            boolean[] shore = new boolean[h.length];
+            {
+                int[] dist = new int[h.length];
+                java.util.Arrays.fill(dist, Integer.MAX_VALUE);
+                int[] q = new int[h.length];
+                int head = 0, tail = 0;
+                for (int i = 0; i < h.length; i++) if (water[i]) { dist[i] = 0; q[tail++] = i; }
+                while (head < tail) {
+                    int i = q[head++];
+                    if (dist[i] >= SHORE_REACH) continue;
+                    int r = i / cols, c = i % cols;
+                    for (int j : new int[]{c > 0 ? i - 1 : -1, c + 1 < cols ? i + 1 : -1, r > 0 ? i - cols : -1, r + 1 < rows ? i + cols : -1}) {
+                        if (j < 0 || dist[j] != Integer.MAX_VALUE) continue;
+                        dist[j] = dist[i] + 1;
+                        shore[j] = true;
+                        q[tail++] = j;
+                    }
                 }
-                if (inside.size() < 2) continue;
-                float mean = sum / inside.size();
-                for (int i : inside) h[i] = mean + (h[i] - mean) * TERRACE_KEEP;
+            }
+            // The level stretches: land that isn't steep, joined up; each big one flat at one height.
+            int[] area = new int[h.length];
+            java.util.Arrays.fill(area, -1);
+            boolean[] fixed = new boolean[h.length];
+            int[] queue = new int[h.length];
+            List<String> levels = new ArrayList<>();
+            int areas = 0;
+            for (int start = 0; start < h.length; start++) {
+                if (water[start] || steep[start] || area[start] >= 0) continue;
+                int head = 0, tail = 0;
+                queue[tail++] = start;
+                area[start] = areas;
+                while (head < tail) {
+                    int i = queue[head++];
+                    int r = i / cols, c = i % cols;
+                    for (int j : new int[]{c > 0 ? i - 1 : -1, c + 1 < cols ? i + 1 : -1, r > 0 ? i - cols : -1, r + 1 < rows ? i + cols : -1}) {
+                        if (j < 0 || water[j] || steep[j] || area[j] >= 0) continue;
+                        area[j] = areas;
+                        queue[tail++] = j;
+                    }
+                }
+                if (tail >= MIN_LEVEL_CELLS) {
+                    // Its height: by the sea, the land's along the shore (the seafront stands where it
+                    // really does above the water: Raouche's cliffs high, the Corniche low); inland, its median.
+                    int n = 0;
+                    for (int k = 0; k < tail; k++) if (shore[queue[k]]) n++;
+                    boolean byTheSea = n >= SHORE_CELLS;
+                    float[] heights = new float[byTheSea ? n : tail];
+                    int m = 0;
+                    for (int k = 0; k < tail; k++) if (!byTheSea || shore[queue[k]]) heights[m++] = h[queue[k]];
+                    java.util.Arrays.sort(heights);
+                    float level = byTheSea && !Float.isNaN(SEAFRONT) ? SEAFRONT : heights[m / 2];
+                    for (int k = 0; k < tail; k++) { h[queue[k]] = level; fixed[queue[k]] = true; }
+                    levels.add(String.format(Locale.US, "%.0f m (%.0f%%)", level, tail * 100f / h.length));
+                }
+                areas++;
+            }
+            // Between the levels (the big slopes, and small stretches among them), the ground goes
+            // smoothly from one to the next: each point the average of its neighbours, again and again.
+            final float over = 1.9f; // over-relaxation: converges many times faster
+            for (int pass = 0; pass < 6000; pass++) {
+                float worst = 0f;
+                for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {
+                    int i = r * cols + c;
+                    if (water[i] || fixed[i]) continue;
+                    float sum = 0f;
+                    int n = 0;
+                    if (c > 0 && !water[i - 1]) { sum += h[i - 1]; n++; }
+                    if (c + 1 < cols && !water[i + 1]) { sum += h[i + 1]; n++; }
+                    if (r > 0 && !water[i - cols]) { sum += h[i - cols]; n++; }
+                    if (r + 1 < rows && !water[i + cols]) { sum += h[i + cols]; n++; }
+                    if (n == 0) continue;
+                    float change = (sum / n - h[i]) * over;
+                    h[i] += change;
+                    worst = Math.max(worst, Math.abs(change));
+                }
+                if (worst < 0.002f) break;
+            }
+            System.out.println("levels: " + (levels.isEmpty() ? "none" : String.join(", ", levels)));
+        }
+
+        /** Bumps and dips lower than this (metres, against the land round them) are left out of the ground. */
+        static final float MIN_RELIEF = 10f;
+        /** The land the bumps are measured against: the ground averaged over about this many cells either side. */
+        static final int RELIEF_CELLS = 12;
+        /** The steepest the ground may be (rise over run): a city's streets about 14°, a mountain village about 19°. */
+        static float maxGrade() { return URBAN ? 0.25f : 0.35f; }
+
+        /**
+         * Small bumps and dips go: the ground is split into the broad lie of the land (a wide
+         * average) and what stands above or sinks below it; the latter loses MIN_RELIEF metres,
+         * so anything smaller vanishes and bigger hills keep their shape, a little lower.
+         */
+        static void flattenSmallRelief(boolean[] water) {
+            float[] base = h;
+            for (int i = 0; i < 3; i++) base = blur(base, RELIEF_CELLS);
+            for (int i = 0; i < h.length; i++) {
+                if (water[i]) continue;
+                float d = h[i] - base[i];
+                h[i] = base[i] + Math.signum(d) * Math.max(0f, Math.abs(d) - MIN_RELIEF);
+            }
+        }
+
+        /**
+         * No ground steeper than maxGrade between neighbouring grid points: where it is, both
+         * sides are eased towards each other (only the free one when the other is [fixed], a road),
+         * again and again until none is. The sea's edge is left alone (a cliff into the sea stays).
+         */
+        static void limitSlope(boolean[] water, boolean[] fixed) {
+            float maxStep = maxGrade() * CELL;
+            float[] move = new float[h.length];
+            int[] count = new int[h.length];
+            for (int pass = 0; pass < 2000; pass++) {
+                java.util.Arrays.fill(move, 0f);
+                java.util.Arrays.fill(count, 0);
+                int changed = 0;
+                for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {
+                    int i = r * cols + c;
+                    if (water[i]) continue;
+                    for (int j : new int[]{c + 1 < cols ? i + 1 : -1, r + 1 < rows ? i + cols : -1}) {
+                        if (j < 0 || water[j] || (fixed[i] && fixed[j])) continue;
+                        float d = h[i] - h[j];
+                        float excess = Math.abs(d) - maxStep;
+                        if (excess <= 0.01f) continue;
+                        float s = Math.signum(d);
+                        if (fixed[i]) { move[j] += s * excess; count[j]++; }
+                        else if (fixed[j]) { move[i] -= s * excess; count[i]++; }
+                        else { move[i] -= s * excess / 2f; count[i]++; move[j] += s * excess / 2f; count[j]++; }
+                        changed++;
+                    }
+                }
+                if (changed == 0) break;
+                for (int i = 0; i < h.length; i++) if (count[i] > 0) h[i] += move[i] / count[i];
             }
         }
 
         /** Grid points under a road (inside its level band), set by levelRoads. */
         static boolean[] onRoad;
-        /** The steepest step between neighbouring grid points under a road, after easing (rise over run). */
-        static final float MAX_ROAD_GRADE = 0.35f;
-
-        /**
-         * Where two roads at different heights meet in a city (an interchange, a flyover, rough
-         * data), the ground under them can step sharply. Points under roads that are much higher
-         * or lower than a neighbour are eased towards their neighbours, again and again, until no
-         * step is steeper than MAX_ROAD_GRADE. Ground away from roads (hillsides, cliffs) is left alone.
-         */
-        static void easeRoads() {
-            float maxStep = MAX_ROAD_GRADE * CELL;
-            for (int pass = 0; pass < 60; pass++) {
-                float[] next = h.clone();
-                int changed = 0;
-                for (int r = 1; r < rows - 1; r++) for (int c = 1; c < cols - 1; c++) {
-                    int i = r * cols + c;
-                    if (!onRoad[i]) continue;
-                    // Only against other road points: a cliff or bank beside the road mustn't drag it down.
-                    float sum = 0f, worst = 0f;
-                    int count = 0;
-                    for (int j : new int[]{i - 1, i + 1, i - cols, i + cols}) {
-                        if (!onRoad[j]) continue;
-                        sum += h[j]; count++;
-                        worst = Math.max(worst, Math.abs(h[i] - h[j]));
-                    }
-                    if (count == 0 || worst <= maxStep) continue;
-                    next[i] = (h[i] + sum / count) / 2f;
-                    changed++;
-                }
-                h = next;
-                if (changed == 0) break;
-            }
-        }
 
         /** The opening filter's reach (cells either side): removes rooftops up to ~40 m across. */
         static final int OPENING_CELLS = 5;

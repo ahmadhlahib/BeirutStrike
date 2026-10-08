@@ -150,7 +150,7 @@ class RoadLevels(
         val map = HashMap<Long, MutableList<Int>>()
         roads.forEachIndexed { index, road ->
             if (road.kind == CityMap.ROAD_PIER) return@forEachIndexed
-            val r = reach(road) + BANK_WIDTH
+            val r = reach(road) + terrain.cell + BANK_WIDTH
             val p = road.pts
             for (i in 0 until p.size / 2 - 1) {
                 val x0 = floor((minOf(p[2 * i], p[2 * i + 2]) - r) / CELL).toInt()
@@ -164,25 +164,6 @@ class RoadLevels(
             }
         }
         map
-    }
-
-    /** The road nearest (x, z) within [extra] metres past its reach, and how far its middle is; null if none. */
-    private fun nearestRoad(x: Float, z: Float, extra: Float): Pair<CityMap.Road, Float>? {
-        val list = cells[key(floor(x / CELL).toInt(), floor(z / CELL).toInt())] ?: return null
-        var best: CityMap.Road? = null
-        var bestD = Float.MAX_VALUE
-        var bestOver = Float.MAX_VALUE
-        for (index in list) {
-            val r = roads[index]
-            val p = r.pts
-            val reach = reach(r)
-            var d = Float.MAX_VALUE
-            for (i in 0 until p.size / 2 - 1) d = minOf(d, CityMap.segmentDistance(x, z, p[2 * i], p[2 * i + 1], p[2 * i + 2], p[2 * i + 3]))
-            // The one this point is most inside of (or nearest outside of).
-            val over = d - reach
-            if (over <= extra && over < bestOver) { bestOver = over; bestD = d; best = r }
-        }
-        return best?.let { it to bestD }
     }
 
     /**
@@ -210,30 +191,119 @@ class RoadLevels(
      * The ground as it's drawn and stood on: the hillside, but under each road a little below its
      * surface ([ROAD_SINK], out of sight), and beside it a bank from the road's edge back to the
      * hillside over [BANK_WIDTH] metres, so the hill never rises over a road and a road never
-     * floats over a drop. The sea (height 0 or below by the coast) is left as it is.
+     * floats over a drop. Every road near a point counts, not just the nearest: where two roads
+     * at different heights meet or run side by side, the ground stays under the lower one too.
+     * The ground is kept level with a road for a grid square past its edge, so the ground drawn
+     * between grid points can't rise through the road's side. The sea (height 0 or below by the
+     * coast) is left as it is.
      */
     val drawnGround: Terrain by lazy {
         val t = terrain
         val h = FloatArray(t.cols * t.rows) { t.at(it % t.cols, it / t.cols) }
+        val fixed = BooleanArray(h.size)
+        val ceiling = FloatArray(h.size) { Float.MAX_VALUE }
         for (r in 0 until t.rows) for (c in 0 until t.cols) {
             val x = t.x0 + c * t.cell
             val z = t.z0 + r * t.cell
-            val (road, d) = nearestRoad(x, z, BANK_WIDTH) ?: continue
+            val list = cells[key(floor(x / CELL).toInt(), floor(z / CELL).toInt())] ?: continue
             val i = r * t.cols + c
-            val level = profile(road).at(x, z) - ROAD_SINK
-            val reach = reach(road)
-            if (d <= reach) {
-                // Under the road: just below it, cut or filled.
-                h[i] = if (coastal && h[i] <= 0f && level <= 0.5f) h[i] else level
-            } else {
-                // The bank: from the road's edge towards the hillside, at most [BANK_SLOPE].
-                val k = (d - reach) * BANK_SLOPE
-                val lo = level - k; val hi = level + k
-                if (h[i] > hi) h[i] = hi
-                else if (h[i] < lo && (!coastal || h[i] > 0f)) h[i] = lo
+            var hi = Float.MAX_VALUE
+            var lo = -Float.MAX_VALUE
+            var under = Float.MAX_VALUE
+            var near = false
+            for (index in list) {
+                val road = roads[index]
+                val p = road.pts
+                var d = Float.MAX_VALUE
+                for (k in 0 until p.size / 2 - 1) d = minOf(d, CityMap.segmentDistance(x, z, p[2 * k], p[2 * k + 1], p[2 * k + 2], p[2 * k + 3]))
+                val reach = reach(road)
+                if (d > reach + t.cell + BANK_WIDTH) continue
+                near = true
+                val level = profile(road).at(x, z) - ROAD_SINK
+                if (d <= reach) under = minOf(under, level)
+                // Level with the road to a grid square past its edge, then the bank, at most [BANK_SLOPE].
+                val k = maxOf(0f, d - reach - t.cell) * BANK_SLOPE
+                hi = minOf(hi, level + k)
+                lo = maxOf(lo, level - k)
+                if (k == 0f) fixed[i] = true
+            }
+            if (!near) continue
+            ceiling[i] = hi
+            if (under != Float.MAX_VALUE) {
+                // Under a road: just below it (the lowest, where roads overlap), cut or filled.
+                if (!(coastal && h[i] <= 0f && under <= 0.5f)) h[i] = minOf(under, hi)
+                fixed[i] = true
+            } else if (h[i] > hi) h[i] = hi
+            else if (h[i] < lo && (!coastal || h[i] > 0f)) h[i] = minOf(lo, hi)
+        }
+        easeSteps(h, fixed, ceiling, t.cols, t.rows, MAX_GROUND_STEP * t.cell)
+        Terrain(t.x0, t.z0, t.cell, t.cols, t.rows, h)
+    }
+
+    /**
+     * Where the ground still steps steeply from one grid point to the next (where a bank meets the
+     * hillside a little higher or lower than it expected), both sides are eased towards each other,
+     * again and again, so it slopes instead. The ground under roads stays put, and so does the sea;
+     * none is raised over its [ceiling] (the roads beside it). Only the few places with a step are
+     * worked on (the map is loaded on the main thread).
+     */
+    private fun easeSteps(h: FloatArray, fixed: BooleanArray, ceiling: FloatArray, cols: Int, rows: Int, maxStep: Float) {
+        val land = BooleanArray(h.size) { !(coastal && h[it] <= 0f) }
+        val free = BooleanArray(h.size) { land[it] && !fixed[it] }
+        fun steep(i: Int, j: Int) = land[j] && (free[i] || free[j]) && abs(h[i] - h[j]) - maxStep > 0.01f
+        // The places with a step, and the ground round them that may have to give way.
+        val near = BooleanArray(h.size)
+        var any = false
+        for (r in 0 until rows) for (c in 0 until cols) {
+            val i = r * cols + c
+            if (!land[i]) continue
+            if (!(c + 1 < cols && steep(i, i + 1)) && !(r + 1 < rows && steep(i, i + cols))) continue
+            any = true
+            for (rr in maxOf(0, r - EASE_REACH)..minOf(rows - 1, r + EASE_REACH)) {
+                for (cc in maxOf(0, c - EASE_REACH)..minOf(cols - 1, c + EASE_REACH)) near[rr * cols + cc] = true
             }
         }
-        Terrain(t.x0, t.z0, t.cell, t.cols, t.rows, h)
+        if (!any) return
+        // Neighbouring pairs of land points there (each pair once: east and south).
+        var pairs = IntArray(1024)
+        var n = 0
+        for (r in 0 until rows) for (c in 0 until cols) {
+            val i = r * cols + c
+            if (!near[i] || !land[i]) continue
+            for (j in 0..1) {
+                val k = if (j == 0) (if (c + 1 < cols) i + 1 else -1) else (if (r + 1 < rows) i + cols else -1)
+                if (k < 0 || !land[k] || !(free[i] || free[k])) continue
+                if (n + 2 > pairs.size) pairs = pairs.copyOf(pairs.size * 2)
+                pairs[n++] = i; pairs[n++] = k
+            }
+        }
+        val move = FloatArray(h.size)
+        val count = IntArray(h.size)
+        repeat(EASE_PASSES) {
+            var changed = false
+            var p = 0
+            while (p < n) {
+                val i = pairs[p]; val j = pairs[p + 1]
+                p += 2
+                val d = h[i] - h[j]
+                val excess = abs(d) - maxStep
+                if (excess <= 0.01f) continue
+                val s = if (d > 0f) 1f else -1f
+                if (free[i] && free[j]) {
+                    move[i] -= s * excess / 2f; count[i]++; move[j] += s * excess / 2f; count[j]++
+                } else if (free[i]) {
+                    move[i] -= s * excess; count[i]++
+                } else {
+                    move[j] += s * excess; count[j]++
+                }
+                changed = true
+            }
+            if (!changed) return
+            for (q in 0 until n) {
+                val i = pairs[q]
+                if (count[i] > 0) { h[i] = minOf(h[i] + move[i] / count[i], ceiling[i]); move[i] = 0f; count[i] = 0 }
+            }
+        }
     }
 
     private fun key(cx: Int, cz: Int) = (cx.toLong() shl 32) xor (cz.toLong() and 0xffffffffL)
@@ -244,8 +314,13 @@ class RoadLevels(
         /** How far under a road its ground is drawn (out of sight), metres. */
         const val ROAD_SINK = 0.3f
         /** A road's bank: how far it reaches past the road's edge, and how steeply it rises or falls. */
-        const val BANK_WIDTH = 6f
-        const val BANK_SLOPE = 0.7f
+        const val BANK_WIDTH = 12f
+        const val BANK_SLOPE = 0.35f
+        /** The steepest the drawn ground steps between grid points (rise over run), below a retaining wall's. And how hard it tries. */
+        const val MAX_GROUND_STEP = 0.4f
+        private const val EASE_PASSES = 200
+        /** How far round a step (grid points) the ground may be eased to make room for the slope. */
+        private const val EASE_REACH = 6
         /** Two streets this close (metres, middle to middle) running the same way are the halves of a divided road. */
         const val PAIR_DISTANCE = 26f
         /** How closely they must run the same way (the cosine of the angle between them). */
