@@ -222,6 +222,7 @@ class CityMap(
         const val BUILDING_STATUE = 11
         const val BUILDING_COLUMNS = 12
         const val BUILDING_COLLEGE_HALL = 13
+        const val BUILDING_HAMIDIYYEH = 14
 
         const val ROAD_MAJOR = 0
         const val ROAD_MEDIUM = 1

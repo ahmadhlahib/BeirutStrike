@@ -1,9 +1,11 @@
 package com.example.beirutrun.city
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -31,15 +33,19 @@ class SeaStack(
     /** A finished triangle: three corners (x, y, z), their normals, and what it's made of. */
     class Triangle(val p: FloatArray, val n: FloatArray, val part: Part)
 
-    enum class Part { CLIFF, WET, SCRUB }
+    /** Bare limestone, the dark wet band at the waterline, scrub on top, and the dark streaks of lichen down the cliffs. */
+    enum class Part { CLIFF, WET, SCRUB, STAIN }
 
     private val cx: Float
     private val cz: Float
     private val radius: Float
     private val noiseSeed = seed * 7919 + 13
-    /** The arch runs along this direction (unit), through the middle. */
+    /** The arch runs along this direction (unit), [archShift] metres to one side of the middle. */
     private val archDx: Float
     private val archDz: Float
+    private val archShift: Float
+    /** A slender rock (the smaller Pigeon Rock) tapers to a rounded point; the big one stands sheer. */
+    private val spire: Boolean
 
     init {
         var sx = 0f; var sz = 0f
@@ -51,6 +57,10 @@ class SeaStack(
         val tx = viewX - cx; val tz = viewZ - cz
         val tl = sqrt(tx * tx + tz * tz).takeIf { it > 1f } ?: 1f
         archDx = tx / tl; archDz = tz / tl
+        // The real arch is off-centre, towards the rock's seaward (northern) end.
+        val acrossZ = archDx
+        archShift = -ARCH_OFFSET * 2f * radius * (if (acrossZ < 0f) -1f else 1f)
+        spire = !arch && height / radius.coerceAtLeast(1f) >= 2.5f
     }
 
     /** The rock as triangles in world space. */
@@ -127,9 +137,12 @@ class SeaStack(
         val mx = (a[0] + b[0] + c[0]) / 3f
         val mz = (a[2] + b[2] + c[2]) / 3f
         val patch = noise(mx * 0.12f + 17f, 3f, mz * 0.12f + 17f)
+        // Dark streaks of lichen run down the steep faces from high up.
+        val streak = noise(mx * 0.15f + 41f, y * 0.02f, mz * 0.15f + 41f)
         val part = when {
             y < WET_LINE -> Part.WET
-            up > 0.55f && y > height * 0.55f && patch > 0.38f -> Part.SCRUB
+            up > 0.55f && y > height * 0.55f && patch > 0.3f -> Part.SCRUB
+            abs(up) < 0.35f && y > height * 0.3f && streak > 0.68f -> Part.STAIN
             else -> Part.CLIFF
         }
         out += Triangle(p, n, part)
@@ -162,32 +175,38 @@ class SeaStack(
         var d = if (inFootprint) -edge else edge
         val t = (y / height).coerceIn(0f, 1f)
         // Narrower towards the top, more on some sides than others; a little wider under the water.
+        // The big rock's walls are nearly sheer; a slender one tapers all the way up.
         val lean = noise(x * 0.03f + 7f, 0f, z * 0.03f + 7f)
-        d += t * t * radius * (0.18f + 0.3f * lean)
+        d += when {
+            arch -> t * t * t * t * radius * (0.05f + 0.08f * lean)
+            spire -> t.pow(1.5f) * radius * (0.45f + 0.2f * lean)
+            else -> t * t * radius * (0.18f + 0.3f * lean)
+        }
         if (y < -0.5f) d -= 0.8f
         // The wave-cut notch along the waterline.
         d += 1.4f * bump(y, 0.8f, 1.6f)
-        // Rough limestone: big lumps and smaller knobs; mostly vertical grooves where rain has worn
-        // the cliffs, and here and there a faint ledge where a harder layer stands out.
+        // Rough limestone: big lumps and smaller knobs; the near-level beds of the limestone stand
+        // out as ledges all the way up, and rain has worn faint grooves down the cliffs.
         val n1 = noise(x * 0.07f, y * 0.07f, z * 0.07f)
         val n2 = noise(x * 0.21f + 31f, y * 0.21f, z * 0.21f)
         val grooves = noise(x * 0.2f + 53f, y * 0.035f, z * 0.2f + 53f)
-        val layer = noise(x * 0.05f + 91f, y * 0.05f, z * 0.05f)
-        d += (n1 - 0.5f) * 3.6f + (n2 - 0.5f) * 1.3f + (grooves - 0.5f) * 3.2f
-        d += 0.35f * sin(y * 0.6f + n1 * 7f) * (layer - 0.3f).coerceAtLeast(0f) * 2f
-        // The top: a dome over the whole rock, rough too.
+        d += (n1 - 0.5f) * 3.6f + (n2 - 0.5f) * 1.3f + (grooves - 0.5f) * 1.2f
+        d += 0.45f * sin(2f * PI.toFloat() * y / 3.5f + n1 * 4f)
+        // The top: broad and nearly flat with rounded shoulders on the big rock, a rounded point on
+        // a slender one, a dome otherwise; rough too.
         val fromMiddle = sqrt((x - cx) * (x - cx) + (z - cz) * (z - cz)) / max(radius, 1f)
-        val top = y - (height - 0.16f * height * fromMiddle * fromMiddle + (n1 - 0.5f) * 3f)
-        d = smoothMax(d, top, 3f)
+        val drop = if (arch) 0.07f else if (spire) 0.35f else 0.16f
+        val top = y - (height - drop * height * fromMiddle * fromMiddle + (n1 - 0.5f) * 3f)
+        d = smoothMax(d, top, if (arch) 4f else 3f)
         // Open below the sea floor (never seen).
         d = max(d, BOTTOM + 0.5f - y)
         if (arch) {
-            // A tunnel at sea level across the rock: round-topped, as wide as it is high (the real one
-            // is about 11 m; a little more here, so the light shows through from the Corniche).
-            val across = (x - cx) * -archDz + (z - cz) * archDx
+            // A tunnel at sea level across the rock, off-centre towards its seaward end: about 11 m
+            // wide and 12 m high, its legs upright, its top round with a slight point.
+            val across = (x - cx) * -archDz + (z - cz) * archDx - archShift
             val half = ARCH_SPAN / 2f
             val crown = ARCH_HEIGHT - half
-            val r = if (y > crown) sqrt(across * across + (y - crown) * (y - crown)) - half else abs(across) - half
+            val r = if (y > crown) sqrt(across * across * 1.3f + (y - crown) * (y - crown)) - half else abs(across) - half
             val rough = (n2 - 0.5f) * 0.6f
             d = smoothMax(d, -(r + rough), 1f)
         }
@@ -230,10 +249,12 @@ class SeaStack(
         /** How deep the rock goes below the sea (it's never seen lower). */
         const val BOTTOM = -3f
         /** Below this the rock is dark and wet from the waves. */
-        const val WET_LINE = 1.6f
+        const val WET_LINE = 1.2f
         /** The big Pigeon Rock's arch: how wide, and how high its top. */
-        const val ARCH_SPAN = 14f
-        const val ARCH_HEIGHT = 14f
+        const val ARCH_SPAN = 11f
+        const val ARCH_HEIGHT = 12f
+        /** How far off the middle the arch runs, as a share of the rock's length. */
+        const val ARCH_OFFSET = 0.28f
 
         /** Each grid cube as six tetrahedra around its main diagonal (corner bits: x 1, y 2, z 4). */
         private val TETRAHEDRA = arrayOf(

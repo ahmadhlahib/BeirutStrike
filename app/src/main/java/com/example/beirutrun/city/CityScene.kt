@@ -8,6 +8,7 @@ import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -56,7 +57,7 @@ enum class Surface(
     DOME(0xFF2F6DB5.toInt()), GOLD(0xFFD4AF37.toInt()), MINARET(0xFFE8E0CC.toInt()), TERRACOTTA(0xFFA4553A.toInt()),
     // Sea stacks (Pigeon Rocks, see SeaStack): sunlit limestone, dark wet rock at the waterline, scrub on top.
     ROCK(0xFFD9C6A2.toInt(), CityTextures.SAND), ROCK_WET(0xFF7D705E.toInt(), CityTextures.SAND),
-    SCRUB(0xFF5E7340.toInt(), CityTextures.GRASS),
+    SCRUB(0xFF5E7340.toInt(), CityTextures.GRASS), ROCK_STAIN(0xFF6A665A.toInt(), CityTextures.SAND),
     // Local identity (see Landmarks and the builders below): retaining walls, red tile roofs,
     // shop signs, the Corniche's blue railing, fishing boats, and the landmarks' materials.
     RETAINING_WALL(0xFFFFFFFF.toInt(), CityTextures.STONE_WALL),
@@ -70,6 +71,20 @@ enum class Surface(
     RAW_CONCRETE(0xFFB0ADA5.toInt()), SHELL_DARK(0xFF2B2926.toInt()),
     MARBLE(0xFFDCD5C6.toInt()), CLOCK_FACE(0xFFF4F0E2.toInt(), lit = false), CLOCK_HANDS(0xFF1E1E1E.toInt()),
     DOME_LIGHT(0xFF3F86CC.toInt(), shine = 0.35f),
+    // The landmarks in their real materials (from photos; see each builder).
+    OCHRE_STONE(0xFFD8B27A.toInt()), DOME_PALE(0xFF6AAED6.toInt(), shine = 0.35f), ARCH_SHADOW(0xFF5E4630.toInt()),
+    WINDOW_DARK(0xFF1E2A30.toInt()), LIMESTONE_PALE(0xFFCDB894.toInt()), STONE_TRIM(0xFFA89470.toInt()),
+    TRIM_WHITE(0xFFECE4D4.toInt()), ROSE_SANDSTONE(0xFFC9A27A.toInt()),
+    BRONZE_DARK(0xFF3B3A35.toInt(), shine = 0.2f), RENDER_WHITE(0xFFE9E7E1.toInt()), STEP_GREY(0xFF6E6A62.toInt()),
+    ROCK_PALE(0xFFCFC6AE.toInt()), FLAME(0xFFF2A33A.toInt(), lit = false),
+    GRANITE(0xFF8F8B86.toInt(), shine = 0.15f), MARBLE_WHITE(0xFFE6E2D8.toInt()), LIMESTONE_BLOCK(0xFFCFC4AD.toInt()),
+    EGG_CONCRETE(0xFF8A8478.toInt()), EGG_FACE(0xFFB5AB98.toInt()), RUST_PANEL(0xFFB8784A.toInt()), BLOCK_GREY(0xFFA8A294.toInt()),
+    VOID_DARK(0xFF1E1E1E.toInt()),
+    PLASTER_DOME(0xFFECE6D8.toInt()), LEAD_DOME(0xFF9A9EA3.toInt(), shine = 0.2f), CAP_GREY(0xFF8C9096.toInt()),
+    MOSQUE_STONE(0xFFD6C7A6.toInt()), CHURCH_STONE(0xFFD9C9A6.toInt()), BELFRY_DARK(0xFF2A2622.toInt()),
+    IRON_DARK(0xFF333333.toInt()),
+    MURR_CONCRETE(0xFF8E7E6A.toInt()), HOTEL_WHITE(0xFFDAD7D0.toInt()), HOTEL_DARK(0xFF2E2C2A.toInt()),
+    HOTEL_TILE(0xFFC8A497.toInt()), NAVY_TILE(0xFF2B3550.toInt()), AUB_STONE(0xFFD2B47A.toInt()),
     PINE(0xFF2E4F2E.toInt(), CityTextures.LEAF),
     TRUNK(0xFF8E6E52.toInt(), CityTextures.BARK), PALM_TRUNK(0xFFAA9474.toInt(), CityTextures.PALM_BARK),
     LEAVES(0xFF74B654.toInt(), CityTextures.LEAF), LEAVES_DARK(0xFF559A4A.toInt(), CityTextures.LEAF),
@@ -651,6 +666,7 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                     SeaStack.Part.CLIFF -> Surface.ROCK
                     SeaStack.Part.WET -> Surface.ROCK_WET
                     SeaStack.Part.SCRUB -> Surface.SCRUB
+                    SeaStack.Part.STAIN -> Surface.ROCK_STAIN
                 }
                 val o = out(t.p[0], t.p[2], surface)
                 val s = span(surface).takeIf { it > 0f } ?: 4f
@@ -794,6 +810,44 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             )
         }
 
+        /**
+         * One side of a [Box]: its middle (on the wall), outward direction and half its length;
+         * [along] is the direction along it with the outside to its right, as walls, panels and
+         * arches are drawn.
+         */
+        private class Side(val cx: Float, val cz: Float, val nx: Float, val nz: Float, val half: Float) {
+            val ax get() = -nz
+            val az get() = nx
+            /** The point [t] metres along the side from its middle and [out] metres out from it. */
+            fun x(t: Float, out: Float = 0f) = cx + ax * t + nx * out
+            fun z(t: Float, out: Float = 0f) = cz + az * t + nz * out
+        }
+
+        /** [bx]'s four sides: along its length (+u, −u), then across it (+v, −v); [inset] metres in from its edges. */
+        private fun sides(bx: Box, inset: Float = 0f): List<Side> {
+            val vx = -bx.uz; val vz = bx.ux
+            return listOf(
+                Side(bx.cx + bx.ux * (bx.hu - inset), bx.cz + bx.uz * (bx.hu - inset), bx.ux, bx.uz, bx.hv - inset),
+                Side(bx.cx - bx.ux * (bx.hu - inset), bx.cz - bx.uz * (bx.hu - inset), -bx.ux, -bx.uz, bx.hv - inset),
+                Side(bx.cx + vx * (bx.hv - inset), bx.cz + vz * (bx.hv - inset), vx, vz, bx.hu - inset),
+                Side(bx.cx - vx * (bx.hv - inset), bx.cz - vz * (bx.hv - inset), -vx, -vz, bx.hu - inset),
+            )
+        }
+
+        /** Which of [bx]'s [sides] faces the start point (where players first see it from). */
+        private fun frontOf(bx: Box): Int {
+            val dx = map.spawnX - bx.cx; val dz = map.spawnZ - bx.cz
+            return sides(bx).withIndex().maxBy { (_, s) -> s.nx * dx + s.nz * dz }.index
+        }
+
+        /** An arch (see [arch]) on side [s], [w] wide centred [t] metres along it. */
+        private fun archOn(o: Floats, s: Side, t: Float, w: Float, y0: Float, spring: Float, out: Float = 0.05f) =
+            arch(o, s.x(t - w / 2f), s.z(t - w / 2f), s.x(t + w / 2f), s.z(t + w / 2f), y0, spring, out)
+
+        /** A flat panel (see [panel]) on side [s], [w] wide centred [t] metres along it. */
+        private fun panelOn(o: Floats, s: Side, t: Float, w: Float, y0: Float, y1: Float, out: Float = 0.04f) =
+            panel(o, s.x(t - w / 2f), s.z(t - w / 2f), s.x(t + w / 2f), s.z(t + w / 2f), y0, y1, out)
+
         /** A solid block on [ring] from [y0] to [y1], walls and top in [s]. */
         private fun block(s: Surface, ring: FloatArray, y0: Float, y1: Float, spanU: Float = 0f, spanV: Float = 0f) {
             val (cx, cz) = centroid(ring)
@@ -918,65 +972,187 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
         }
 
         /**
-         * The Mohammad Al-Amin Mosque: Beiruti yellow sandstone, a great blue dome (42 m) on a drum
-         * with four smaller domes round it, and four slender minarets of 72 m at the corners, each
-         * with two balconies and a pointed blue cap.
+         * The Mohammad Al-Amin Mosque (2008, Ottoman style), as built: a 46 m square body of ochre
+         * stone 17 m high with a portico of five tall arches on the square, a pale blue dome on a
+         * windowed drum (42 m, a gold spire to 48 m) over a square base, a lower blue half-dome in
+         * front of it and four small domes at the corners; and four slender pencil minarets of 72 m
+         * flush with the corners, fluted, with two balconies each and a tall stone cone (not blue).
+         * Sizes are the real ones, scaled to the footprint in the map.
          */
         private fun addGrandMosque(b: CityMap.Building) {
             val bx = box(b)
-            val wallTop = 20f
-            walls(out(b.centerX, b.centerZ, Surface.WALL_SANDSTONE), b.pts, 0f, wallTop, CityTextures.FACADE_SPAN, CityTextures.FACADE_SPAN)
-            cornice(out(b.centerX, b.centerZ, Surface.CORNICE), b.pts, wallTop)
-            flatPolygon(out(b.centerX, b.centerZ, Surface.ROOF), b.pts, wallTop, span(Surface.ROOF))
-            val r = (minOf(bx.hu, bx.hv) * 0.55f).coerceIn(6f, 14f)
-            prism(out(bx.cx, bx.cz, Surface.WALL_SANDSTONE), bx.cx, bx.cz, r * 1.02f, r * 1.02f, wallTop, wallTop + 5f, 16)
-            sphere(out(bx.cx, bx.cz, Surface.DOME_LIGHT), bx.cx, wallTop + 5f, bx.cz, r, 8, 20, hemisphere = true)
-            prism(out(bx.cx, bx.cz, Surface.GOLD), bx.cx, bx.cz, 0.35f, 0.05f, wallTop + 5f + r, wallTop + 5f + r + 3.5f, 6)
-            // Four half-size domes on the diagonals.
-            for ((su, sv) in listOf(1f to 1f, -1f to 1f, 1f to -1f, -1f to -1f)) {
-                val d = r * 1.15f
-                val x = bx.cx + bx.ux * su * d - bx.uz * sv * d; val z = bx.cz + bx.uz * su * d + bx.ux * sv * d
-                if (!CityMap.inside(b.pts, x, z)) continue
-                sphere(out(x, z, Surface.DOME_LIGHT), x, wallTop, z, r * 0.42f, 5, 12, hemisphere = true)
+            val s = (minOf(bx.hu, bx.hv) / 23f).coerceIn(0.6f, 1.4f)
+            val c = Surface.OCHRE_STONE
+            val bodyTop = 17f
+            // Plain ochre stone: no ordinary building's windows and shutters.
+            walls(out(b.centerX, b.centerZ, c), b.pts, 0f, bodyTop)
+            cornice(out(b.centerX, b.centerZ, Surface.CORNICE), b.pts, bodyTop)
+            cornice(out(b.centerX, b.centerZ, Surface.CORNICE), b.pts, 14.5f)
+            flatPolygon(out(b.centerX, b.centerZ, Surface.ROOF), b.pts, bodyTop, span(Surface.ROOF))
+            // The facades, on the footprint's own walls: tall arches along the front (the walls facing
+            // the square), two rows of arched windows elsewhere.
+            val all = sides(bx)
+            val front = frontOf(bx)
+            val fx = all[front].nx; val fz = all[front].nz
+            val ring = if (CityMap.signedArea(b.pts) > 0f) b.pts else FloatArray(b.pts.size) { i -> b.pts[(b.pts.size - 2 - (i / 2) * 2) + i % 2] }
+            val shade = out(b.centerX, b.centerZ, Surface.ARCH_SHADOW)
+            val n = ring.size / 2
+            for (i in 0 until n) {
+                val j = (i + 1) % n
+                val ax = ring[2 * i]; val az = ring[2 * i + 1]; val ex = ring[2 * j]; val ez = ring[2 * j + 1]
+                val len = hypot(ex - ax, ez - az)
+                if (len < 4f) continue
+                // Outside is to the right going round a footprint.
+                val wall = Side((ax + ex) / 2f, (az + ez) / 2f, (ez - az) / len, -(ex - ax) / len, len / 2f)
+                if (wall.nx * fx + wall.nz * fz > 0.7f && len >= 8f) {
+                    val count = (len / 8f).toInt().coerceIn(1, 7)
+                    val pitch = len / count
+                    val w = minOf(6f * s, pitch * 0.75f)
+                    for (k in 0 until count) archOn(shade, wall, -len / 2f + (k + 0.5f) * pitch, w, 0.6f, 12.6f - w / 2f)
+                } else {
+                    val count = (len / 9f).toInt()
+                    if (count == 0) continue
+                    val pitch = len / count
+                    for (k in 0 until count) {
+                        val t = -len / 2f + (k + 0.5f) * pitch
+                        archOn(shade, wall, t, 2.4f, 2f, 6f)
+                        archOn(shade, wall, t, 2.4f, 8.5f, 12f)
+                    }
+                }
             }
-            // The minarets at the corners, a little in.
+            // The dome's square base, the drum with its ring of windows, the pale blue dome and its spire.
+            block(c, rect(bx.cx, bx.cz, bx.ux, bx.uz, 13f * s, 13f * s), bodyTop, 26f)
+            val drum = 11.5f * s
+            prism(out(bx.cx, bx.cz, c), bx.cx, bx.cz, drum, drum, 26f, 33f, 20)
+            val windows = out(bx.cx, bx.cz, Surface.WINDOW_DARK)
+            for (k in 0 until 20) {
+                val a0 = 2f * PI.toFloat() * (k + 0.3f) / 20f; val a1 = 2f * PI.toFloat() * (k + 0.7f) / 20f
+                // From a0 to a1 round the drum the outside is on the right.
+                arch(windows, bx.cx + cos(a0) * drum, bx.cz + sin(a0) * drum, bx.cx + cos(a1) * drum, bx.cz + sin(a1) * drum, 28f, 31f, 0.06f)
+            }
+            lathe(out(bx.cx, bx.cz, Surface.DOME_PALE), bx.cx, bx.cz, domeProfile(10.8f * s, 33f, 9f, 10), 24)
+            prism(out(bx.cx, bx.cz, Surface.GOLD), bx.cx, bx.cz, 0.3f, 0.03f, 41.5f, 48f, 6)
+            sphere(out(bx.cx, bx.cz, Surface.GOLD), bx.cx, 43.5f, bx.cz, 0.45f, 4, 8, hemisphere = false)
+            // The half-dome over the entrance, lower, on its own windowed drum.
+            val hx = bx.cx + fx * 15f * s; val hz = bx.cz + fz * 15f * s
+            if (CityMap.inside(b.pts, hx, hz)) {
+                prism(out(hx, hz, c), hx, hz, 6.2f * s, 6.2f * s, bodyTop, 21f, 16)
+                lathe(out(hx, hz, Surface.DOME_PALE), hx, hz, domeProfile(6f * s, 21f, 5f, 8), 18)
+            }
+            // Four small domes at the roof's corners, inside the minarets.
             for ((su, sv) in listOf(1f to 1f, -1f to 1f, 1f to -1f, -1f to -1f)) {
-                val iu = (bx.hu - 3f).coerceAtLeast(1f); val iv = (bx.hv - 3f).coerceAtLeast(1f)
+                val iu = bx.hu - 9f * s; val iv = bx.hv - 9f * s
+                val x = bx.cx + bx.ux * su * iu - bx.uz * sv * iv; val z = bx.cz + bx.uz * su * iu + bx.ux * sv * iv
+                if (!CityMap.inside(b.pts, x, z)) continue
+                prism(out(x, z, c), x, z, 2.7f * s, 2.7f * s, bodyTop, 19.5f, 12)
+                lathe(out(x, z, Surface.DOME_PALE), x, z, domeProfile(2.6f * s, 19.5f, 2.6f * s, 6), 12)
+            }
+            // The four minarets, flush with the corners: slender, at their real size whatever the footprint.
+            for ((su, sv) in listOf(1f to 1f, -1f to 1f, 1f to -1f, -1f to -1f)) {
+                val iu = bx.hu - 2.6f; val iv = bx.hv - 2.6f
                 val mx = bx.cx + bx.ux * su * iu - bx.uz * sv * iv; val mz = bx.cz + bx.uz * su * iu + bx.ux * sv * iv
-                val o = out(mx, mz, Surface.MINARET)
-                prism(o, mx, mz, 2.2f, 1.7f, 0f, 46f, 8)
-                prism(o, mx, mz, 2.8f, 2.8f, 46f, 47f, 8)
-                prism(o, mx, mz, 1.6f, 1.4f, 47f, 62f, 8)
-                prism(o, mx, mz, 2.2f, 2.2f, 62f, 63f, 8)
-                prism(o, mx, mz, 1.2f, 1.1f, 63f, 67f, 8)
-                prism(out(mx, mz, Surface.DOME_LIGHT), mx, mz, 1.3f, 0.05f, 67f, 72f, 8)
+                val o = out(mx, mz, c)
+                block(c, rect(mx, mz, bx.ux, bx.uz, 2.6f, 2.6f), 0f, 20f)
+                // From the square base to the round shaft, a flared collar.
+                lathe(o, mx, mz, floatArrayOf(2.8f, 20f, 2.6f, 21f, 1.9f, 23f), 8)
+                prism(o, mx, mz, 1.85f, 1.55f, 23f, 60.5f, 16)
+                // Two balconies on corbels.
+                for (y in floatArrayOf(42f, 56f)) {
+                    lathe(o, mx, mz, floatArrayOf(1.65f, y - 1.4f, 2.45f, y), 16)
+                    prism(o, mx, mz, 2.45f, 2.45f, y, y + 1f, 16)
+                    prism(out(mx, mz, Surface.CORNICE), mx, mz, 2.5f, 2.5f, y + 1f, y + 1.15f, 16)
+                }
+                // The tall pointed stone cone, and the gold finial.
+                prism(o, mx, mz, 1.65f, 0.05f, 60.5f, 70.5f, 16)
+                prism(out(mx, mz, Surface.GOLD), mx, mz, 0.14f, 0.02f, 70.3f, 72.5f, 6)
+                sphere(out(mx, mz, Surface.GOLD), mx, 71f, mz, 0.22f, 3, 6, hemisphere = false)
             }
         }
 
         /**
-         * A stone clock tower (the Al-Abed tower in Nejmeh Square, the Hamidiyyeh tower by the Grand
-         * Serail): a stepped base, a tall square shaft, the clock stage with a face each way, and a
-         * small dome on top.
+         * The Al-Abed clock tower in Nejmeh Square (Art Deco, 1934): a 5.5 m square shaft of pale
+         * limestone, 22 m to its flat top, on a plinth with flared corners. Each face has three
+         * tall slit windows, a cornice band, the white Rolex dial and two louvred openings; at each
+         * corner two fluted finials rise above the top (eight in all). No dome.
          */
         private fun addClockTower(b: CityMap.Building) {
             val bx = box(b)
-            val s = (minOf(bx.hu, bx.hv)).coerceIn(1.6f, 3.5f)
-            val h = b.height
-            val sand = Surface.WALL_SANDSTONE
-            val corn = Surface.CORNICE
-            block(corn, rect(bx.cx, bx.cz, bx.ux, bx.uz, s * 1.3f, s * 1.3f), 0f, 1.2f)
-            block(sand, rect(bx.cx, bx.cz, bx.ux, bx.uz, s, s), 1.2f, h * 0.72f)
-            block(corn, rect(bx.cx, bx.cz, bx.ux, bx.uz, s * 1.12f, s * 1.12f), h * 0.72f, h * 0.74f)
-            block(sand, rect(bx.cx, bx.cz, bx.ux, bx.uz, s * 1.04f, s * 1.04f), h * 0.74f, h * 0.9f)
-            block(corn, rect(bx.cx, bx.cz, bx.ux, bx.uz, s * 1.15f, s * 1.15f), h * 0.9f, h * 0.92f)
-            prism(out(bx.cx, bx.cz, sand), bx.cx, bx.cz, s * 0.8f, s * 0.8f, h * 0.92f, h * 0.97f, 8)
-            sphere(out(bx.cx, bx.cz, sand), bx.cx, h * 0.97f, bx.cz, s * 0.8f, 5, 12, hemisphere = true)
-            prism(out(bx.cx, bx.cz, Surface.GOLD), bx.cx, bx.cz, 0.12f, 0.02f, h * 0.97f + s * 0.8f, h * 0.97f + s * 0.8f + 1.4f, 6)
-            val cy = h * 0.82f
-            for ((nu, nv) in listOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f)) {
-                val nx = bx.ux * nu - bx.uz * nv; val nz = bx.uz * nu + bx.ux * nv
-                clock(bx.cx + nx * (s * 1.04f + 0.04f), cy, bx.cz + nz * (s * 1.04f + 0.04f), nx, nz, s * 0.7f)
+            val cx = bx.cx; val cz = bx.cz
+            val h = 2.75f
+            val stone = Surface.LIMESTONE_PALE
+            val trim = Surface.STONE_TRIM
+            block(trim, rect(cx, cz, bx.ux, bx.uz, 3.5f, 3.5f), 0f, 0.9f)
+            block(stone, rect(cx, cz, bx.ux, bx.uz, 3.1f, 3.1f), 0.9f, 2.5f)
+            block(stone, rect(cx, cz, bx.ux, bx.uz, h, h), 2.5f, 22f)
+            block(trim, rect(cx, cz, bx.ux, bx.uz, h + 0.18f, h + 0.18f), 13.3f, 13.7f)
+            block(trim, rect(cx, cz, bx.ux, bx.uz, h + 0.12f, h + 0.12f), 17.9f, 18.2f)
+            block(trim, rect(cx, cz, bx.ux, bx.uz, h + 0.1f, h + 0.1f), 21.6f, 22f)
+            val box = Box(cx, cz, bx.ux, bx.uz, h, h, 1f)
+            for (side in sides(box)) {
+                val dark = out(side.cx, side.cz, Surface.WINDOW_DARK)
+                for (t in floatArrayOf(-0.5f, 0f, 0.5f)) panelOn(dark, side, t, 0.3f, 4f, 13f)
+                for (t in floatArrayOf(-0.42f, 0.42f)) panelOn(dark, side, t, 0.75f, 18.5f, 20.2f)
+                clock(side.x(0f, 0.05f), 16f, side.z(0f, 0.05f), side.nx, side.nz, 0.95f)
             }
+            // Two fluted finials at each corner, one on each face.
+            val finial = out(cx, cz, stone)
+            for ((su, sv) in listOf(1f to 1f, -1f to 1f, 1f to -1f, -1f to -1f)) for (k in 0..1) {
+                val du = if (k == 0) h - 0.35f else h - 1.1f
+                val dv = if (k == 0) h - 1.1f else h - 0.35f
+                val x = cx + bx.ux * su * du - bx.uz * sv * dv; val z = cz + bx.uz * su * du + bx.ux * sv * dv
+                lathe(finial, x, z, floatArrayOf(0.34f, 22f, 0.3f, 23.2f, 0.22f, 23.7f, 0.1f, 24f, 0f, 24.1f), 8)
+            }
+        }
+
+        /**
+         * The Hamidiyyeh clock tower by the Grand Serail (Ottoman, 1897, 25 m): warm sandstone
+         * with white trim, four stages on a 5 m base. A striped pointed-arch doorway, paired
+         * pointed windows, a small white balcony on every face, a clock face each way under the
+         * belfry's paired arches, and battlements of stepped merlons on top. No dome.
+         */
+        private fun addHamidiyyeh(b: CityMap.Building) {
+            val bx = box(b)
+            val cx = bx.cx; val cz = bx.cz
+            val stone = Surface.ROSE_SANDSTONE
+            val white = Surface.TRIM_WHITE
+            fun square(half: Float) = rect(cx, cz, bx.ux, bx.uz, half, half)
+            block(stone, square(2.5f), 0f, 6.2f)
+            block(white, square(2.6f), 6.2f, 6.5f)
+            block(stone, square(2.1f), 6.5f, 17f)
+            block(white, square(2.25f), 17f, 17.25f)
+            block(stone, square(2.1f), 17.25f, 20.9f)
+            block(white, square(2.4f), 20.9f, 21.4f)
+            block(stone, square(2.1f), 21.4f, 23.5f)
+            block(white, square(2.25f), 23.5f, 23.7f)
+            val front = frontOf(Box(cx, cz, bx.ux, bx.uz, 2.5f, 2.5f, 1f))
+            sides(Box(cx, cz, bx.ux, bx.uz, 2.5f, 2.5f, 1f)).forEachIndexed { k, side ->
+                if (k != front) return@forEachIndexed
+                // The doorway: a white frame, then the dark door under its arch.
+                archOn(out(side.cx, side.cz, white), side, 0f, 2.6f, 0f, 3.9f, 0.03f)
+                archOn(out(side.cx, side.cz, Surface.WINDOW_DARK), side, 0f, 1.9f, 0f, 3.5f, 0.06f)
+            }
+            for (side in sides(Box(cx, cz, bx.ux, bx.uz, 2.1f, 2.1f, 1f))) {
+                val w = out(side.cx, side.cz, white)
+                val dark = out(side.cx, side.cz, Surface.WINDOW_DARK)
+                // Paired pointed windows in one white arch.
+                archOn(w, side, 0f, 2f, 9f, 11.2f, 0.03f)
+                for (t in floatArrayOf(-0.48f, 0.48f)) archOn(dark, side, t, 0.8f, 9.2f, 11f, 0.06f)
+                // The balcony: a slab on the wall, its white railing, and the door behind it.
+                block(white, rect(side.x(0f, 0.3f), side.z(0f, 0.3f), side.ax, side.az, 0.9f, 0.3f), 13.5f, 13.75f)
+                block(white, rect(side.x(0f, 0.58f), side.z(0f, 0.58f), side.ax, side.az, 0.9f, 0.03f), 13.75f, 14.65f)
+                panelOn(w, side, 0f, 1.2f, 13.75f, 16.2f, 0.03f)
+                panelOn(dark, side, 0f, 0.9f, 13.75f, 15.75f, 0.05f)
+                clock(side.x(0f, 0.05f), 19f, side.z(0f, 0.05f), side.nx, side.nz, 1f)
+                // The belfry's two arches.
+                for (t in floatArrayOf(-0.6f, 0.6f)) archOn(dark, side, t, 0.6f, 21.7f, 22.8f, 0.05f)
+                // Five stepped merlons along the top.
+                for (i in -2..2) {
+                    val mx = side.x(i * 0.85f, -0.15f); val mz = side.z(i * 0.85f, -0.15f)
+                    block(stone, rect(mx, mz, side.ax, side.az, 0.25f, 0.15f), 23.7f, 24.3f)
+                    block(stone, rect(mx, mz, side.ax, side.az, 0.14f, 0.15f), 24.3f, 24.75f)
+                }
+            }
+            prism(out(cx, cz, Surface.POLE), cx, cz, 0.04f, 0.03f, 23.7f, 26f, 6)
         }
 
         /**
@@ -985,81 +1161,190 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
          */
         private fun addEgg(b: CityMap.Building) {
             val bx = box(b)
-            val ru = bx.hu.coerceIn(8f, 18f); val rv = bx.hv.coerceIn(6f, 14f)
-            block(Surface.SHELL_DARK, rect(bx.cx, bx.cz, bx.ux, bx.uz, ru * 0.92f, rv * 0.92f), 0f, 2f)
-            val o = out(bx.cx, bx.cz, Surface.RAW_CONCRETE)
-            val stacks = 8; val slices = 24
-            fun point(i: Int, j: Int): FloatArray {
-                val lat = PI / 2 * i / stacks
-                val lon = 2 * PI * j / slices
-                val cu = (cos(lat) * cos(lon)).toFloat(); val cv = (cos(lat) * sin(lon)).toFloat(); val y = sin(lat).toFloat()
-                return floatArrayOf(cu, y, cv)
+            // The open face towards the square (the start), the rounded back away from it.
+            val all = sides(bx)
+            val front = listOf(2, 3).maxBy { k -> all[k].nx * (map.spawnX - bx.cx) + all[k].nz * (map.spawnZ - bx.cz) }
+            val f = all[front]
+            // The podium: two storeys of bare concrete frame (slabs, a 7 m grid of columns), mostly open.
+            val pu = bx.hu.coerceIn(10f, 20f); val pv = bx.hv.coerceIn(8f, 15f)
+            val slab = Surface.RAW_CONCRETE
+            for ((y0, y1) in listOf(4.6f to 5f, 9.6f to 10f)) block(slab, rect(bx.cx, bx.cz, bx.ux, bx.uz, pu, pv), y0, y1)
+            val vx = -bx.uz; val vz = bx.ux
+            var u = -pu + 0.4f
+            while (u <= pu) {
+                var v = -pv + 0.4f
+                while (v <= pv) {
+                    block(slab, rect(bx.cx + bx.ux * u + vx * v, bx.cz + bx.uz * u + vz * v, bx.ux, bx.uz, 0.4f, 0.4f), 0f, 9.6f)
+                    v += ((pv * 2f - 0.8f) / ((pv * 2f / 7f).roundToInt().coerceAtLeast(1))).coerceAtLeast(3f)
+                }
+                u += ((pu * 2f - 0.8f) / ((pu * 2f / 7f).roundToInt().coerceAtLeast(1))).coerceAtLeast(3f)
             }
-            val height = b.height - 2f
-            fun v(p: FloatArray) {
-                val u = p[0] * ru; val w = p[2] * rv
-                var nu = p[0] / ru; var ny = p[1] / height; var nw = p[2] / rv
-                val l = sqrt(nu * nu + ny * ny + nw * nw); nu /= l; ny /= l; nw /= l
-                o.vertex(bx.cx + bx.ux * u - bx.uz * w, 2f + p[1] * height, bx.cz + bx.uz * u + bx.ux * w,
-                    bx.ux * nu - bx.uz * nw, ny, bx.uz * nu + bx.ux * nw, 0.02f, 0.02f)
+            // Here and there on the front, rusty panels and grey block walls fill a bay.
+            val pf = Side(bx.cx + f.nx * pv, bx.cz + f.nz * pv, f.nx, f.nz, pu)
+            panelOn(out(pf.cx, pf.cz, Surface.RUST_PANEL), pf, -pu * 0.15f, 5.5f, 0.2f, 4.4f, -0.3f)
+            panelOn(out(pf.cx, pf.cz, Surface.BLOCK_GREY), pf, pu * 0.45f, 5f, 0.2f, 1.6f, -0.3f)
+            panelOn(out(pf.cx, pf.cz, Surface.BLOCK_GREY), pf, -pu * 0.7f, 4f, 5f, 6.2f, -0.3f)
+            // The shell: the back half of a squarish capsule 25 m long and 11 m high, cut open along
+            // its length, its underside resting on the podium.
+            val a = 12.5f; val hb = 5.5f; val c = (pv * 1.4f).coerceIn(8f, 14f)
+            val cy = 10f + hb
+            val ox = bx.cx + f.nx * (pv - 1f); val oz = bx.cz + f.nz * (pv - 1f)
+            val bxn = -f.nx; val bzn = -f.nz // backwards, into the shell
+            val e = 2.5f
+            fun sp(t: Float) = kotlin.math.sign(t) * abs(t).pow(2f / e)
+            val shell = out(bx.cx, bx.cz, Surface.EGG_CONCRETE)
+            val rings = 8; val around = 28
+            fun at(i: Int, j: Int): FloatArray {
+                val al = PI.toFloat() / 2f * i / rings
+                val be = 2f * PI.toFloat() * j / around
+                val ca = cos(al); val sa = sin(al)
+                val x = sp(ca) * sp(cos(be)); val y = sp(ca) * sp(sin(be)); val z = sp(sa)
+                // The surface's normal, from the plain ellipsoid's: near enough for lighting.
+                var nu = ca * cos(be) / a; var ny = ca * sin(be) / hb; var nb = sa / c
+                val nl = sqrt(nu * nu + ny * ny + nb * nb); nu /= nl; ny /= nl; nb /= nl
+                return floatArrayOf(
+                    ox + bx.ux * x * a + bxn * z * c, cy + y * hb, oz + bx.uz * x * a + bzn * z * c,
+                    bx.ux * nu + bxn * nb, ny, bx.uz * nu + bzn * nb,
+                )
             }
-            for (i in 0 until stacks) for (j in 0 until slices) {
-                val a = point(i, j); val c = point(i + 1, j + 1)
-                v(a); v(point(i + 1, j)); v(c)
-                v(a); v(c); v(point(i, j + 1))
+            for (i in 0 until rings) for (j in 0 until around) {
+                val q = arrayOf(at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1))
+                for (tri in arrayOf(intArrayOf(0, 1, 2), intArrayOf(0, 2, 3))) {
+                    val pts = FloatArray(9) { k -> q[tri[k / 3]][k % 3] }
+                    val n = q[tri[0]]
+                    for (k in facing(pts, intArrayOf(0, 1, 2), n[3], n[4], n[5])) {
+                        val p = q[tri[k]]
+                        shell.vertex(p[0], p[1], p[2], p[3], p[4], p[5], 0.02f, 0.02f)
+                    }
+                }
+            }
+            // The open face: an oval of weathered concrete, the black voids where the cinema's
+            // floors were, a concrete pier between them, and two tiers of slab edges sticking out.
+            val face = out(ox, oz, Surface.EGG_FACE)
+            val fanN = 28
+            for (j in 0 until fanN) {
+                val b0 = 2f * PI.toFloat() * j / fanN; val b1 = 2f * PI.toFloat() * (j + 1) / fanN
+                val pts = floatArrayOf(
+                    ox, cy, oz,
+                    ox + bx.ux * sp(cos(b0)) * a, cy + sp(sin(b0)) * hb, oz + bx.uz * sp(cos(b0)) * a,
+                    ox + bx.ux * sp(cos(b1)) * a, cy + sp(sin(b1)) * hb, oz + bx.uz * sp(cos(b1)) * a,
+                )
+                for (k in facing(pts, intArrayOf(0, 1, 2), f.nx, 0f, f.nz)) face.vertex(pts[3 * k], pts[3 * k + 1], pts[3 * k + 2], f.nx, 0f, f.nz, 0.02f, 0.02f)
+            }
+            val fs = Side(ox, oz, f.nx, f.nz, a)
+            val voids = out(ox, oz, Surface.VOID_DARK)
+            panelOn(voids, fs, -5.6f, 7.2f, cy - 2.2f, cy + 1.6f, 0.05f)
+            panelOn(voids, fs, 5.6f, 7.2f, cy - 2.2f, cy + 1.6f, 0.05f)
+            panelOn(voids, fs, 0f, 18f, 10.3f, cy - 2.9f, 0.05f)
+            for ((y, w) in listOf(cy - 2.5f to a * 0.92f, cy + 2f to a * 0.85f)) {
+                block(slab, rect(fs.x(0f, 0.3f), fs.z(0f, 0.3f), fs.ax, fs.az, w, 0.35f), y - 0.25f, y + 0.1f)
             }
         }
 
         /**
-         * The Murr Tower: 40 storeys of bare concrete left unfinished since the war, a 140 m
-         * skeleton of floor slabs and columns round a dark, empty inside.
+         * The Murr Tower (1974, unfinished since the war): a closed 140 m monolith of brown-grey
+         * cast concrete, nearly windowless. Its long faces have one narrow field of five columns
+         * of small windows up the middle, a window a floor; its short faces a single stack of
+         * small square holes off to one side. Shell-pocked walls, a dark open ground floor.
          */
-        private fun addMurr(b: CityMap.Building) {
+        private fun addMurr(b: CityMap.Building, index: Int) {
             val (cx, cz) = centroid(b.pts)
-            walls(out(cx, cz, Surface.SHELL_DARK), b.pts, 0f, b.height)
-            flatPolygon(out(cx, cz, Surface.RAW_CONCRETE), b.pts, b.height)
-            val floors = (b.height / 3.5f).toInt()
-            for (f in 1..floors) cornice(out(cx, cz, Surface.RAW_CONCRETE), b.pts, f * 3.5f)
-            // Columns round the edge every 6 m.
-            val p = b.pts
-            for (i in 0 until p.size / 2) {
-                val j = (i + 1) % (p.size / 2)
-                val ax = p[2 * i]; val az = p[2 * i + 1]; val ex = p[2 * j]; val ez = p[2 * j + 1]
-                val len = hypot(ex - ax, ez - az)
-                val n = (len / 6f).toInt().coerceAtLeast(1)
-                for (k in 0 until n) {
-                    val t = k / n.toFloat()
-                    val x = ax + (ex - ax) * t; val z = az + (ez - az) * t
-                    block(Surface.RAW_CONCRETE, rect(x, z, (ex - ax) / len, (ez - az) / len, 0.45f, 0.45f), 0f, b.height)
+            val h = b.height
+            walls(out(cx, cz, Surface.MURR_CONCRETE), b.pts, 0f, h)
+            flatPolygon(out(cx, cz, Surface.RAW_CONCRETE), b.pts, h)
+            cornice(out(cx, cz, Surface.RAW_CONCRETE), b.pts, h)
+            val bx = box(b)
+            val rnd = Random(index * 97L + 13)
+            val floors = ((h - 5f) / 3.5f).toInt()
+            for (side in sides(bx)) {
+                val dark = out(side.cx, side.cz, Surface.SHELL_DARK)
+                panelOn(dark, side, 0f, side.half * 1.7f, 0f, 4.2f, 0.05f)
+                val long = side.half >= maxOf(bx.hu, bx.hv) - 0.01f
+                for (f in 0 until floors) {
+                    val y = 5.5f + f * 3.5f
+                    if (long) for (c in -2..2) panelOn(dark, side, c * 2.6f, 1.8f, y, y + 1.4f, 0.05f)
+                    else panelOn(dark, side, side.half * 0.55f, 0.8f, y + 0.3f, y + 1.1f, 0.05f)
+                }
+                // Shell holes, here and there on the blind walls.
+                repeat(6) {
+                    val t = (rnd.nextFloat() * 2f - 1f) * side.half * 0.9f
+                    if (long && abs(t) < 7.5f) return@repeat
+                    val y = 8f + rnd.nextFloat() * (h - 16f)
+                    val w = 0.8f + rnd.nextFloat() * 1.4f
+                    panelOn(dark, side, t, w, y, y + w * 0.8f, 0.05f)
                 }
             }
         }
 
         /**
-         * The old Holiday Inn: a 24-storey hotel gutted in the war of the hotels, its grey concrete
-         * stained and pocked, dark holes where windows and walls were blown out.
+         * The old Holiday Inn (1974, gutted in the battle of the hotels): a 79 m slab of white
+         * concrete balconies in a deep, regular egg-crate grid, every bay an empty dark hole, over
+         * a dark open podium; blank, shot-up end walls; a navy-tiled stair tower at one end rising
+         * above the roof, and the curved drum of the revolving restaurant at the other.
          */
         private fun addHolidayInn(b: CityMap.Building, index: Int) {
             val (cx, cz) = centroid(b.pts)
-            walls(out(cx, cz, Surface.BARE_CONCRETE), b.pts, 0f, b.height, CityTextures.FACADE_SPAN, CityTextures.FACADE_SPAN)
-            flatPolygon(out(cx, cz, Surface.RAW_CONCRETE), b.pts, b.height)
+            val h = b.height
+            walls(out(cx, cz, Surface.HOTEL_WHITE), b.pts, 0f, h)
+            flatPolygon(out(cx, cz, Surface.RAW_CONCRETE), b.pts, h)
+            cornice(out(cx, cz, Surface.HOTEL_WHITE), b.pts, h)
             val rnd = Random(index * 131L + 7)
-            val holes = out(cx, cz, Surface.SHELL_DARK)
-            val p = b.pts
-            for (i in 0 until p.size / 2) {
-                val j = (i + 1) % (p.size / 2)
-                val ax = p[2 * i]; val az = p[2 * i + 1]; val ex = p[2 * j]; val ez = p[2 * j + 1]
-                val len = hypot(ex - ax, ez - az)
-                if (len < 4f) continue
-                repeat((len * b.height / 60f).toInt()) {
-                    val w = 1.2f + rnd.nextFloat() * 4f
-                    val t0 = rnd.nextFloat() * (1f - w / len).coerceAtLeast(0f)
-                    val t1 = (t0 + w / len).coerceAtMost(1f)
-                    val y0 = 3f + rnd.nextFloat() * (b.height - 6f)
-                    val y1 = y0 + 1f + rnd.nextFloat() * 3.5f
-                    panel(holes, ax + (ex - ax) * t0, az + (ez - az) * t0, ax + (ex - ax) * t1, az + (ez - az) * t1, y0, y1, 0.04f)
+            // The footprint's own walls (outside to the right going round it): the two longest are
+            // the balcony faces, the rest the blank end walls.
+            val ring = if (CityMap.signedArea(b.pts) > 0f) b.pts else FloatArray(b.pts.size) { i -> b.pts[(b.pts.size - 2 - (i / 2) * 2) + i % 2] }
+            val n = ring.size / 2
+            val walls = (0 until n).map { i ->
+                val j = (i + 1) % n
+                val ax = ring[2 * i]; val az = ring[2 * i + 1]; val ex = ring[2 * j]; val ez = ring[2 * j + 1]
+                val len = hypot(ex - ax, ez - az).coerceAtLeast(1e-3f)
+                Side((ax + ex) / 2f, (az + ez) / 2f, (ez - az) / len, -(ex - ax) / len, len / 2f)
+            }
+            val faces = walls.sortedByDescending { it.half }.take(2).toSet()
+            val top = h - 6.5f // the top two floors: solid, a few small openings
+            for (wall in walls) {
+                if (wall.half < 1.5f) continue
+                val dark = out(wall.cx, wall.cz, Surface.HOTEL_DARK)
+                // The podium: pinkish tile, its big bays open and dark.
+                panelOn(out(wall.cx, wall.cz, Surface.HOTEL_TILE), wall, 0f, wall.half * 2f, 0f, 10f, 0.03f)
+                val podiumBays = (wall.half * 2f / 6f).toInt()
+                for (i in 0 until podiumBays) panelOn(dark, wall, -wall.half + (i + 0.5f) * wall.half * 2f / podiumBays, wall.half * 2f / podiumBays - 1.2f, 0.3f, 8.6f, 0.06f)
+                if (wall in faces) {
+                    // The egg-crate: in every ~4 m bay of every 3.3 m floor, a dark opening over a
+                    // white balcony parapet, between the white floor slabs and fins.
+                    val bays = (wall.half * 2f / 4.1f).toInt().coerceAtLeast(1)
+                    val bay = wall.half * 2f / bays
+                    var y = 10.6f
+                    while (y + 3.3f <= top) {
+                        for (i in 0 until bays) panelOn(dark, wall, -wall.half + (i + 0.5f) * bay, bay - 0.9f, y + 1.15f, y + 2.85f, 0.05f)
+                        y += 3.3f
+                    }
+                    // The expansion joint down the middle.
+                    panelOn(dark, wall, 0f, 0.3f, 10f, top, 0.06f)
+                    // A few small openings in the solid top floors.
+                    for (i in 0 until bays step 3) panelOn(dark, wall, -wall.half + (i + 0.5f) * bay, 1.2f, top + 2f, top + 3.2f, 0.05f)
+                } else if (wall.half > 3f) {
+                    // A blank end wall, shot up.
+                    repeat((wall.half * 1.2f).toInt()) {
+                        val t = (rnd.nextFloat() * 2f - 1f) * wall.half * 0.85f
+                        val y = 12f + rnd.nextFloat() * (h - 20f)
+                        val w = 0.5f + rnd.nextFloat() * 1.4f
+                        panelOn(dark, wall, t, w, y, y + w, 0.05f)
+                    }
                 }
             }
+            // The navy stair tower at one end, above the roof; the restaurant's curved drum at the
+            // other, its fascia reaching past the end wall.
+            val bx = box(b)
+            val ends = if (bx.hu >= bx.hv) 1f else 0f
+            val ex = if (ends > 0f) bx.ux else -bx.uz; val ez = if (ends > 0f) bx.uz else bx.ux
+            val long = maxOf(bx.hu, bx.hv); val short = minOf(bx.hu, bx.hv)
+            val tx = bx.cx - ex * (long - 3f); val tz = bx.cz - ez * (long - 3f)
+            if (CityMap.inside(b.pts, tx, tz)) block(Surface.NAVY_TILE, rect(tx, tz, ex, ez, 2.6f, short * 0.55f), h - 1f, h + 4f)
+            val dx = bx.cx + ex * (long - 8f); val dz = bx.cz + ez * (long - 8f)
+            val dr = minOf(10f, short * 0.9f)
+            prism(out(dx, dz, Surface.HOTEL_WHITE), dx, dz, dr, dr, h, h + 5.5f, 24)
+            prism(out(dx, dz, Surface.HOTEL_DARK), dx, dz, dr + 0.05f, dr + 0.05f, h + 1.2f, h + 4.3f, 24)
+            prism(out(dx, dz, Surface.HOTEL_WHITE), dx, dz, dr + 0.1f, dr + 0.1f, h + 5.5f, h + 6f, 24)
         }
 
         /** The old Ras Beirut lighthouse (the Manara): an octagonal tower in black and white bands, its lantern and gallery on top. */
@@ -1083,60 +1368,149 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
          */
         private fun addStatue(b: CityMap.Building) {
             val cx = b.centerX; val cz = b.centerZ
-            val base = Surface.MARBLE
-            block(base, rect(cx, cz, 1f, 0f, 3.5f, 3.5f), 0f, 0.6f)
-            block(base, rect(cx, cz, 1f, 0f, 2.8f, 2.8f), 0.6f, 1.2f)
-            block(base, rect(cx, cz, 1f, 0f, 2f, 2f), 1.2f, 3.2f)
-            val o = out(cx, cz, Surface.BRONZE)
-            val y = 3.2f
-            // The woman with the torch, standing in the middle.
-            limb(o, cx, y, cz, cx, y + 2.3f, cz, 0.42f, 0.28f, 8)
-            sphere(o, cx, y + 2.55f, cz, 0.24f, 4, 8, hemisphere = false)
-            limb(o, cx + 0.2f, y + 2.1f, cz, cx + 0.45f, y + 3.6f, cz, 0.1f, 0.08f, 6)
-            prism(o, cx + 0.47f, cz, 0.16f, 0.22f, y + 3.6f, y + 4f, 6)
-            limb(o, cx - 0.2f, y + 2.1f, cz, cx - 0.7f, y + 1.6f, cz + 0.4f, 0.1f, 0.08f, 6)
-            // The man she lifts, beside her, and the two fallen at her feet.
-            limb(o, cx - 0.8f, y, cz + 0.5f, cx - 0.65f, y + 1.9f, cz + 0.45f, 0.32f, 0.22f, 8)
-            sphere(o, cx - 0.62f, y + 2.1f, cz + 0.45f, 0.2f, 4, 8, hemisphere = false)
-            limb(o, cx + 0.5f, y + 0.25f, cz - 0.9f, cx + 1.4f, y + 0.5f, cz - 0.2f, 0.3f, 0.24f, 8)
-            sphere(o, cx + 1.5f, y + 0.6f, cz - 0.1f, 0.19f, 4, 8, hemisphere = false)
-            limb(o, cx - 0.4f, y + 0.25f, cz - 1f, cx - 1.3f, y + 0.6f, cz - 0.6f, 0.3f, 0.24f, 8)
-            sphere(o, cx - 1.4f, y + 0.72f, cz - 0.55f, 0.19f, 4, 8, hemisphere = false)
-        }
-
-        /** Roman columns standing in a row at the Roman Baths and Cardo, on their bases, with a fallen drum or two. */
-        private fun addColumns(b: CityMap.Building, index: Int) {
-            val bx = box(b)
-            val rnd = Random(index * 17L + 3)
-            val n = 6
-            for (k in 0 until n) {
-                val u = -bx.hu + (k + 0.5f) * bx.hu * 2f / n
-                val x = bx.cx + bx.ux * u; val z = bx.cz + bx.uz * u
-                val h = if (rnd.nextFloat() < 0.3f) 3f + rnd.nextFloat() * 3f else 7f
-                block(Surface.MARBLE, rect(x, z, bx.ux, bx.uz, 0.6f, 0.6f), 0f, 0.5f)
-                prism(out(x, z, Surface.MARBLE), x, z, 0.42f, 0.36f, 0.5f, h, 10)
-                if (h >= 7f) block(Surface.MARBLE, rect(x, z, bx.ux, bx.uz, 0.55f, 0.55f), h, h + 0.45f)
+            // Facing the start (across the square): f forwards, r to the viewer's right as they face it.
+            val dx = map.spawnX - cx; val dz = map.spawnZ - cz
+            val dl = hypot(dx, dz).coerceAtLeast(1e-3f)
+            val fx = dx / dl; val fz = dz / dl
+            val rx = fz; val rz = -fx
+            /** A point [right] metres to the viewer's right of the middle and [fwd] metres towards them. */
+            fun px(right: Float, fwd: Float) = cx + rx * right + fx * fwd
+            fun pz(right: Float, fwd: Float) = cz + rz * right + fz * fwd
+            /** An elongated hexagon, a flat face towards the viewer. */
+            fun hexagon(hw: Float, hd: Float): FloatArray {
+                val cut = hd * 0.6f
+                val corners = listOf(-hw + cut to -hd, hw - cut to -hd, hw to 0f, hw - cut to hd, -hw + cut to hd, -hw to 0f)
+                return corners.flatMap { (r, f) -> listOf(px(r, f), pz(r, f)) }.toFloatArray().let { ring ->
+                    // Wound the way footprints are (as [rect] makes them), or turned round.
+                    if (CityMap.signedArea(ring) > 0f) ring else FloatArray(ring.size) { i -> ring[(ring.size - 2 - (i / 2) * 2) + i % 2] }
+                }
             }
-            // A fallen drum lying beside them.
-            val fx = bx.cx - bx.uz * 2.2f; val fz = bx.cz + bx.ux * 2.2f
-            limb(out(fx, fz, Surface.MARBLE), fx - bx.ux, 0.38f, fz - bx.uz, fx + bx.ux, 0.38f, fz + bx.uz, 0.38f, 0.38f, 10)
+            // Two low grey steps, the white pedestal, and the pale rough rock the figures stand on.
+            block(Surface.STEP_GREY, hexagon(3f, 2f), 0f, 0.15f)
+            block(Surface.STEP_GREY, hexagon(2.8f, 1.85f), 0.15f, 0.3f)
+            block(Surface.RENDER_WHITE, hexagon(1.6f, 1.2f), 0.3f, 1.9f)
+            block(Surface.ROCK_PALE, rect(px(-0.2f, -0.15f), pz(-0.2f, -0.15f), rx, rz, 0.55f, 0.45f), 1.9f, 3f)
+            val o = out(cx, cz, Surface.BRONZE_DARK)
+            val y = 3f
+            // The woman, 2.4 m: a long robe, her right arm straight up with the torch, a cloak hanging from it.
+            val wx = px(-0.2f, -0.15f); val wz = pz(-0.2f, -0.15f)
+            lathe(o, wx, wz, floatArrayOf(0.45f, y, 0.25f, y + 1.4f, 0.3f, y + 1.95f, 0.12f, y + 2.12f), 10)
+            sphere(o, wx, y + 2.26f, wz, 0.13f, 4, 8, hemisphere = false)
+            val hx = px(0.05f, -0.15f); val hz = pz(0.05f, -0.15f)
+            limb(o, px(-0.02f, -0.15f), y + 1.95f, pz(-0.02f, -0.15f), hx, y + 2.9f, hz, 0.07f, 0.06f, 6)
+            limb(o, hx, y + 2.85f, hz, hx, y + 3.2f, hz, 0.05f, 0.06f, 6)
+            prism(out(hx, hz, Surface.FLAME), hx, hz, 0.09f, 0.01f, y + 3.2f, y + 3.5f, 6)
+            limb(o, px(0.08f, -0.2f), y + 2.7f, pz(0.08f, -0.2f), px(0.25f, -0.25f), y + 1.4f, pz(0.25f, -0.25f), 0.17f, 0.1f, 6)
+            // Her left arm round the young man's shoulders.
+            limb(o, px(-0.38f, -0.15f), y + 1.95f, pz(-0.38f, -0.15f), px(-0.78f, -0.05f), y + 1.75f, pz(-0.78f, -0.05f), 0.06f, 0.05f, 6)
+            // The young man, 2.0 m, at the rock's edge on her left; his left forearm is gone.
+            val mx = -0.85f; val mf = -0.05f
+            for (side in floatArrayOf(-0.1f, 0.1f)) limb(o, px(mx + side, mf), y, pz(mx + side, mf), px(mx + side * 0.6f, mf), y + 0.95f, pz(mx + side * 0.6f, mf), 0.08f, 0.1f, 6)
+            limb(o, px(mx, mf), y + 0.95f, pz(mx, mf), px(mx, mf), y + 1.62f, pz(mx, mf), 0.17f, 0.21f, 8)
+            sphere(o, px(mx, mf), y + 1.77f, pz(mx, mf), 0.12f, 4, 8, hemisphere = false)
+            limb(o, px(mx - 0.22f, mf), y + 1.58f, pz(mx - 0.22f, mf), px(mx - 0.42f, mf + 0.1f), y + 0.95f, pz(mx - 0.42f, mf + 0.1f), 0.06f, 0.05f, 6)
+            limb(o, px(mx + 0.22f, mf), y + 1.58f, pz(mx + 0.22f, mf), px(mx + 0.3f, mf + 0.1f), y + 1.3f, pz(mx + 0.3f, mf + 0.1f), 0.06f, 0.055f, 6)
+            // The fallen man at the front right corner, propped up, reaching up to her.
+            val p = 1.9f
+            limb(o, px(0.2f, 0.8f), p + 0.15f, pz(0.2f, 0.8f), px(1.1f, 0.95f), p + 0.15f, pz(1.1f, 0.95f), 0.11f, 0.13f, 6)
+            limb(o, px(1.1f, 0.95f), p + 0.15f, pz(1.1f, 0.95f), px(1.45f, 0.85f), p + 0.75f, pz(1.45f, 0.85f), 0.19f, 0.17f, 8)
+            sphere(o, px(1.5f, 0.82f), p + 0.92f, pz(1.5f, 0.82f), 0.12f, 4, 8, hemisphere = false)
+            limb(o, px(1.55f, 1f), p + 0.45f, pz(1.55f, 1f), px(1.7f, 1.2f), p, pz(1.7f, 1.2f), 0.05f, 0.05f, 6)
+            limb(o, px(1.35f, 0.8f), p + 0.7f, pz(1.35f, 0.8f), px(0.9f, 0.55f), p + 1.05f, pz(0.9f, 0.55f), 0.055f, 0.05f, 6)
+            // And one crouched behind the rock, head bowed.
+            val kx = px(-0.9f, -0.8f); val kz = pz(-0.9f, -0.8f)
+            clump(o, kx, p + 0.4f, kz, 0.4f, 4, 8, 3)
+            sphere(o, px(-0.75f, -0.55f), p + 0.7f, pz(-0.75f, -0.55f), 0.12f, 4, 8, hemisphere = false)
         }
 
-        /** AUB's College Hall: sandstone, a red tile roof, and its clock tower rising at one end. */
+        /**
+         * The Roman columns of the Cardo Maximus (re-erected by Riad Al Solh): grey granite shafts
+         * about 6 m tall on white marble Attic bases, 3.3 m apart along a kerb of limestone
+         * blocks; only two keep their Corinthian capitals, one still carrying a broken block. A
+         * fifth stands broken behind them, and fallen drums lie at their feet.
+         */
+        private fun addColumns(b: CityMap.Building) {
+            val bx = box(b)
+            val vx = -bx.uz; val vz = bx.ux
+            fun px(u: Float, v: Float) = bx.cx + bx.ux * u + vx * v
+            fun pz(u: Float, v: Float) = bx.cz + bx.uz * u + vz * v
+            block(Surface.LIMESTONE_BLOCK, rect(bx.cx, bx.cz, bx.ux, bx.uz, 8f, 0.6f), 0f, 0.4f)
+            fun column(x: Float, z: Float, y: Float, top: Float) {
+                block(Surface.MARBLE_WHITE, rect(x, z, bx.ux, bx.uz, 0.45f, 0.45f), y, y + 0.25f)
+                lathe(out(x, z, Surface.MARBLE_WHITE), x, z, floatArrayOf(0.42f, y + 0.25f, 0.42f, y + 0.38f, 0.32f, y + 0.45f, 0.36f, y + 0.5f, 0.36f, y + 0.6f), 12)
+                prism(out(x, z, Surface.GRANITE), x, z, 0.31f, 0.27f + 0.04f * (1f - (top - y) / 5.6f).coerceIn(0f, 1f), y + 0.6f, top, 12)
+            }
+            for ((k, u) in floatArrayOf(-4.95f, -1.65f, 1.65f, 4.95f).withIndex()) {
+                val x = px(u, 0f); val z = pz(u, 0f)
+                column(x, z, 0.4f, 6f)
+                if (k == 1 || k == 2) {
+                    prism(out(x, z, Surface.MARBLE_WHITE), x, z, 0.3f, 0.45f, 6f, 6.7f, 12)
+                    block(Surface.MARBLE_WHITE, rect(x, z, bx.ux, bx.uz, 0.45f, 0.45f), 6.7f, 6.85f)
+                }
+                if (k == 2) block(Surface.MARBLE_WHITE, rect(x, z, bx.ux, bx.uz, 0.55f, 0.25f), 6.85f, 7.6f)
+            }
+            // The broken fifth, behind; two fallen drums and a stray base block in front.
+            column(px(-3.2f, -3.5f), pz(-3.2f, -3.5f), 0f, 3.5f)
+            val o = out(bx.cx, bx.cz, Surface.GRANITE)
+            limb(o, px(-2.6f, 1.6f), 0.3f, pz(-2.6f, 1.6f), px(-0.8f, 1.9f), 0.3f, pz(-0.8f, 1.9f), 0.3f, 0.3f, 12)
+            limb(o, px(2.2f, 1.9f), 0.3f, pz(2.2f, 1.9f), px(3.9f, 2.7f), 0.3f, pz(3.9f, 2.7f), 0.3f, 0.3f, 12)
+            block(Surface.MARBLE_WHITE, rect(px(0.6f, 2.3f), pz(0.6f, 2.3f), bx.ux, bx.uz, 0.45f, 0.4f), 0f, 0.5f)
+        }
+
+        /**
+         * AUB's College Hall (rebuilt 1999 as the 1873 original): yellow sandstone with white string
+         * courses, three storeys of round-headed windows in pairs, a pointed-arch arcade along the
+         * ground floor, a low red-tiled hipped roof, and its square clock tower at the middle of the
+         * front: three arched openings a side, a white clock on each face, and a flat parapet top.
+         */
         private fun addCollegeHall(b: CityMap.Building) {
             val bx = box(b)
             val (cx, cz) = centroid(b.pts)
-            walls(out(cx, cz, Surface.WALL_SANDSTONE), b.pts, 0f, b.height, CityTextures.FACADE_SPAN, CityTextures.FACADE_SPAN)
-            flatPolygon(out(cx, cz, Surface.ROOF), b.pts, b.height, span(Surface.ROOF))
-            if (bx.fill > 0.7f) hipRoof(bx, b.height, 0.55f)
-            val tx = bx.cx + bx.ux * (bx.hu - 3f); val tz = bx.cz + bx.uz * (bx.hu - 3f)
-            val top = b.height + 14f
-            block(Surface.WALL_SANDSTONE, rect(tx, tz, bx.ux, bx.uz, 2.6f, 2.6f), 0f, top, CityTextures.FACADE_SPAN, CityTextures.FACADE_SPAN)
-            for ((nu, nv) in listOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f)) {
-                val nx = bx.ux * nu - bx.uz * nv; val nz = bx.uz * nu + bx.ux * nv
-                clock(tx + nx * 2.65f, top - 3f, tz + nz * 2.65f, nx, nz, 1.3f)
+            val h = b.height
+            walls(out(cx, cz, Surface.AUB_STONE), b.pts, 0f, h)
+            for (y in floatArrayOf(4.2f, 8.2f, 12.2f)) cornice(out(cx, cz, Surface.TRIM_WHITE), b.pts, y)
+            cornice(out(cx, cz, Surface.TRIM_WHITE), b.pts, h)
+            flatPolygon(out(cx, cz, Surface.ROOF), b.pts, h, span(Surface.ROOF))
+            if (bx.fill > 0.7f) hipRoof(bx, h, 0.47f)
+            val all = sides(bx)
+            val longSides = if (bx.hu >= bx.hv) listOf(2, 3) else listOf(0, 1)
+            val front = longSides.maxBy { k -> all[k].nx * (map.spawnX - bx.cx) + all[k].nz * (map.spawnZ - bx.cz) }
+            if (bx.fill > 0.7f) all.forEachIndexed { k, side ->
+                val white = out(side.cx, side.cz, Surface.TRIM_WHITE)
+                val dark = out(side.cx, side.cz, Surface.WINDOW_DARK)
+                // Windows in pairs, 3 m apart, on each upper floor: white surrounds, dark panes.
+                val pairs = (side.half * 2f / 7f).toInt().coerceAtLeast(1)
+                for (p in 0 until pairs) {
+                    val mid = -side.half + (p + 0.5f) * side.half * 2f / pairs
+                    for (t in floatArrayOf(mid - 1.5f, mid + 1.5f)) for (y in floatArrayOf(5f, 9f, 13f)) {
+                        if (y + 2.6f > h - 0.3f) continue
+                        archOn(white, side, t, 1.8f, y - 0.15f, y + 1.85f, 0.03f)
+                        archOn(dark, side, t, 1.4f, y, y + 1.9f, 0.06f)
+                    }
+                }
+                // The arcade along the front's ground floor.
+                if (k == front) {
+                    val n = (side.half * 2f * 0.6f / 3.6f).toInt().coerceIn(3, 8)
+                    for (i in 0 until n) archOn(out(side.cx, side.cz, Surface.ARCH_SHADOW), side, (i - (n - 1) / 2f) * 3.6f, 3f, 0.2f, 3.6f, 0.06f)
+                } else for (t in floatArrayOf(-side.half * 0.5f, 0f, side.half * 0.5f)) archOn(dark, side, t, 1.4f, 1f, 2.9f, 0.06f)
             }
-            hipRoof(Box(tx, tz, bx.ux, bx.uz, 2.6f, 2.6f, 1f), top, 1.2f, 0.3f)
+            // The clock tower, half into the building at the middle of the front.
+            val f = all[front]
+            val tx = f.x(0f, -2.5f); val tz = f.z(0f, -2.5f)
+            val tower = Box(tx, tz, f.ax, f.az, 2.5f, 2.5f, 1f)
+            val stone = Surface.AUB_STONE
+            block(stone, rect(tx, tz, f.ax, f.az, 2.5f, 2.5f), 0f, h + 5.5f)
+            block(Surface.TRIM_WHITE, rect(tx, tz, f.ax, f.az, 2.6f, 2.6f), h + 2.6f, h + 2.85f)
+            block(Surface.TRIM_WHITE, rect(tx, tz, f.ax, f.az, 2.65f, 2.65f), h + 5.5f, h + 5.8f)
+            block(stone, rect(tx, tz, f.ax, f.az, 2.5f, 2.5f), h + 5.8f, h + 9.1f)
+            block(Surface.TRIM_WHITE, rect(tx, tz, f.ax, f.az, 2.8f, 2.8f), h + 9.1f, h + 9.45f)
+            block(stone, rect(tx, tz, f.ax, f.az, 2.55f, 2.55f), h + 9.45f, h + 10.4f)
+            block(Surface.TRIM_WHITE, rect(tx, tz, f.ax, f.az, 2.65f, 2.65f), h + 10.4f, h + 10.6f)
+            for (side in sides(tower)) {
+                val dark = out(side.cx, side.cz, Surface.WINDOW_DARK)
+                for (t in floatArrayOf(-1.2f, 0f, 1.2f)) archOn(dark, side, t, 0.9f, h + 3.1f, h + 4.85f, 0.05f)
+                clock(side.x(0f, 0.05f), h + 7.45f, side.z(0f, 0.05f), side.nx, side.nz, 0.9f)
+            }
         }
 
         private fun addBuilding(b: CityMap.Building, index: Int) {
@@ -1144,12 +1518,13 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 CityMap.BUILDING_ROCK -> return addSeaStack(b, index)
                 CityMap.BUILDING_GRAND_MOSQUE -> return addGrandMosque(b)
                 CityMap.BUILDING_CLOCK_TOWER -> return addClockTower(b)
+                CityMap.BUILDING_HAMIDIYYEH -> return addHamidiyyeh(b)
                 CityMap.BUILDING_EGG -> return addEgg(b)
-                CityMap.BUILDING_MURR -> return addMurr(b)
+                CityMap.BUILDING_MURR -> return addMurr(b, index)
                 CityMap.BUILDING_HOLIDAY_INN -> return addHolidayInn(b, index)
                 CityMap.BUILDING_LIGHTHOUSE -> return addLighthouse(b)
                 CityMap.BUILDING_STATUE -> return addStatue(b)
-                CityMap.BUILDING_COLUMNS -> return addColumns(b, index)
+                CityMap.BUILDING_COLUMNS -> return addColumns(b)
                 CityMap.BUILDING_COLLEGE_HALL -> return addCollegeHall(b)
             }
             val rnd = Random(index * 7919L + 17)
@@ -1343,36 +1718,90 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
             return out
         }
 
-        /** A blue dome with a gold tip on the roof, and minarets (four on big mosques like Al-Amin). */
+        /**
+         * A Beirut neighbourhood mosque (as Emir Assaf, Al-Omari, Al-Da'ouk): light domes of
+         * plaster or lead, never blue (none on a small mosque; a row of small ones beside the main
+         * dome on a middling one), and one Ottoman pencil minaret flush with a street corner, its
+         * single balcony on corbels at four fifths of its height, a narrower lantern above, a short
+         * cone cap and a gold crescent. The few really big ones keep four minarets.
+         */
         private fun addMosque(b: CityMap.Building) {
-            val cx = b.centerX
-            val cz = b.centerZ
-            val r = (sqrt(b.area) * 0.28f).coerceIn(3f, 14f)
-            sphere(out(cx, cz, Surface.DOME), cx, b.height, cz, r, 7, 12, hemisphere = true)
-            sphere(out(cx, cz, Surface.GOLD), cx, b.height + r, cz, r * 0.08f + 0.3f, 4, 6, hemisphere = false)
-            val minaretHeight = (b.height * 2.6f).coerceIn(22f, 65f)
-            val inset = 1.8f
-            val corners = listOf(b.minX + inset to b.minZ + inset, b.maxX - inset to b.minZ + inset,
-                b.maxX - inset to b.maxZ - inset, b.minX + inset to b.maxZ - inset)
-            val chosen = if (b.area > 1200f) corners else corners.take(1)
-            for ((mx, mz) in chosen) {
-                if (!CityMap.inside(b.pts, mx, mz)) continue
-                val mr = if (b.area > 1200f) 1.4f else 1f
-                prism(out(mx, mz, Surface.MINARET), mx, mz, mr, mr * 0.85f, 0f, minaretHeight, 8)
-                // Balcony ring, then a pointed blue cap.
-                prism(out(mx, mz, Surface.MINARET), mx, mz, mr * 1.4f, mr * 1.4f, minaretHeight * 0.78f, minaretHeight * 0.8f, 8)
-                prism(out(mx, mz, Surface.DOME), mx, mz, mr * 0.85f, 0.05f, minaretHeight, minaretHeight + mr * 3f, 8)
+            val bx = box(b)
+            val seed = ((b.centerX * 7.31f + b.centerZ * 3.17f).toInt() and 0xFFFF)
+            val s = sqrt(b.area)
+            val dome = if (seed % 3 == 0) Surface.LEAD_DOME else Surface.PLASTER_DOME
+            if (b.area >= 300f) {
+                val r = (s * if (b.area < 1200f) 0.25f else 0.22f).coerceIn(2.5f, 9f)
+                prism(out(bx.cx, bx.cz, Surface.MOSQUE_STONE), bx.cx, bx.cz, r * 1.03f, r * 1.03f, b.height, b.height + r * 0.15f, 16)
+                lathe(out(bx.cx, bx.cz, dome), bx.cx, bx.cz, domeProfile(r, b.height + r * 0.15f, r * 0.85f, 8), 16)
+                prism(out(bx.cx, bx.cz, Surface.GOLD), bx.cx, bx.cz, 0.1f, 0.02f, b.height + r, b.height + r + 1.2f, 6)
+                // Small domes along one long side of a middling mosque.
+                if (b.area < 1200f && bx.hu > r * 1.6f) {
+                    val small = r * 0.45f
+                    val vx = -bx.uz; val vz = bx.ux
+                    for (k in -1..1 step 2) {
+                        val x = bx.cx + bx.ux * k * (r + small * 1.3f) + vx * (bx.hv - small * 1.4f)
+                        val z = bx.cz + bx.uz * k * (r + small * 1.3f) + vz * (bx.hv - small * 1.4f)
+                        if (CityMap.inside(b.pts, x, z)) lathe(out(x, z, dome), x, z, domeProfile(small, b.height, small, 6), 12)
+                    }
+                }
+            }
+            val big = b.area > 1200f
+            val corners = listOf(1f to 1f, -1f to 1f, -1f to -1f, 1f to -1f)
+            val chosen = if (big) corners else listOf(corners[seed % 4])
+            val hm = (b.height + 18f).coerceIn(22f, 35f) * if (big) 1.3f else 1f
+            val mr = if (big) 1.4f else 1.15f
+            for ((su, sv) in chosen) {
+                val iu = bx.hu - mr; val iv = bx.hv - mr
+                val mx = bx.cx + bx.ux * su * iu - bx.uz * sv * iv; val mz = bx.cz + bx.uz * su * iu + bx.ux * sv * iv
+                val o = out(mx, mz, Surface.MOSQUE_STONE)
+                prism(o, mx, mz, mr, mr * 0.92f, 0f, hm * 0.8f, 12)
+                // The balcony on its corbels, its parapet, and the narrower lantern above.
+                lathe(o, mx, mz, floatArrayOf(mr * 0.95f, hm * 0.8f - 0.7f, mr * 1.5f, hm * 0.8f), 12)
+                prism(o, mx, mz, mr * 1.5f, mr * 1.5f, hm * 0.8f, hm * 0.8f + 1f, 12)
+                prism(o, mx, mz, mr * 0.8f, mr * 0.8f, hm * 0.8f + 1f, hm, 12)
+                prism(out(mx, mz, Surface.CAP_GREY), mx, mz, mr * 0.95f, 0.04f, hm, hm + mr * 2.8f, 12)
+                prism(out(mx, mz, Surface.GOLD), mx, mz, 0.06f, 0.02f, hm + mr * 2.6f, hm + mr * 2.8f + 1.2f, 6)
+                sphere(out(mx, mz, Surface.GOLD), mx, hm + mr * 2.8f + 0.7f, mz, 0.18f, 3, 6, hemisphere = false)
             }
         }
 
+        /**
+         * A Beirut church's bell tower: square and in line with the church, at the front, about
+         * twice the nave's height; a dark round-arched belfry opening on each face between
+         * cornices, then a red-tiled pyramid, a small dome on an octagonal drum or a stone spire,
+         * and an iron cross.
+         */
         private fun addBellTower(b: CityMap.Building) {
-            val size = (sqrt(b.area) * 0.22f).coerceIn(2.5f, 6f)
-            val tx = b.minX + size / 2f + 0.5f
-            val tz = b.minZ + size / 2f + 0.5f
+            val bx = box(b)
+            val seed = ((b.centerX * 5.13f + b.centerZ * 9.71f).toInt() and 0xFFFF)
+            val t = (sqrt(b.area) * 0.18f).coerceIn(3f, 6f) / 2f
+            val top = maxOf(2f * b.height, 18f).coerceIn(15f, 35f)
+            // At the front (the short end towards the start), centred on it, in line with the walls.
+            val ends = sides(bx).take(2)
+            val end = ends.maxBy { it.nx * (map.spawnX - bx.cx) + it.nz * (map.spawnZ - bx.cz) }
+            val tx = end.x(0f, -t); val tz = end.z(0f, -t)
             if (!CityMap.inside(b.pts, tx, tz)) return
-            val top = b.height * 1.7f
-            prism(out(tx, tz, Surface.WALL_SANDSTONE), tx, tz, size * 0.7f, size * 0.7f, 0f, top, 4)
-            prism(out(tx, tz, Surface.TERRACOTTA), tx, tz, size * 0.75f, 0.05f, top, top + size * 1.2f, 4)
+            val stone = Surface.CHURCH_STONE
+            val belfry = top * 0.8f
+            block(stone, rect(tx, tz, bx.ux, bx.uz, t, t), 0f, top)
+            block(Surface.CORNICE, rect(tx, tz, bx.ux, bx.uz, t * 1.15f, t * 1.15f), belfry - 0.35f, belfry)
+            block(Surface.CORNICE, rect(tx, tz, bx.ux, bx.uz, t * 1.15f, t * 1.15f), top, top + 0.35f)
+            for (side in sides(Box(tx, tz, bx.ux, bx.uz, t, t, 1f))) {
+                archOn(out(side.cx, side.cz, Surface.BELFRY_DARK), side, 0f, t, belfry + 0.4f, belfry + 0.4f + (top - belfry) * 0.6f - t / 2f, 0.05f)
+            }
+            val capTop: Float = when (seed % 10) {
+                in 0..4 -> { hipRoof(Box(tx, tz, bx.ux, bx.uz, t, t, 1f), top + 0.35f, 1.2f, 0.15f); top + 0.35f + t * 1.2f }
+                in 5..7 -> {
+                    prism(out(tx, tz, stone), tx, tz, t * 0.85f, t * 0.85f, top + 0.35f, top + 0.35f + t * 0.8f, 8)
+                    lathe(out(tx, tz, Surface.LEAD_DOME), tx, tz, domeProfile(t * 0.8f, top + 0.35f + t * 0.8f, t * 0.8f, 6), 12)
+                    top + 0.35f + t * 1.6f
+                }
+                else -> { hipRoof(Box(tx, tz, bx.ux, bx.uz, t, t, 1f), top + 0.35f, 3f, 0.1f); top + 0.35f + t * 3f }
+            }
+            val iron = Surface.IRON_DARK
+            block(iron, rect(tx, tz, bx.ux, bx.uz, 0.07f, 0.07f), capTop - 0.2f, capTop + 1.8f)
+            block(iron, rect(tx, tz, bx.ux, bx.uz, 0.45f, 0.07f), capTop + 1.05f, capTop + 1.2f)
         }
 
         // ---- Trees ---------------------------------------------------------------------------
@@ -1636,6 +2065,96 @@ class CityScene(val tiles: List<Tile>, val always: Map<Surface, FloatArray>) {
                 v(a); v(d); v(c)
                 v(a); v(c); v(b)
             }
+        }
+
+        /**
+         * A solid turned round an upright axis at ([cx], [cz]): [profile] is (radius, height) pairs
+         * from the bottom up, each ring [sides]-sided; a radius of 0 closes it to a point. Smooth
+         * normals, from the profile's slope. For domes of any shape, minarets and towers.
+         */
+        private fun lathe(o: Floats, cx: Float, cz: Float, profile: FloatArray, sides: Int) {
+            val n = profile.size / 2
+            for (i in 0 until n - 1) {
+                val r0 = profile[2 * i]; val y0 = profile[2 * i + 1]
+                val r1 = profile[2 * i + 2]; val y1 = profile[2 * i + 3]
+                // The side's outward normal in the profile's plane: across the slope.
+                val dr = r1 - r0; val dy = y1 - y0
+                val l = hypot(dr, dy).takeIf { it > 1e-5f } ?: continue
+                val nh = dy / l; val ny = -dr / l
+                for (k in 0 until sides) {
+                    val a0 = 2f * PI.toFloat() * k / sides; val a1 = 2f * PI.toFloat() * (k + 1) / sides
+                    val c0 = cos(a0); val s0 = sin(a0); val c1 = cos(a1); val s1 = sin(a1)
+                    val u = 0.02f
+                    o.vertex(cx + c1 * r0, y0, cz + s1 * r0, c1 * nh, ny, s1 * nh, u, u)
+                    o.vertex(cx + c0 * r0, y0, cz + s0 * r0, c0 * nh, ny, s0 * nh, u, u)
+                    o.vertex(cx + c0 * r1, y1, cz + s0 * r1, c0 * nh, ny, s0 * nh, u, u)
+                    o.vertex(cx + c1 * r0, y0, cz + s1 * r0, c1 * nh, ny, s1 * nh, u, u)
+                    o.vertex(cx + c0 * r1, y1, cz + s0 * r1, c0 * nh, ny, s0 * nh, u, u)
+                    o.vertex(cx + c1 * r1, y1, cz + s1 * r1, c1 * nh, ny, s1 * nh, u, u)
+                }
+            }
+            // A flat top where the profile ends open.
+            val rt = profile[2 * n - 2]; val yt = profile[2 * n - 1]
+            if (rt > 0.05f) for (k in 0 until sides) {
+                val a0 = 2f * PI.toFloat() * k / sides; val a1 = 2f * PI.toFloat() * (k + 1) / sides
+                o.vertex(cx, yt, cz, 0f, 1f, 0f, 0.02f, 0.02f)
+                o.vertex(cx + cos(a1) * rt, yt, cz + sin(a1) * rt, 0f, 1f, 0f, 0.02f, 0.02f)
+                o.vertex(cx + cos(a0) * rt, yt, cz + sin(a0) * rt, 0f, 1f, 0f, 0.02f, 0.02f)
+            }
+        }
+
+        /**
+         * A dome's profile for [lathe]: radius [r] at height [y], rising [h] to its tip, in
+         * [steps] rings. [shape] 0 is a round (elliptical) dome; above 0 it swells out first and
+         * comes to a point, like an onion (Ottoman and Mamluk domes, minaret caps).
+         */
+        private fun domeProfile(r: Float, y: Float, h: Float, steps: Int = 8, shape: Float = 0f): FloatArray {
+            val out = FloatArray((steps + 1) * 2)
+            for (i in 0..steps) {
+                val t = i / steps.toFloat()
+                val a = t * PI.toFloat() / 2f
+                // Round: a quarter ellipse. Onion: wider by [shape] partway up, rising evenly to a point.
+                out[2 * i] = if (i == steps) 0f else r * cos(a) * (1f + shape * sin(t * PI.toFloat()))
+                out[2 * i + 1] = y + h * (if (shape > 0f) t else sin(a))
+            }
+            return out
+        }
+
+        /**
+         * A round-topped opening (window, arcade, belfry) on the wall from (ax, az) to (bx, bz)
+         * (outside to its right), [out] metres proud: its sides from [y0] up to [spring], then a
+         * half-round arch over it. Drawn flat in [o]'s colour (dark for an opening).
+         */
+        private fun arch(o: Floats, ax: Float, az: Float, bx: Float, bz: Float, y0: Float, spring: Float, out: Float) {
+            val len = hypot(bx - ax, bz - az)
+            if (len < 1e-3f) return
+            val nx = (bz - az) / len; val nz = -(bx - ax) / len
+            val ux = (bx - ax) / len; val uz = (bz - az) / len
+            val r = len / 2f
+            val mx = (ax + bx) / 2f + nx * out; val mz = (az + bz) / 2f + nz * out
+            fun p(u: Float, y: Float) = floatArrayOf(mx + ux * u, y, mz + uz * u)
+            // Seen from outside, b (+u) is on the left: wind each triangle so it faces out.
+            fun tri(a: FloatArray, b: FloatArray, c: FloatArray) {
+                for (q in arrayOf(a, c, b)) o.vertex(q[0], q[1], q[2], nx, 0f, nz, 0.02f, 0.02f)
+            }
+            if (spring > y0) {
+                tri(p(-r, y0), p(r, y0), p(r, spring))
+                tri(p(-r, y0), p(r, spring), p(-r, spring))
+            }
+            val steps = 8
+            for (k in 0 until steps) {
+                val a0 = PI.toFloat() * k / steps; val a1 = PI.toFloat() * (k + 1) / steps
+                tri(p(0f, spring), p(cos(a0) * r, spring + sin(a0) * r), p(cos(a1) * r, spring + sin(a1) * r))
+            }
+        }
+
+        /** Triangle [tri] of [pts] (x, y, z each), its corners ordered so it faces towards (nx, ny, nz). */
+        private fun facing(pts: FloatArray, tri: IntArray, nx: Float, ny: Float, nz: Float): IntArray {
+            val (a, b, c) = tri
+            val e1x = pts[3 * b] - pts[3 * a]; val e1y = pts[3 * b + 1] - pts[3 * a + 1]; val e1z = pts[3 * b + 2] - pts[3 * a + 2]
+            val e2x = pts[3 * c] - pts[3 * a]; val e2y = pts[3 * c + 1] - pts[3 * a + 1]; val e2z = pts[3 * c + 2] - pts[3 * a + 2]
+            val fx = e1y * e2z - e1z * e2y; val fy = e1z * e2x - e1x * e2z; val fz = e1x * e2y - e1y * e2x
+            return if (fx * nx + fy * ny + fz * nz >= 0f) tri else intArrayOf(a, c, b)
         }
 
         private fun centroid(ring: FloatArray): Pair<Float, Float> {

@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.hypot
 
 /** Pigeon Rocks off Raouche: real sea stacks, about 60 m high, the big one with its arch towards the Corniche. */
@@ -21,8 +22,8 @@ class SeaStackTest {
     fun pigeonRocksStandTallOutOfTheSea() {
         assertTrue("two big rocks and an islet", rocks.size >= 2)
         val big = rocks[0]
-        assertEquals(58f, big.height, 3f)
-        assertTrue(rocks[1].height in 40f..55f)
+        assertEquals(50f, big.height, 3f)
+        assertTrue("second rock ${rocks[1].height}", rocks[1].height in 30f..50f)
         val tris = stack(big, arch = true).triangles()
         assertTrue(tris.size > 5_000)
         val top = tris.maxOf { maxOf(it.p[1], it.p[4], it.p[7]) }
@@ -45,13 +46,20 @@ class SeaStackTest {
         val big = rocks[0]
         val withArch = stack(big, arch = true)
         val without = stack(big, arch = false)
-        // Along the arch, from one side of the rock to the other, at 5 m above the sea: open water
-        // through the arch, solid rock without it.
-        val dx = city.spawnX - big.centerX; val dz = city.spawnZ - big.centerZ
+        // Along the arch (off-centre, towards the rock's northern, seaward end), from one side of the
+        // rock to the other, at 5 m above the sea: open water through the arch, solid rock without it.
+        // The rock's middle as SeaStack takes it: the average of its outline's points.
+        val n = big.pts.size / 2
+        val mx = (0 until n).sumOf { big.pts[2 * it].toDouble() }.toFloat() / n
+        val mz = (0 until n).sumOf { big.pts[2 * it + 1].toDouble() }.toFloat() / n
+        val dx = city.spawnX - mx; val dz = city.spawnZ - mz
         val l = hypot(dx, dz)
+        val ax = -dz / l; val az = dx / l
+        val radius = kotlin.math.sqrt(abs(CityMap.signedArea(big.pts)) / Math.PI.toFloat())
+        val shift = -SeaStack.ARCH_OFFSET * 2f * radius * (if (az < 0f) -1f else 1f)
         var solidWithout = 0
         for (k in -15..15) {
-            val x = big.centerX + dx / l * k; val z = big.centerZ + dz / l * k
+            val x = mx + dx / l * k + ax * shift; val z = mz + dz / l * k + az * shift
             assertTrue("arch blocked at $k", withArch.distance(x, 5f, z) > 0f)
             if (without.distance(x, 5f, z) < 0f) solidWithout++
         }

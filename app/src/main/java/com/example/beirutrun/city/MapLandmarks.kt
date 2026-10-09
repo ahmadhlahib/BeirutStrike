@@ -31,7 +31,8 @@ object MapLandmarks {
         for (b in city.buildings) {
             val (kind, name) = when (b.kind) {
                 CityMap.BUILDING_GRAND_MOSQUE -> Kind.MOSQUE to "Al-Amin Mosque"
-                CityMap.BUILDING_CLOCK_TOWER -> Kind.CLOCK to "Clock Tower"
+                CityMap.BUILDING_CLOCK_TOWER -> Kind.CLOCK to "Al-Abed Clock Tower"
+                CityMap.BUILDING_HAMIDIYYEH -> Kind.CLOCK to "Hamidiyyeh Clock Tower"
                 CityMap.BUILDING_COLLEGE_HALL -> Kind.CLOCK to "College Hall (AUB)"
                 CityMap.BUILDING_EGG -> Kind.EGG to "The Egg"
                 CityMap.BUILDING_MURR -> Kind.TOWER to "Murr Tower"
