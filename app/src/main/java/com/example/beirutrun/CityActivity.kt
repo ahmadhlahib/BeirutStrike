@@ -206,26 +206,43 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
                 return
             }
             val game = solo ?: return
+            ticker.postDelayed(this, SOLO_TICK_MS)
+            // Still thinking about the last tick: skip this one (the next gets the time missed).
+            if (botsThinking) return
+            botsThinking = true
             soloLast = now
-            if (!gameOver) {
-                val me = SoloMatch.Player(
-                    playerName, playerTeam.id, renderer.playerX, renderer.playerY, renderer.playerZ, renderer.prone, dead,
-                )
-                for (e in game.update(dt, me)) when (e) {
-                    is SoloMatch.Event.Shot -> {
-                        renderer.addRemoteShot(e.uid, e.x, e.y, e.z, e.dx, e.dy, e.dz, e.gun)
-                        shotSound(e.x, e.z, e.gun)
+            val me = if (gameOver) null else SoloMatch.Player(
+                playerName, playerTeam.id, renderer.playerX, renderer.playerY, renderer.playerZ, renderer.prone, dead,
+            )
+            // The bots are drawn like other players; the scoreboard keeps up once a second.
+            val sendPlayers = ++soloTicks % 2 == 0
+            val sendStats = soloTicks % 20 == 0
+            // The bots think off the main thread, so a busy fight never holds up the screen.
+            botBrain.execute {
+                val events = me?.let { game.update(dt, it) }.orEmpty()
+                val players = if (sendPlayers) game.players(System.currentTimeMillis()) else null
+                val stats = if (sendStats) game.stats() else null
+                ticker.post {
+                    botsThinking = false
+                    if (isDestroyed || solo !== game) return@post
+                    for (e in events) when (e) {
+                        is SoloMatch.Event.Shot -> {
+                            renderer.addRemoteShot(e.uid, e.x, e.y, e.z, e.dx, e.dy, e.dz, e.gun)
+                            shotSound(e.x, e.z, e.gun)
+                        }
+                        is SoloMatch.Event.PlayerHit ->
+                            takeHit(e.fromUid, getString(R.string.killed_by, e.fromName), e.damage)
                     }
-                    is SoloMatch.Event.PlayerHit ->
-                        takeHit(e.fromUid, getString(R.string.killed_by, e.fromName), e.damage)
+                    players?.let(::onPlayers)
+                    stats?.let(::onStats)
                 }
             }
-            // The bots are drawn like other players; the scoreboard keeps up once a second.
-            if (++soloTicks % 2 == 0) onPlayers(game.players(System.currentTimeMillis()))
-            if (soloTicks % 20 == 0) onStats(game.stats())
-            ticker.postDelayed(this, SOLO_TICK_MS)
         }
     }
+
+    /** Where a solo game's bots think (see [soloTick]); [botsThinking] is only touched on the main thread. */
+    private val botBrain = Executors.newSingleThreadExecutor()
+    private var botsThinking = false
 
     private val takePhoto = registerForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
         if (taken) importAndShowDropDialog()
@@ -585,6 +602,7 @@ class CityActivity : AppCompatActivity(), OnlineWorld.Listener {
         RoomTeams.unwatch(onTeamsChanged)
         ticker.removeCallbacks(respawn)
         sceneBuilder.shutdown()
+        botBrain.shutdown()
         ticker.removeCallbacks(hideBanner)
         // Also offline pickups waiting to come back.
         ticker.removeCallbacksAndMessages(null)

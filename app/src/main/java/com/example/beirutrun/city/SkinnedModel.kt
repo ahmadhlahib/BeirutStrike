@@ -82,6 +82,9 @@ class SkinnedModel private constructor(
 
     fun nodeIndex(name: String) = nodes.indexOfFirst { it.name == name }
 
+    /** The most joints any one skin has (how many bone matrices skinning it on the GPU needs). */
+    val maxJoints: Int get() = skins.maxOfOrNull { it.joints.size } ?: 0
+
     /** The clip whose name ends with [suffix] (Blender exports them as "Armature|Run"). */
     fun clip(suffix: String): Clip? = clips[suffix] ?: clips.values.firstOrNull { it.name.endsWith("|$suffix") }
 
@@ -322,11 +325,22 @@ class SkinnedPose(val model: SkinnedModel) {
     val global = FloatArray(n * 16)
     private val jointMatrices = model.skins.map { FloatArray(it.joints.size * 16) }
 
-    /** Skinned vertex data per primitive: position (3), normal (3), uv (2, unused), ready for a Mesh. */
-    val vertices: List<FloatArray> = model.primitives.map { p ->
-        FloatArray(p.vertexCount * 8).also { v ->
-            // Texture coordinates never change; fill them in once.
-            p.uvs?.let { uv -> for (i in 0 until p.vertexCount) { v[i * 8 + 6] = uv[i * 2]; v[i * 8 + 7] = uv[i * 2 + 1] } }
+    /**
+     * Each skin's joint matrices after [poseBones], for skinning on the GPU: the top three rows of
+     * each (12 floats per joint, row by row), as the shader's bone uniforms take them.
+     */
+    val palettes: List<FloatArray> = model.skins.map { FloatArray(it.joints.size * 12) }
+
+    /**
+     * Skinned vertex data per primitive: position (3), normal (3), uv (2, unused), ready for a Mesh.
+     * Only made when first asked for: characters skinned on the GPU never need it.
+     */
+    val vertices: List<FloatArray> by lazy {
+        model.primitives.map { p ->
+            FloatArray(p.vertexCount * 8).also { v ->
+                // Texture coordinates never change; fill them in once.
+                p.uvs?.let { uv -> for (i in 0 until p.vertexCount) { v[i * 8 + 6] = uv[i * 2]; v[i * 8 + 7] = uv[i * 2 + 1] } }
+            }
         }
     }
 
@@ -393,8 +407,9 @@ class SkinnedPose(val model: SkinnedModel) {
         }
     }
 
+    private val local = FloatArray(16)
+
     private fun computeGlobals() {
-        val local = FloatArray(16)
         for (i in model.order) {
             Mat.fromTrs(local, t, i * 3, r, i * 4, s, i * 3)
             val parent = model.nodes[i].parent
@@ -403,12 +418,26 @@ class SkinnedPose(val model: SkinnedModel) {
         }
     }
 
-    /** Skins every vertex with the current bone matrices, writing into [vertices]. */
-    fun skin() {
+    /**
+     * Works out each joint's matrix from the current pose into [palettes], ready for the GPU to
+     * skin the vertices: a few dozen matrices instead of every vertex.
+     */
+    fun poseBones() {
         for ((si, skin) in model.skins.withIndex()) {
             val jm = jointMatrices[si]
-            for (j in skin.joints.indices) Mat.multiply(jm, j * 16, global, skin.joints[j] * 16, skin.inverseBind, j * 16)
+            val palette = palettes[si]
+            for (j in skin.joints.indices) {
+                Mat.multiply(jm, j * 16, global, skin.joints[j] * 16, skin.inverseBind, j * 16)
+                // Column-major 4x4 to its top three rows.
+                for (row in 0..2) for (col in 0..3) palette[j * 12 + row * 4 + col] = jm[j * 16 + col * 4 + row]
+            }
         }
+    }
+
+    /** Skins every vertex with the current bone matrices, writing into [vertices]. */
+    fun skin() {
+        poseBones()
+        val vertices = vertices
         for ((pi, prim) in model.primitives.withIndex()) {
             val jm = jointMatrices[prim.skin]
             val out = vertices[pi]

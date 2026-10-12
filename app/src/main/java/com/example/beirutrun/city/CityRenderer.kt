@@ -454,6 +454,8 @@ class CityRenderer(
     private var playerSpeed = 0f
     /** GPU copies of each soldier's skinned mesh (recreated with the GL context). */
     private val soldierMeshes = HashMap<SoldierAnimator, List<DynamicMesh>>()
+    /** Each character model's parts, uploaded once and skinned on the GPU (see [gpuSkins]). */
+    private val skinnedMeshes = HashMap<SoldierRig, List<SkinnedMesh>>()
     private val uploadedVersion = HashMap<SoldierAnimator, Int>()
     /** GPU textures of each soldier model's embedded images (a realistic model's clothes). */
     private val modelTextures = HashMap<SoldierRig, List<Int>>()
@@ -593,6 +595,7 @@ class CityRenderer(
         dropVisuals.clear()
         murals.clear()
         soldierMeshes.clear()
+        skinnedMeshes.clear()
         gunGl.clear()
         modelTextures.clear()
         uploadedVersion.clear()
@@ -604,7 +607,7 @@ class CityRenderer(
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
 
-        shader = CityShader()
+        shader = skinningShader() ?: CityShader()
         uploadWorld()
         for (style in 0 until CityTextures.COUNT) {
             val bitmap = CityTextures.draw(style)
@@ -618,6 +621,21 @@ class CityRenderer(
         carGl = null
         lastFrame = SystemClock.uptimeMillis()
     }
+
+    /**
+     * The city shader able to skin characters on the GPU, if this phone's GPU has room for the
+     * bones (and compiles it); else null, and characters are skinned on the CPU as before.
+     */
+    private fun skinningShader(): CityShader? {
+        val room = IntArray(1).also { GLES20.glGetIntegerv(GLES20.GL_MAX_VERTEX_UNIFORM_VECTORS, it, 0) }[0]
+        // 3 rows per bone, plus the shader's other uniforms.
+        if (room < GPU_BONES * 3 + 24) return null
+        return runCatching { CityShader(GPU_BONES) }.getOrNull()
+            ?.takeIf { it.uBones >= 0 && it.aJoints >= 0 && it.aWeights >= 0 }
+    }
+
+    /** Whether [rig] is skinned on the GPU: the shader can and the model has few enough bones. */
+    private fun gpuSkins(rig: SoldierRig) = shader.skinBones > 0 && rig.model.maxJoints <= shader.skinBones
 
     /** White, solid in the middle and fading to nothing at the edge: tinted, it's a puff of smoke or flame. */
     private fun puffBitmap(): Bitmap {
@@ -659,6 +677,7 @@ class CityRenderer(
         val now = SystemClock.uptimeMillis()
         val dt = ((now - lastFrame) / 1000f).coerceIn(0f, 0.05f)
         lastFrame = now
+        frameNo++
 
         applyPending(now)
         val zoomed = scoped
@@ -725,6 +744,8 @@ class CityRenderer(
         drawPickupLabels()
         drawStoreLabels()
         for (r in remotes.values) {
+            // No tag over a soldier who isn't drawn (too far, or behind the camera).
+            if (!isWorthAnimating(r.x, r.z)) continue
             // Smoke hides who's behind it, name tag and all.
             if (smokeBetween(eyeX, eyeY, eyeZ, r.x, r.feet + 1.2f, r.z, now)) continue
             val saying = if (now < r.sayUntil && !r.player.dead) r.saying else null
@@ -748,12 +769,20 @@ class CityRenderer(
         var onTarget = false
         // A little past the gun's range, so the crosshair turns red for any enemy it can reach.
         val range = maxOf(AIM_RANGE, weapon.range + 10f)
+        // Only enemies near the line of sight (seen from above) can be under the crosshair.
+        aimCandidates.clear()
+        val flat = hypot(camFx, camFz)
+        for (r in remotes.values) {
+            if (!isEnemy(r)) continue
+            val off = if (flat < 0.05f) 0f else abs((r.x - ox) * camFz - (r.z - oz) * camFx) / flat
+            if (off < HIT_RADIUS + PRONE_BODY_LENGTH + 0.5f) aimCandidates += r
+        }
         while (t < range) {
             val x = ox + camFx * t
             val y = oy + camFy * t
             val z = oz + camFz * t
             if (city.underground(x, y, z) || city.isInsideBuilding(x, y, z, 0f)) break
-            if (remotes.values.any { isEnemy(it) && hitsBody(it, x, y, z) }) { onTarget = true; break }
+            if (aimCandidates.any { hitsBody(it, x, y, z) }) { onTarget = true; break }
             t += BULLET_STEP
         }
         // An enemy in or behind smoke can't be seen, so the crosshair doesn't give them away.
@@ -765,6 +794,9 @@ class CityRenderer(
         aimY = (oy + camFy * t).coerceAtLeast(city.groundAt(aimX, oz + camFz * t))
         aimZ = oz + camFz * t
     }
+
+    /** The enemies [updateAim] checks this frame. */
+    private val aimCandidates = ArrayList<RemoteAvatar>()
 
     /**
      * Whether a point is inside another player's body: a standing (or jumping) body is an upright
@@ -1971,6 +2003,8 @@ class CityRenderer(
         val player = soldierFor(playerSoldier, rigOf(playerCharacter) ?: rig).also { playerSoldier = it }
         keepDancing(player, playerDance)
         val statue = statueSoldier ?: SoldierAnimator(rig).also { statueSoldier = it }
+        player.skinOnGpu = gpuSkins(player.rig)
+        statue.skinOnGpu = gpuSkins(statue.rig)
 
         // My speed and direction come from how far I actually moved (walls stop you).
         val vx = (playerX - lastPlayerX) / dt
@@ -1990,6 +2024,7 @@ class CityRenderer(
         for (r in remotes.values) {
             val want = rigOf(r.player.character.ifEmpty { Characters.SOLDIER }) ?: rig
             val soldier = soldierFor(r.soldier, want).also { r.soldier = it }
+            soldier.skinOnGpu = gpuSkins(want)
             keepDancing(soldier, r.player.dance)
             val rvx = (r.x - r.lastX) / dt
             val rvz = (r.z - r.lastZ) / dt
@@ -2000,13 +2035,33 @@ class CityRenderer(
             r.lastFloor = r.floor
             soldier.update(
                 dt, if (r.player.climbing) climbSpeed else r.speed, SoldierAnimator.relativeAngle(rvx, rvz, r.heading),
-                aiming = now < (remoteAiming[r.player.uid] ?: 0L) || r.player.grenadeHold.isNotEmpty(), dead = r.player.dead, skin = isWorthAnimating(r.x, r.z),
+                aiming = now < (remoteAiming[r.player.uid] ?: 0L) || r.player.grenadeHold.isNotEmpty(), dead = r.player.dead,
+                skin = isWorthAnimating(r.x, r.z) && dueForPose(soldier, r.x, r.z),
                 prone = r.player.prone, airborne = r.y > 0.05f, climbing = r.player.climbing,
             )
         }
         // All photo-drop statues share one idle pose.
         statue.update(dt, 0f, 0f, aiming = false, dead = false, skin = dropVisuals.values.any { isWorthAnimating(it.drop.x, it.drop.z) })
     }
+
+    /**
+     * Whether [anim] at (x, z) is re-posed this frame. On the GPU posing is cheap, so always; on
+     * the CPU (every vertex moved by hand) those further off are re-posed less often, taking turns
+     * so they don't all fall on the same frame.
+     */
+    private fun dueForPose(anim: SoldierAnimator, x: Float, z: Float): Boolean {
+        if (anim.skinOnGpu || !anim.ready) return true
+        val d = hypot(x - eyeX, z - eyeZ)
+        val every = when {
+            d < CPU_POSE_NEAR -> return true
+            d < CPU_POSE_MID -> 2
+            else -> 4
+        }
+        return Math.floorMod(frameNo + System.identityHashCode(anim), every) == 0
+    }
+
+    /** Frames drawn so far (for taking turns, see [dueForPose]). */
+    private var frameNo = 0
 
     /** Close enough, and not far behind the camera, to be worth animating this frame. */
     private fun isWorthAnimating(x: Float, z: Float): Boolean {
@@ -2525,6 +2580,7 @@ class CityRenderer(
         passerbyTurning.clear()
         for (p in passerbyViews) {
             val anim = passersby.getOrPut(p.id) { SoldierAnimator(ready[p.variant % ready.size]) }
+            anim.skinOnGpu = gpuSkins(anim.rig)
             // Turned round to run from danger: the turn clip swings the body round from the old
             // way to the new, then the run follows with no blend (which would swing it back).
             val seen = passerbyTurns.put(p.id, p.turns)
@@ -2532,7 +2588,7 @@ class CityRenderer(
             // Judged before this frame's update, which may end the turn: its last frame still
             // shows the turned body, so it's drawn the old way round once more.
             if (anim.dancing == TURN_CLIP && p.death == 0) passerbyTurning += p.id
-            anim.update(dt, p.speed, 0f, aiming = false, dead = p.death > 0, skin = true, deathClip = "Death${p.death}")
+            anim.update(dt, p.speed, 0f, aiming = false, dead = p.death > 0, skin = dueForPose(anim, p.x, p.z), deathClip = "Death${p.death}")
         }
     }
 
@@ -2642,12 +2698,20 @@ class CityRenderer(
         armed: Boolean = true,
     ) {
         if (!anim.ready) return
-        val meshes = soldierMeshes.getOrPut(anim) {
-            anim.rig.model.primitives.mapIndexed { i, p -> DynamicMesh(anim.pose.vertices[i].size, p.indices) }
-        }
-        if (uploadedVersion[anim] != anim.version) {
-            meshes.forEachIndexed { i, m -> m.update(anim.pose.vertices[i]) }
-            uploadedVersion[anim] = anim.version
+        // On the GPU: the model's parts as uploaded once, moved by this soldier's bones. Else this
+        // soldier's own copy, re-uploaded each time it's re-skinned.
+        val gpu = anim.skinOnGpu && shader.skinBones > 0
+        val meshes: List<Drawable> = if (gpu) {
+            skinnedMeshes.getOrPut(anim.rig) { anim.rig.model.primitives.map(::SkinnedMesh) }
+        } else {
+            soldierMeshes.getOrPut(anim) {
+                anim.rig.model.primitives.mapIndexed { i, p -> DynamicMesh(anim.pose.vertices[i].size, p.indices) }
+            }.also { cpu ->
+                if (uploadedVersion[anim] != anim.version) {
+                    cpu.forEachIndexed { i, m -> m.update(anim.pose.vertices[i]) }
+                    uploadedVersion[anim] = anim.version
+                }
+            }
         }
 
         // The model faces +z; the game's characters face -z at heading 0, hence the extra half turn.
@@ -2671,9 +2735,26 @@ class CityRenderer(
                 ArmyOutfit.bitmap(bytes, rig.imageRole(i))?.let(::uploadAndRecycle) ?: 0
             }
         }
+        if (gpu) {
+            GLES20.glEnableVertexAttribArray(shader.aJoints)
+            GLES20.glEnableVertexAttribArray(shader.aWeights)
+            GLES20.glUniform1f(shader.uSkinned, 1f)
+        }
+        var bonesSent = -1
         rig.model.primitives.forEachIndexed { i, p ->
+            if (gpu && p.skin != bonesSent) {
+                val palette = anim.pose.palettes[p.skin]
+                GLES20.glUniform4fv(shader.uBones, palette.size / 4, palette, 0)
+                bonesSent = p.skin
+            }
             val texture = if (p.image >= 0) textures.getOrElse(p.image) { 0 } else 0
             drawMesh(meshes[i], base, tint(materialColor(rig.roles[i], p.baseColor, look)), texture)
+        }
+        if (gpu) {
+            // Everything else is drawn as it is.
+            GLES20.glUniform1f(shader.uSkinned, 0f)
+            GLES20.glDisableVertexAttribArray(shader.aJoints)
+            GLES20.glDisableVertexAttribArray(shader.aWeights)
         }
 
         if (faceTex != 0 && rig.head >= 0) {
@@ -2763,7 +2844,7 @@ class CityRenderer(
         MaterialRole.CAMO, MaterialRole.BOOTS -> ArmyOutfit.color(role, look.uniform)
     }
 
-    private fun drawMesh(mesh: DynamicMesh, model: FloatArray, color: Int, texture: Int = 0) {
+    private fun drawMesh(mesh: Drawable, model: FloatArray, color: Int, texture: Int = 0) {
         Matrix.multiplyMM(mvp, 0, viewProj, 0, model, 0)
         GLES20.glUniformMatrix4fv(shader.uMvp, 1, false, mvp, 0)
         GLES20.glUniformMatrix4fv(shader.uModel, 1, false, model, 0)
@@ -2937,6 +3018,11 @@ class CityRenderer(
         private const val RUN_STICK = 0.6f
         /** Soldiers further than this aren't drawn or animated (lost in the fog anyway). */
         private const val SOLDIER_DRAW_DISTANCE = 110f
+        /** Most bones a character skinned on the GPU can have (the game's models have up to 65). */
+        private const val GPU_BONES = 72
+        /** Skinned on the CPU: re-posed every frame nearer than this (metres), every 2nd up to [CPU_POSE_MID], then every 4th. */
+        private const val CPU_POSE_NEAR = 20f
+        private const val CPU_POSE_MID = 45f
         private const val EYE_HEIGHT = 1.68f
         private const val PRONE_EYE_HEIGHT = 0.35f
         /** Bottom of the name tag above a standing player. */
