@@ -87,4 +87,50 @@ class SkinnedModelTest {
         a.update(model.clip("Walk"), 0.3f, run, 0.2f, 0.5f); a.skin()
         assertTrue(a.vertices.all { v -> v.all { it.isFinite() } })
     }
+
+    /**
+     * Skinning on the GPU puts every vertex exactly where skinning on the CPU does: the bone
+     * palettes, used the way the city shader uses them, give the same positions and normals.
+     * Checked for every character the game ships, mid-run, and that each fits the shader's bones.
+     */
+    @Test
+    fun gpuPalettesSkinLikeTheCpu() {
+        val assets = File("src/main/assets")
+        val open = { path: String -> File(assets, path).takeIf { it.exists() }?.readBytes() }
+        val folders = listOf(null) + listOf("models/characters", "models/pedestrians").flatMap { dir ->
+            File(assets, dir).listFiles { f -> File(f, "character.glb").exists() }.orEmpty().map { "$dir/${it.name}" }
+        }
+        for (folder in folders) {
+            val rig = com.example.beirutrun.city.SoldierRig.load(folder, open = open)
+            val m = rig.model
+            // CityRenderer.GPU_BONES: the shader's room for bones.
+            assertTrue("$folder has ${m.maxJoints} bones", m.maxJoints <= 72)
+            val pose = SkinnedPose(m)
+            val run = m.clip("Run") ?: m.clip("Idle_Gun")
+            pose.update(run, (run?.duration ?: 0f) * 0.37f, null, 0f, 1f)
+            pose.skin()
+            var worst = 0f
+            for ((pi, p) in m.primitives.withIndex()) {
+                val palette = pose.palettes[p.skin]
+                val cpu = pose.vertices[pi]
+                for (v in 0 until p.vertexCount) {
+                    for (k in 0..2) {
+                        var pos = 0f
+                        var nor = 0f
+                        for (s in 0..3) {
+                            val w = p.weights[v * 4 + s]
+                            val row = p.joints[v * 4 + s] * 12 + k * 4
+                            pos += w * (palette[row] * p.positions[v * 3] + palette[row + 1] * p.positions[v * 3 + 1] +
+                                palette[row + 2] * p.positions[v * 3 + 2] + palette[row + 3])
+                            nor += w * (palette[row] * p.normals[v * 3] + palette[row + 1] * p.normals[v * 3 + 1] +
+                                palette[row + 2] * p.normals[v * 3 + 2])
+                        }
+                        worst = maxOf(worst, abs(pos - cpu[v * 8 + k]) * rig.scale, abs(nor - cpu[v * 8 + 3 + k]))
+                    }
+                }
+            }
+            println("${folder ?: "soldier"}: ${m.maxJoints} bones, GPU vs CPU differ by at most $worst")
+            assertTrue("${folder ?: "soldier"} differs by $worst", worst < 1e-4f)
+        }
+    }
 }

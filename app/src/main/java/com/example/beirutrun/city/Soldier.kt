@@ -272,6 +272,12 @@ class SoldierAnimator(val rig: SoldierRig) {
         private set
 
     /**
+     * Skin on the GPU: [update] only works out the bone matrices ([SkinnedPose.palettes]), and the
+     * shader moves the vertices. Otherwise every vertex is moved here, into [SkinnedPose.vertices].
+     */
+    var skinOnGpu = false
+
+    /**
      * Advances the animation. [speed] is metres per second; [moveAngle] is the direction of travel
      * relative to where the soldier faces (radians, 0 = forwards, positive = to their right).
      * On a ladder ([climbing]), [speed] is how fast they're going up or down it.
@@ -329,7 +335,7 @@ class SoldierAnimator(val rig: SoldierRig) {
             pose.update(clip, time, fromClip, fromTime, fade)
             if (crawling) crawl?.apply(pose, crawlCycle)
             if (onLadder) climbPose.apply(pose, climbCycle)
-            pose.skin()
+            if (skinOnGpu) pose.poseBones() else pose.skin()
             version++
             ready = true
         }

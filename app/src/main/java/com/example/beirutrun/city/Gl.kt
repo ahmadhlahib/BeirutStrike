@@ -10,12 +10,22 @@ import javax.microedition.khronos.egl.EGL10
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.egl.EGLDisplay
 
-/** The one shader used for the whole city: optional texture, sun and sky lighting, reflections and distance fog. */
-class CityShader {
-    val program: Int = link(VERTEX, FRAGMENT)
+/**
+ * The one shader used for the whole city: optional texture, sun and sky lighting, reflections and
+ * distance fog. With [skinBones] > 0 it can also skin a character (see [SkinnedMesh]) with up to
+ * that many bones, while [uSkinned] is set: the bones move the vertices on the GPU.
+ */
+class CityShader(val skinBones: Int = 0) {
+    val program: Int = link(if (skinBones > 0) "#define SKIN $skinBones\n$VERTEX" else VERTEX, FRAGMENT)
     val aPos = GLES20.glGetAttribLocation(program, "aPos")
     val aNormal = GLES20.glGetAttribLocation(program, "aNormal")
     val aUv = GLES20.glGetAttribLocation(program, "aUv")
+    /** Skinning only (else -1): each vertex's 4 bones and how much each moves it. */
+    val aJoints = GLES20.glGetAttribLocation(program, "aJoints")
+    val aWeights = GLES20.glGetAttribLocation(program, "aWeights")
+    /** Skinning only (else -1): the bones' matrices (3 rows each), and whether to use them. */
+    val uBones = GLES20.glGetUniformLocation(program, "uBones")
+    val uSkinned = GLES20.glGetUniformLocation(program, "uSkinned")
     val uMvp = GLES20.glGetUniformLocation(program, "uMvp")
     val uModel = GLES20.glGetUniformLocation(program, "uModel")
     val uEye = GLES20.glGetUniformLocation(program, "uEye")
@@ -48,10 +58,34 @@ class CityShader {
             varying float vHeight;
             varying highp vec2 vGround;
             uniform vec4 uGround;
+            #ifdef SKIN
+            uniform vec4 uBones[SKIN * 3];
+            uniform float uSkinned;
+            attribute vec4 aJoints;
+            attribute vec4 aWeights;
+            // Bone j's matrix, from its top three rows.
+            mat4 bone(float j) {
+                int i = int(min(j + 0.5, float(SKIN - 1))) * 3;
+                vec4 a = uBones[i];
+                vec4 b = uBones[i + 1];
+                vec4 c = uBones[i + 2];
+                return mat4(a.x, b.x, c.x, 0.0, a.y, b.y, c.y, 0.0, a.z, b.z, c.z, 0.0, a.w, b.w, c.w, 1.0);
+            }
+            #endif
             void main() {
-                vec4 world = uModel * vec4(aPos, 1.0);
-                gl_Position = uMvp * vec4(aPos, 1.0);
-                vNormal = (uModel * vec4(aNormal, 0.0)).xyz;
+                vec3 pos = aPos;
+                vec3 normal = aNormal;
+                #ifdef SKIN
+                if (uSkinned > 0.5) {
+                    mat4 m = bone(aJoints.x) * aWeights.x + bone(aJoints.y) * aWeights.y
+                        + bone(aJoints.z) * aWeights.z + bone(aJoints.w) * aWeights.w;
+                    pos = (m * vec4(aPos, 1.0)).xyz;
+                    normal = (m * vec4(aNormal, 0.0)).xyz;
+                }
+                #endif
+                vec4 world = uModel * vec4(pos, 1.0);
+                gl_Position = uMvp * vec4(pos, 1.0);
+                vNormal = (uModel * vec4(normal, 0.0)).xyz;
                 vUv = aUv;
                 // Pass the offset, not the distance: an offset interpolates correctly across big
                 // triangles (like the ground), a distance does not.
@@ -236,7 +270,7 @@ class Mesh(data: FloatArray) : Drawable {
  * An indexed mesh whose vertices change every frame (an animated character): same vertex layout
  * as [Mesh], with the triangle indices uploaded once.
  */
-class DynamicMesh(vertexFloats: Int, indices: ShortArray) {
+class DynamicMesh(vertexFloats: Int, indices: ShortArray) : Drawable {
     private val indexCount = indices.size
     private val vbo: Int
     private val ibo: Int
@@ -265,7 +299,7 @@ class DynamicMesh(vertexFloats: Int, indices: ShortArray) {
         GLES20.glBufferSubData(GLES20.GL_ARRAY_BUFFER, 0, data.size * 4, buffer)
     }
 
-    fun draw(shader: CityShader) {
+    override fun draw(shader: CityShader) {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glVertexAttribPointer(shader.aPos, 3, GLES20.GL_FLOAT, false, 32, 0)
         GLES20.glVertexAttribPointer(shader.aNormal, 3, GLES20.GL_FLOAT, false, 32, 12)
@@ -277,6 +311,66 @@ class DynamicMesh(vertexFloats: Int, indices: ShortArray) {
 
     /** Frees the GPU buffers (GL thread); the mesh can't be drawn afterwards. */
     fun release() = GLES20.glDeleteBuffers(2, intArrayOf(vbo, ibo), 0)
+}
+
+/**
+ * One part of a character in its rest pose, uploaded once and skinned by the shader (see
+ * [CityShader.skinBones]): position (3), normal (3), uv (2), then its 4 bones and their 4 weights.
+ * Every soldier wearing the same model shares it; each brings only its own bone matrices.
+ * Drawn with the shader's aJoints and aWeights arrays enabled.
+ */
+class SkinnedMesh(prim: SkinnedModel.Primitive) : Drawable {
+    private val indexCount = prim.indices.size
+    private val vbo: Int
+    private val ibo: Int
+
+    init {
+        val n = prim.vertexCount
+        val data = FloatArray(n * FLOATS)
+        for (v in 0 until n) {
+            val o = v * FLOATS
+            for (k in 0..2) {
+                data[o + k] = prim.positions[v * 3 + k]
+                data[o + 3 + k] = prim.normals[v * 3 + k]
+            }
+            prim.uvs?.let { data[o + 6] = it[v * 2]; data[o + 7] = it[v * 2 + 1] }
+            for (k in 0..3) {
+                data[o + 8 + k] = prim.joints[v * 4 + k].toFloat()
+                data[o + 12 + k] = prim.weights[v * 4 + k]
+            }
+        }
+        val ids = IntArray(2)
+        GLES20.glGenBuffers(2, ids, 0)
+        vbo = ids[0]
+        ibo = ids[1]
+        val vb = ByteBuffer.allocateDirect(data.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+            .put(data).also { it.position(0) }
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, data.size * 4, vb, GLES20.GL_STATIC_DRAW)
+        val ib = ByteBuffer.allocateDirect(indexCount * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+            .put(prim.indices).also { it.position(0) }
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
+        GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, indexCount * 2, ib, GLES20.GL_STATIC_DRAW)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+    }
+
+    override fun draw(shader: CityShader) {
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+        GLES20.glVertexAttribPointer(shader.aPos, 3, GLES20.GL_FLOAT, false, STRIDE, 0)
+        GLES20.glVertexAttribPointer(shader.aNormal, 3, GLES20.GL_FLOAT, false, STRIDE, 12)
+        GLES20.glVertexAttribPointer(shader.aUv, 2, GLES20.GL_FLOAT, false, STRIDE, 24)
+        GLES20.glVertexAttribPointer(shader.aJoints, 4, GLES20.GL_FLOAT, false, STRIDE, 32)
+        GLES20.glVertexAttribPointer(shader.aWeights, 4, GLES20.GL_FLOAT, false, STRIDE, 48)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+    }
+
+    private companion object {
+        const val FLOATS = 16
+        const val STRIDE = FLOATS * 4
+    }
 }
 
 class MeshBuilder {

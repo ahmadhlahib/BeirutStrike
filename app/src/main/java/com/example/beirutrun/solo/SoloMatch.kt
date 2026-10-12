@@ -184,7 +184,7 @@ class SoloMatch(
     // ---- What the city screen asks -------------------------------------------------------------
 
     /** The bots, to draw like other players (and to send to an online room's other phones). */
-    fun players(now: Long): List<RemotePlayer> = bots.map { b ->
+    @Synchronized fun players(now: Long): List<RemotePlayer> = bots.map { b ->
         RemotePlayer(
             uid = b.uid, name = b.name, x = b.x, z = b.z, heading = b.heading,
             walking = b.speed > 0.2f, say = "", sayAt = 0L, faceVersion = 0L, updated = now,
@@ -196,12 +196,12 @@ class SoloMatch(
         )
     }
 
-    fun isBot(uid: String) = bots.any { it.uid == uid }
+    @Synchronized fun isBot(uid: String) = bots.any { it.uid == uid }
 
-    fun nameOf(uid: String) = bots.firstOrNull { it.uid == uid }?.name
+    @Synchronized fun nameOf(uid: String) = bots.firstOrNull { it.uid == uid }?.name
 
     /** Everyone's score, the player as [ME] (a solo game; an online room asks for the bots' alone). */
-    fun stats(includeMe: Boolean = true): List<PlayerStats> = bots.map { b ->
+    @Synchronized fun stats(includeMe: Boolean = true): List<PlayerStats> = bots.map { b ->
         PlayerStats(b.uid, b.name, b.team, b.kills, b.deaths, b.shots, b.hits, b.hitsTaken)
     } + if (!includeMe) emptyList() else listOf(PlayerStats(
         ME, player.name, playerTeam, mine["kills"] ?: 0, mine["deaths"] ?: 0,
@@ -209,23 +209,23 @@ class SoloMatch(
     ))
 
     /** One more of the player's own [key] ("shots", "hits", "hitsTaken", "deaths" or "kills"). */
-    fun count(key: String) { mine[key] = (mine[key] ?: 0) + 1 }
+    @Synchronized fun count(key: String) { mine[key] = (mine[key] ?: 0) + 1 }
 
     /**
      * Player [from] hit bot [uid] for [damage] hearts. Returns its name if that killed it (the
      * killer's phone counts the kill), else null.
      */
-    fun hitByPlayer(uid: String, damage: Int, from: String = ME): String? {
+    @Synchronized fun hitByPlayer(uid: String, damage: Int, from: String = ME): String? {
         val bot = bots.firstOrNull { it.uid == uid } ?: return null
         val shooter = people.firstOrNull { it.uid == from } ?: player
         return if (hurt(bot, damage, from, shooter.x, shooter.z)) bot.name else null
     }
 
     /** A player was killed by bot [uid] (its bullet took the last heart). */
-    fun playerKilledBy(uid: String) { bots.firstOrNull { it.uid == uid }?.let { it.kills++ } }
+    @Synchronized fun playerKilledBy(uid: String) { bots.firstOrNull { it.uid == uid }?.let { it.kills++ } }
 
     /** Someone fired from (x, z): bots in earshot not on [team] turn to look. */
-    fun heardShot(x: Float, z: Float, team: String = playerTeam) {
+    @Synchronized fun heardShot(x: Float, z: Float, team: String = playerTeam) {
         for (b in bots) {
             if (b.dead || b.team == team || hypot(b.x - x, b.z - z) > HEARING) continue
             if (b.target == null || clock - b.seenAt > 1f) b.heading = headingTo(b.x, b.z, x, z)
@@ -238,7 +238,7 @@ class SoloMatch(
     fun update(dt: Float, now: Player): List<Event> = update(dt, listOf(now))
 
     /** Moves the game on by [dt] seconds with [now] the players; returns what happened. */
-    fun update(dt: Float, now: List<Player>): List<Event> {
+    @Synchronized fun update(dt: Float, now: List<Player>): List<Event> {
         clock += dt
         for (p in now) {
             val before = people.firstOrNull { it.uid == p.uid } ?: p
@@ -285,10 +285,12 @@ class SoloMatch(
         // Looking round a few times a second for the nearest enemy in sight.
         if (clock >= b.nextLook) {
             b.nextLook = clock + LOOK_EVERY
+            // Nearest first, so the (costly) line of sight is checked only until one is in view.
             val seen = targets.filter { it.team != b.team }
                 .map { it to hypot(it.x - b.x, it.z - b.z) }
-                .filter { (t, dist) -> dist <= d.sight && canSee(b, t, dist) }
-                .minByOrNull { it.second }?.first
+                .filter { it.second <= d.sight }
+                .sortedBy { it.second }
+                .firstOrNull { (t, dist) -> canSee(b, t, dist) }?.first
             if (seen != null) {
                 if (b.target != seen.uid || clock - b.seenAt > LOST_SECONDS) {
                     // Someone new: a moment to react before the first shot.
