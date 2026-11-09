@@ -4,12 +4,14 @@
 ![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF?logo=kotlin&logoColor=white)
 ![Min SDK](https://img.shields.io/badge/min%20SDK-26-blue)
 ![Firebase](https://img.shields.io/badge/backend-Firebase-FFCA28?logo=firebase&logoColor=black)
-![Google Play](https://img.shields.io/badge/Google%20Play-closed%20testing-414141?logo=googleplay&logoColor=white)
+![Google Play](https://img.shields.io/badge/Google%20Play-launching%20soon-414141?logo=googleplay&logoColor=white)
 
 **Beirut Strike** is a multiplayer third-person shooter for Android, set in real neighbourhoods of
 Beirut. The streets and buildings are generated from OpenStreetMap data and drawn in 3D with
 OpenGL ES. Players join a room, pick a team, and fight timed matches through the city. Positions,
 shots and scores sync live between phones, and teammates can talk over voice chat.
+
+**Game page:** [ahmadellahib.dev/BeirutStrike](https://ahmadellahib.dev/BeirutStrike/) · made by [Ahmad El Lahib](https://ahmadellahib.dev), freelance Android developer in Lebanon.
 
 > **Status:** version 1.2.0 is in **closed testing** on Google Play. The public release follows
 > once the test is done.
