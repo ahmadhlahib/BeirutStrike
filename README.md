@@ -13,8 +13,8 @@ shots and scores sync live between phones, and teammates can talk over voice cha
 
 **Game page:** [ahmadellahib.dev/BeirutStrike](https://ahmadellahib.dev/BeirutStrike/) · made by [Ahmad El Lahib](https://ahmadellahib.dev), freelance Android developer in Lebanon.
 
-> **Status:** version 1.2.0 is in **closed testing** on Google Play. The public release follows
-> once the test is done.
+> **Status:** closed testing of version 1.2.0 is complete. The public release on Google Play
+> follows in a few days.
 
 ---
 
